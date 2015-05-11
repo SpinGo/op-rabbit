@@ -8,7 +8,7 @@ Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for i
 
 - Recovery:
     - Consumers automatically reconnect and subscribe if the connection is lost
-    - Messages published can optionally 
+    - Messages published will wait for a connection to be available
 - Integration
     - Connection settings pulled from Typesafe config library
     - Asyncronous, concurrent consumption using Scala native Futures or the new Akka Streams project.
@@ -25,6 +25,8 @@ Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for i
     - With a single message, pause all consumers if service health check fails (IE: database unavailable); easily resume the same.
 - Graceful shutdown
     - Consumers and streams can immediately unsubscribe, but stay alive long enough to wait for any messages to finish being processed.
+- Program at multiple levels of abstraction
+    - If op-rabbit doesn't do what you need it to, you can either extend op-rabbit or interact directly with `akka-rabbitmq` [Akka RabbitMQ client](https://github.com/thenewmotion/akka-rabbitmq).
 - Tested
     - Extensive integration tests
 
@@ -95,10 +97,11 @@ import com.spingo.op_rabbit._
 
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
+// A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
 val consumer = AsyncAckingConsumer("PersonSignup", qos = 3) { person: Person =>
   Future {
     // do work; when this Future completes, the message will be acknowledged.
-    // if the Future fails, it will be automatically retried (up to 3 times, by default)
+    // if the Future fails, after a delay the message will be redelivered for retry (up to 3 times, by default)
   }
 }
 
@@ -208,3 +211,7 @@ object LogbackLogger extends RabbitErrorLogging {
   }
 }
 ```
+
+### Credits
+
+This library builds upon the excellent [Akka RabbitMQ client](https://github.com/thenewmotion/akka-rabbitmq) by Yaroslav Klymko.
