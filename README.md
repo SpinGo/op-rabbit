@@ -1,6 +1,6 @@
 # Op-Rabbit
 
-##### An opinionated RabbitMQ library.
+##### An opinionated RabbitMQ library for Scala and Akka.
 
 # Intro
 
@@ -30,7 +30,7 @@ Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for i
 
 ## Installation
 
-Add the SpinGo OSS repository and include in the dependencies of your chosing:
+Add the SpinGo OSS repository and include the dependencies of your choosing:
 
 ```scala
 resolvers ++= Seq(
@@ -47,16 +47,16 @@ libraryDependencies ++= Seq(
 )
 ```
 
-The following libraries are available
+A high-level overview of the available components:
 
-- op-rabbit-core
-    - Implements basic patterns for serialization and message processing
-- op-rabbit-play-json
-    - Easily use Play Json formats to publish or consume messages; automatically sets RabbitMQ message headers to indicate content type
-- op-rabbit-airbrake
+- `op-rabbit-core`
+    - Implements basic patterns for serialization and message processing.
+- `op-rabbit-play-json`
+    - Easily use Play Json formats to publish or consume messages; automatically sets RabbitMQ message headers to indicate content type.
+- `op-rabbit-airbrake`
     - Report consumer exceptions to airbrake.
-- op-rabbit-akka-stream
-    - Process or publish messages using Akka-streams
+- `op-rabbit-akka-stream`
+    - Process or publish messages using akka-stream.
 
 ## Usage
 
@@ -157,9 +157,9 @@ rabbitMq ! subscription
 
 Source(subscription.consumer).
   to(Sink.foreach {
-    case (p, work) =>
+    case (ackPromise, work) =>
       doWork(work)
-      p.sucess() // fulfilling the promise causes the message to be acknowledge and removed from the queue
+      ackPromise.success() // fulfilling the promise causes the message to be acknowledge and removed from the queue
   })
   .run
 ```
@@ -186,10 +186,25 @@ Source(1 to 15).
 
 If you can see the pattern here, combining an akka-stream rabbitmq consumer and publisher allows for guaranteed at-least-once message delivery from head to tail; in other words, don't acknowledge the original message until any and all side-effect events have been published and persisted.
 
-# Notes
+### Error notification
 
-- Implementing your own serializers, error handling, consumer or subscription strategies is easy. See the source code for an example. Library is composable and any component can be swapped out for a different behavior.
+It's important to know when your consumers fail. Out of the box, `op-rabbit` ships with support for logging to `logback` (and therefore syslog), and also `airbrake` via `op-rabbit-airbrake`. Without any additional signal provided by you, logback will be used, making error visibility a default.
 
-- AsyncAckingConsumer automatically redelivers a message once on handler failure.
+You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `logback` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
 
-- System is fully fault-tolerant; consumers will automatically reconnect, re-subscribe in the event the RabbitMq connection goes away. By default, message deliveries will be retried until successful.
+```scala
+import com.spingo.op_rabbit.{LogbackLogger, RabbitControl}
+
+implicit val rabbitErrorLogging = LogbackLogger + AirbrakeLogger.fromConfig
+```
+
+Implementing your own error reporting strategy is simple; here's the source code for the LogbackLogger:
+
+```scala
+object LogbackLogger extends RabbitErrorLogging {
+  def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
+    val logger = LoggerFactory.getLogger(name)
+    logger.error(s"${message}. Body=${bodyAsString(body, properties)}. Envelope=${envelope}", exception)
+  }
+}
+```
