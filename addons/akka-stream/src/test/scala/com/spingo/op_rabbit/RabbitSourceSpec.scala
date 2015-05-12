@@ -69,7 +69,6 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         subscription.close()
 
         await(result) should be (136)
-        rabbitControl ! DeleteQueue(queueName())
         await(subscription.closed) // assert that subscription gets closed
       }
     }
@@ -93,7 +92,6 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           await(result)
         }
 
-        rabbitControl ! DeleteQueue(queueName())
         await(subscription.closed) // assert that subscription gets closed
         await(exceptionReported.future) should be (true)
       }
