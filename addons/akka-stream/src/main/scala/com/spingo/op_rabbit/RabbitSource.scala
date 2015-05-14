@@ -33,7 +33,7 @@ object RabbitSource {
   //   new RabbitSource[T](ref)
   // }
 
-  class LostPromiseWatcher[T]() {
+  private [op_rabbit] class LostPromiseWatcher[T]() {
     // the key is a strong reference to the upstream promise; the weak-key is the representative promise.
     private var watched = scala.collection.concurrent.TrieMap.empty[Promise[T], scala.ref.WeakReference[Promise[T]]]
 
@@ -75,7 +75,7 @@ case class RabbitSource[T](
     subscriber.success(sub)
 }
 
-class RabbitSourceActor[T](
+protected class RabbitSourceActor[T](
   queueName: String,
   name: String,
   qos: Int = 3,
