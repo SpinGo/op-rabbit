@@ -1,142 +1,65 @@
 package com.spingo.op_rabbit
 
-import scala.concurrent.{Promise,Future,ExecutionContext}
-import akka.pattern.ask
-import com.thenewmotion.akka.rabbitmq._
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import akka.actor._
-import com.spingo.op_rabbit.RabbitExceptionMatchers._
-import scala.util.Success
-case class ConsumerTag(tag: String)
 
+/**
+  A Subscription combines together a [[Binding]] and a [[Consumer]], where the binding defines how the message queue is declare and if any topic bindings are involved, and the consumer declares how messages are to be consumed from the message queue specified by the [[Binding]]. This object is sent to [[RabbitControl]] to activate.
+
+  It features convenience methods to with Futures to help timing.
+  */
 case class Subscription[+C <: Consumer](binding: Binding, consumer: C) {
   private [op_rabbit] val _initializedP = Promise[Unit]
 
   private [op_rabbit] val _closedP = Promise[Unit]
   private [op_rabbit] val _closingP = Promise[FiniteDuration]
   private val _abortingP = Promise[Unit]
+  /**
+    Future is completed the moment the subscription closes.
+    */
   val closed = _closedP.future
   val aborting = _abortingP.future
+
+  /**
+    Future is completed once the graceful shutdown process initiates.
+    */
   val closing: Future[Unit] = _closingP.future.map( _ => () )(ExecutionContext.global)
+
+  /**
+    Future is completed once the message queue and associated bindings are configured.
+    */
   val initialized = _initializedP.future
 
-  // shut down associated subscription-actor, close the channel, shut down channel actor, etc.
+  /**
+    Causes consumer to immediately stop receiving new messages; once pending messages are complete / acknowledged, shut down all associated actors, channels, etc.
+    
+    If pending messages aren't complete after the provided timeout, the channel is closed and the unacknowledged messages will be scheduled for redelivery.
+    */
   def close(timeout: FiniteDuration = 5 minutes) =
     _closingP.trySuccess(timeout)
 
+  /**
+    Like close, but don't wait for pending messages to finish processing.
+    */
   def abort() =
     _abortingP.trySuccess(())
 }
 
-object SubscriptionActor {
-  sealed trait State
-  case object Paused extends State
-  case object Running extends State
-  case object Stopped extends State
+/**
+  scala
+  // stop receiving new messages from RabbitMQ immediately; shut down consumer and channel as soon as pending messages are completed. A grace period of 30 seconds is given, after which the subscription forcefully shuts down.
+  subscription.
 
-  sealed trait Commands
-  def props(subscription: Subscription[Consumer], connection: ActorRef): Props =
-    Props(classOf[SubscriptionActor], subscription, connection)
+  // Shut things down without a grace period
+  subscription.abort()
 
-  case object Shutdown extends Commands
-  case class ConnectionInfo(channelActor: Option[ActorRef], channel: Option[Channel])
-}
+  // Future[Unit] which completes once the provided binding has been applied (IE: queue has been created and topic bindings configured). Useful if you need to assert you don't send a message before a message queue is created in which to place it.
+  subscription.initialized
 
-class SubscriptionActor(subscription: Subscription[Consumer], connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.ConnectionInfo] {
-  import SubscriptionActor._
+  // Future[Unit] which completes when the subscription is closed.
+  subscription.closed
 
-  import RabbitControl.{Pause, Run}
-
-  startWith(Paused, ConnectionInfo(None, None))
-
-  val consumer = context.actorOf(subscription.consumer.props(subscription.binding.queueName), "consumer")
-  context.watch(consumer)
-
-  private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
-
-  val consumerStoppedP = Promise[Unit]
-  val channelActorP = Promise[ActorRef]
-
-  when(Running) {
-    case Event(ChannelConnected(channel, _), info) =>
-      subscribe(channel) using info.copy(channel = Some(channel))
-    case Event(Pause, _) =>
-      consumer.tell(Consumer.Unsubscribe, sender)
-      goto(Paused)
-    case Event(Run, _) =>
-      stay replying true
-  }
-
-  when(Paused) {
-    case Event(ChannelConnected(channel, _), info) =>
-      stay using info.copy(channel = Some(channel))
-    case Event(Run, connection) =>
-      connection.channel map (subscribe) getOrElse (goto(Running)) replying true
-    case Event(Pause, _) =>
-      stay replying true
-  }
-
-  whenUnhandled {
-    case Event(ChannelCreated(channelActor_), _) =>
-      channelActorP.success(channelActor_)
-      stay
-
-    case Event(Terminated(actor), _) if actor == consumer =>
-      // our consumer stopped; time to shut ourself down
-      consumerStoppedP.success(())
-      stay
-
-    case Event(e, s) =>
-      log.error("received unhandled request {} in state {}/{}", e, stateName, s)
-      stay
-
-  }
-  onTermination {
-    case StopEvent(_, _, connectionInfo) =>
-      subscription._closedP.trySuccess(())
-      stop()
-  }
-
-  initialize()
-
-  override def preStart: Unit = {
-    import ExecutionContext.Implicits.global
-    val system = context.system
-    subscription._closingP.future.foreach { timeout =>
-      consumer ! Consumer.Shutdown
-      context.system.scheduler.scheduleOnce(timeout) {
-        subscription.abort()
-      }
-    }
-    subscription.aborting.onComplete { _ =>
-      consumer ! Consumer.Abort
-    }
-    connection ! CreateChannel(ChannelActor.props({(channel: Channel, channelActor: ActorRef) =>
-      log.info(s"Channel created; ${channel}")
-      self ! ChannelConnected(channel, channelActor)
-    }))
-
-    for {
-      _               <- subscription.closed
-      channelActorRef <- channelActorP.future
-      _               <- consumerStoppedP.future
-    } system stop channelActorRef
-
-    for {
-      _ <- consumerStoppedP.future
-      _ <- channelActorP.future
-    } system stop self
-  }
-
-  def subscribe(channel: Channel) = {
-    // subscription.subscribe(connection.channel)
-    subscription.binding.bind(channel)
-    subscription._initializedP.trySuccess(Unit)
-    consumer ! Consumer.Subscribe(channel)
-    goto(Running)
-  }
-
-  def unsubscribe = {
-  }
-
-}
+  // Future[Unit] which completes when the subscription begins closing.
+  subscription.closing
+  ```
+  */

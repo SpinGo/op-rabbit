@@ -5,8 +5,8 @@ import java.io.IOException
 
 
 object RabbitExceptionMatchers {
-  /*
-   RabbitMQ java JAR isn't particularly good at defining the
+  /**
+   RabbitMQ java JAR isn't particularly good at defining some
    exceptions; we've got to resort to some unfortunate brute-force
    methods to match specific exceptions.
    */

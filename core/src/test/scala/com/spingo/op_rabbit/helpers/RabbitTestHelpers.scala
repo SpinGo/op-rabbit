@@ -7,7 +7,7 @@ import akka.pattern.ask
 import akka.util.Timeout
 import com.rabbitmq.client.Channel
 import com.spingo.op_rabbit.RabbitControl
-import com.spingo.op_rabbit.{GetConnectionActor, MessageForPublication, RabbitMarshaller, RabbitUnmarshaller}
+import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
 import com.spingo.test.helpers.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
 import scala.concurrent.{Await, Future, Promise}
@@ -15,7 +15,7 @@ import scala.concurrent.duration._
 
 trait RabbitTestHelpers extends ScopedFixtures {
   implicit val timeout = Timeout(5 seconds)
-  val killConnection = new MessageForPublication {
+  val killConnection = new MessageForPublicationLike {
     val dropIfNoChannel = true
     def apply(c: Channel): Unit = {
       c.getConnection.close()
@@ -40,7 +40,7 @@ trait RabbitTestHelpers extends ScopedFixtures {
   // kills the rabbitMq connection in such a way that the system will automatically recover and reconnect;
   // synchronously waits for the connection to be terminated, and to be re-established
   def reconnect(rabbitMqControl: ActorRef)(implicit actorSystem: ActorSystem): Unit = {
-    val connectionActor = await((rabbitMqControl ? GetConnectionActor).mapTo[ActorRef])
+    val connectionActor = await((rabbitMqControl ? RabbitControl.GetConnectionActor).mapTo[ActorRef])
 
     val done = Promise[Unit]
     actorSystem.actorOf(Props(new Actor {

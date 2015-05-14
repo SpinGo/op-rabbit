@@ -1,0 +1,129 @@
+Please see the README on [[https://github.com/SpinGo/op-rabbit]] for an overview.
+
+==Configuration==
+
+Set up RabbitMQ connection information in `application.conf`:
+
+{{{
+rabbitmq {
+  topic-exchange-name = "op-rabbit-testeroni"
+  hosts = ["127.0.0.1"]
+  username = "guest"
+  password = "guest"
+  port = 5672
+  timeout = 3s
+}
+}}}
+
+==Usage==
+
+Boot up the [[com.spingo.op_rabbit.RabbitControl RabbitControl]] actor:
+
+{{{
+implicit val actorSystem = ActorSystem("such-system")
+val rabbitMq = actorSystem.actorOf(Props[RabbitControl])
+}}}
+
+==Set up a [[com.spingo.op_rabbit.AsyncAckingConsumer Consumer]]: ([[com.spingo.op_rabbit.TopicBinding Topic subscription]])==
+
+(this example uses `op-rabbit-play-json`)
+
+{{{
+import com.spingo.op_rabbit.PlayJsonSupport._
+import com.spingo.op_rabbit._
+
+implicit val personFormat = Json.format[Person] // setup play-json serializer
+
+// A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
+val consumer = AsyncAckingConsumer("PersonSignup", qos = 3) { person: Person =>
+  Future {
+    // do work; when this Future completes, the message will be acknowledged.
+    // if the Future fails, after a delay the message will be redelivered for retry (up to 3 times, by default)
+  }
+}
+
+val subscription = new Subscription(
+  TopicBinding(
+      queueName = "such-message-queue",
+      topics = List("some-topic.#"),
+  consumer)
+
+rabbitMq ! subscription
+}}}
+
+See [[com.spingo.op_rabbit.Subscription Subscription]]
+
+==Publish a message==
+
+{{{
+rabbitMq ! TopicMessage(Person(name = "Mike How", age = 33), "some-topic.#")
+
+rabbitMq ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), "such-message-queue")
+}}}
+
+By default, messages will be queued up until a connection is available.
+
+==Consuming using Akka streams==
+
+(this example uses `op-rabbit-play-json` and `op-rabbit-akka-streams`)
+
+{{{
+import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.PlayJsonSupport._
+implicit val workFormat = Json.format[Work] // setup play-json serializer
+
+lazy val subscription = Subscription(
+  new QueueBinding("such-queue", durable = true, exclusive = false, autoDelete = false),
+  RabbitSource[Work](name = "very-stream", qos = qos)) // marshalling is automatically hooked up using implicits
+
+rabbitMq ! subscription
+
+Source(subscription.consumer).
+  to(Sink.foreach {
+    case (ackPromise, work) =>
+      doWork(work)
+      ackPromise.success() // fulfilling the promise causes the message to be acknowledge and removed from the queue
+  })
+  .run
+}}}
+
+== Publishing using Akka streams ==
+
+(this example uses `op-rabbit-play-json` and `op-rabbit-akka-streams`)
+
+{{{
+import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.PlayJsonSupport._
+implicit val workFormat = Format[Work] // setup play-json serializer
+
+val sink = RabbitSink[Work](
+  "my-sink-name",
+  rabbitMq,
+  GuaranteedPublishedMessage(QueuePublisher("such-queue")))
+
+Source(1 to 15).
+  map { i => (Promise[Unit], i) }.  // each promise will be completed by the sink when message delivery occurs
+  to(sink)
+  .run
+}}}
+
+== Error Notification ==
+
+It's important to know when your consumers fail. Out of the box, `op-rabbit` ships with support for logging to `logback` (and therefore syslog) via [[com.spingo.op_rabbit.LogbackLogger LogbackLogger]], and also `airbrake` via `op-rabbit-airbrake`. Without any additional signal provided by you, logback will be used, making error visibility a default.
+
+You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `logback` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
+
+{{{
+import com.spingo.op_rabbit.{LogbackLogger, RabbitControl}
+
+implicit val rabbitErrorLogging = LogbackLogger + AirbrakeLogger.fromConfig
+}}}
+
+Implementing your own error reporting strategy is simple; see [[com.spingo.op_rabbit.LogbackLogger]]:
+
+== Authors ==
+
+
+== Credits ==
+
+This library builds upon the excellent [[https://github.com/thenewmotion/akka-rabbitmq Akka RabbitMQ client]] by Yaroslav Klymko.

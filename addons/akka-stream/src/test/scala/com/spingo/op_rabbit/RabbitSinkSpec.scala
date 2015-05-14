@@ -7,7 +7,6 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
-import com.spingo.op_rabbit.DefaultMarshalling.utf8StringMarshaller
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.test.helpers.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}

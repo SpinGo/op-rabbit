@@ -20,7 +20,7 @@ import scala.util.Random
 class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
   trait RabbitFixtures {
-    import DefaultMarshalling._
+    // import DefaultMarshalling._
     implicit val executionContext = ExecutionContext.global
   }
   val queueName = ScopedFixture[String] { setter =>
@@ -166,7 +166,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         println("Round 2 complete")
         println(s"receivedCounts = ${receivedCounts}")
 
-        rabbitControl ! new MessageForPublication {
+        rabbitControl ! new MessageForPublicationLike {
           val dropIfNoChannel = false
           def apply(channel: Channel): Unit =
             channel.queueDelete(queueName())

@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext
 import scala.concurrent.{Future, Promise}
 
-trait MessageForConfirmedPublication extends MessageForPublication {
+trait MessageForConfirmedPublication extends MessageForPublicationLike {
   val dropIfNoChannel = false
   val published: Future[Unit]
 }

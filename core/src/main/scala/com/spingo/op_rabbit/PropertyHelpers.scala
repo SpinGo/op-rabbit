@@ -6,6 +6,9 @@ import scala.collection.JavaConversions._
 import com.rabbitmq.client.LongString
 import com.rabbitmq.client.impl.LongStringHelper
 
+/**
+  Helper functions used internally to manipulate getting and setting custom headers
+  */
 object PropertyHelpers {
   private val RETRY_HEADER_NAME = "RETRY"
 
