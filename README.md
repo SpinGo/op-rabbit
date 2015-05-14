@@ -60,15 +60,15 @@ libraryDependencies ++= Seq(
 
 A high-level overview of the available components:
 
-- `op-rabbit-core`
+- `op-rabbit-core` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html)
     - Implements basic patterns for serialization and message processing.
-- `op-rabbit-play-json`
+- `op-rabbit-play-json` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/play-json/current/index.html)
     - Easily use [Play Json](https://www.playframework.com/documentation/2.4.x/ScalaJson) formats to publish or consume messages; automatically sets RabbitMQ message headers to indicate content type.
-- `op-rabbit-json4s`
+- `op-rabbit-json4s` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/json4s/current/index.html)
     - Easily use [Json4s](http://json4s.org) to serialization messages; automatically sets RabbitMQ message headers to indicate content type.
-- `op-rabbit-airbrake`
+- `op-rabbit-airbrake` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/airbrake/current/index.html)
     - Report consumer exceptions to airbrake.
-- `op-rabbit-akka-stream`
+- `op-rabbit-akka-stream` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html)
     - Process or publish messages using akka-stream.
 
 ## Usage
