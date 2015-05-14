@@ -147,9 +147,9 @@ subscription.closing
 ### Publish a message:
 
 ```scala
-rabbitMq ! TopicMessage(Person(name = "Mike How", age = 33), "some-topic.#")
+rabbitMq ! TopicMessage(Person(name = "Mike How", age = 33), routingKey = "some-topic.very-interest")
 
-rabbitMq ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), "such-message-queue")
+rabbitMq ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
 ```
 
 By default, messages will be queued up until a connection is available.
