@@ -7,6 +7,7 @@ See the latest API Docs:
 - [op-rabbit-core](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html) (Start here)
 - [op-rabbit-json4s](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/json4s/current/index.html)
 - [op-rabbit-play-json](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/play-json/current/index.html)
+- [op-rabbit-airbrake](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/airbrake/current/index.html)
 
 # Intro
 

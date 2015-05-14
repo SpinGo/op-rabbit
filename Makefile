@@ -10,9 +10,10 @@ addons/%/target/docs-published: addons/%/target/scala-2.11/api/index.html
 
 docs-core: core/target/docs-published
 docs-json4s: addons/json4s/target/docs-published
+docs-airbrake: addons/airbrake/target/docs-published
 docs-play-json: addons/play-json/target/docs-published
 
 prev-%: addons/%/target/scala-2.11/api/index.html
 	open addons/$*/target/scala-2.11/api/index.html
 
-docs: docs-json4s docs-core docs-play-json
+docs: docs-json4s docs-core docs-play-json docs-airbrake
