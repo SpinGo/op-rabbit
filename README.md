@@ -2,6 +2,8 @@
 
 ##### An opinionated RabbitMQ library for Scala and Akka.
 
+See the latest [API Docs](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html)
+
 # Intro
 
 Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for interacting with RabbitMQ:
