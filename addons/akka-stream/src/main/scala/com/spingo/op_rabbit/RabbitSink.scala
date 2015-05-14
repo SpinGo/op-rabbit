@@ -18,11 +18,14 @@ object MessageForConfirmedPublication {
   trait Factory {
     def apply[T](message: T)(implicit marshaller: RabbitMarshaller[T]): MessageForConfirmedPublication
   }
-  // type Factory[T] = T => MessageForConfirmedPublication
 }
 
-// Publishes the message inside of a transaction in order to guarantee that the message is persisted
-// About 150x slower than async publishing.
+/**
+  Publishes the message inside of a transaction in order to guarantee that the message is persisted
+  About 150x slower than async publishing.
+  
+  TODO - use [[https://www.rabbitmq.com/confirms.html]]
+  */
 class GuaranteedPublishedMessage(
   val publisher: MessagePublisher,
   val data: Array[Byte],
@@ -47,9 +50,11 @@ class GuaranteedPublishedMessage(
   }
 }
 
-// Publishes the message using the provided MessagePublisher; fulfills
-// a promise so the submitter can track when the message was actually
-// sent off
+/**
+  Publishes the message using the provided MessagePublisher; fulfills
+  a promise so the submitter can track when the message was actually
+  sent off
+  */
 class NotifyingPublishedMessage(
   val publisher: MessagePublisher,
   val data: Array[Byte],
