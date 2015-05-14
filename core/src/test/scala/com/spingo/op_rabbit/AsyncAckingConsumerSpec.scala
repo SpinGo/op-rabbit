@@ -7,7 +7,7 @@ import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.Channel
 import com.rabbitmq.client.ShutdownSignalException
-import com.spingo.test.helpers.ScopedFixtures
+import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.AmqpShutdownSignal
 import com.thenewmotion.akka.rabbitmq.ChannelActor
 import com.thenewmotion.akka.rabbitmq.CreateChannel

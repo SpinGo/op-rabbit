@@ -6,7 +6,7 @@ object OpRabbit extends Build {
 
   lazy val commonSettings = Seq(
     organization := "com.spingo",
-    version := "1.0.0-SNAPSHOT",
+    version := "1.0.0-M1",
     scalaVersion := "2.11.6",
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -20,7 +20,7 @@ object OpRabbit extends Build {
       "com.thenewmotion.akka" %% "akka-rabbitmq" % "1.3.0-SPINGO",
       "ch.qos.logback" % "logback-classic" % "1.1.2",
       "org.scalatest" %% "scalatest" % "2.2.1" % "test",
-      "com.spingo" %% "scoped-fixtures" % "0.4.0" % "test"
+      "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test"
     ),
     publishMavenStyle := true,
     publishTo := {

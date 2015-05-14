@@ -2,7 +2,7 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
-import com.spingo.test.helpers.ScopedFixtures
+import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelMessage, RichConnectionActor}
 import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}

@@ -8,7 +8,7 @@ import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
-import com.spingo.test.helpers.ScopedFixtures
+import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._

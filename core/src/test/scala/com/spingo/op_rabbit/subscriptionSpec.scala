@@ -4,7 +4,7 @@ import akka.actor.Props
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import com.spingo.test.helpers.ScopedFixtures
+import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelMessage, RichConnectionActor, Channel}
 import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}

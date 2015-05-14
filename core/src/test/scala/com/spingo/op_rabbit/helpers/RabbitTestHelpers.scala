@@ -8,7 +8,7 @@ import akka.util.Timeout
 import com.rabbitmq.client.Channel
 import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
-import com.spingo.test.helpers.ScopedFixtures
+import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
