@@ -6,7 +6,7 @@ See the latest [API Docs](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core
 
 # Intro
 
-Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for interacting with RabbitMQ:
+Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for interacting with RabbitMQ; the following is a high-level feature list:
 
 - Recovery:
     - Consumers automatically reconnect and subscribe if the connection is lost
