@@ -4,6 +4,30 @@ import play.api.libs.json._
 
 import java.nio.charset.Charset
 
+/**
+  Use implicit PlayJson formats for serialization by importing this object.
+
+  Example:
+
+  {{{
+  
+  import play.api.libs.json._
+  import com.spingo.op_rabbit.PlayJsonSupport._
+
+  object Example {
+    case class Person(name: String, age: Int)
+    implicit val format = Json.format[Person]
+    // Both of these can be implicitly created:
+    // - implicitly[RabbitMarshaller[Person]]
+    // - implicitly[RabbitUnmarshaller[Person]]
+    val consumer = AsyncAckingConsumer[Person]("PurplePeopleEater") { person =>
+      Future { eat(person) }
+    }
+    val message = QueueMessage(Person("Bill", 25), "people-for-consumption")
+  }
+
+  }}}
+  */
 object PlayJsonSupport {
   private val utf8 = Charset.forName("UTF-8")
   implicit def playJsonRabbitMarshaller[T](implicit writer: Writes[T]): RabbitMarshaller[T] = {

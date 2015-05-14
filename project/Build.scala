@@ -38,7 +38,7 @@ object OpRabbit extends Build {
         name := "op-rabbit"
       ))
       .dependsOn(core)
-      .aggregate(core, playJsonSupport, pgChangeSupport, airbrakeLogger, akkaStream)
+      .aggregate(core, playJsonSupport, pgChangeSupport, airbrakeLogger, akkaStream, json4sSupport)
 
   lazy val core =
     Project(id = "core",
@@ -46,6 +46,21 @@ object OpRabbit extends Build {
       settings = commonSettings ++ Seq(
         name := "op-rabbit-core"
       ))
+
+
+  val json4sVersion = "3.2.10"
+  lazy val json4sSupport = Project(
+    id = "json4s",
+    base = file("./addons/json4s"),
+    settings = commonSettings ++ Seq(
+      name := "op-rabbit-json4s",
+      libraryDependencies ++= Seq(
+        "org.json4s" %% "json4s-ast"     % json4sVersion,
+        "org.json4s" %% "json4s-core"    % json4sVersion,
+        "org.json4s" %% "json4s-jackson" % json4sVersion % "provided",
+        "org.json4s" %% "json4s-native"  % json4sVersion % "provided")
+    ))
+    .dependsOn(core)
 
   lazy val playJsonSupport = Project(
     id = "play-json",

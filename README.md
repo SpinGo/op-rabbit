@@ -2,7 +2,11 @@
 
 ##### An opinionated RabbitMQ library for Scala and Akka.
 
-See the latest [API Docs](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html)
+See the latest API Docs:
+
+- [op-rabbit-core](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html) (Start here)
+- [op-rabbit-json4s](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/json4s/current/index.html)
+- [op-rabbit-play-json](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/play-json/current/index.html)
 
 # Intro
 
@@ -46,6 +50,7 @@ val opRabbitVersion = "1.0.0-M1"
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
   "com.spingo" %% "op-rabbit-play-json"   % opRabbitVersion,
+  "com.spingo" %% "op-rabbit-json4s"      % opRabbitVersion,
   "com.spingo" %% "op-rabbit-airbrake"    % opRabbitVersion,
   "com.spingo" %% "op-rabbit-akka-stream" % opRabbitVersion
 )
@@ -56,7 +61,9 @@ A high-level overview of the available components:
 - `op-rabbit-core`
     - Implements basic patterns for serialization and message processing.
 - `op-rabbit-play-json`
-    - Easily use Play Json formats to publish or consume messages; automatically sets RabbitMQ message headers to indicate content type.
+    - Easily use [Play Json](https://www.playframework.com/documentation/2.4.x/ScalaJson) formats to publish or consume messages; automatically sets RabbitMQ message headers to indicate content type.
+- `op-rabbit-json4s`
+    - Easily use [Json4s](http://json4s.org) to serialization messages; automatically sets RabbitMQ message headers to indicate content type.
 - `op-rabbit-airbrake`
     - Report consumer exceptions to airbrake.
 - `op-rabbit-akka-stream`
