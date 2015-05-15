@@ -51,16 +51,14 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     it("subscribes to a stream of events and shuts down sanely") {
       new RabbitFixtures {
         lazy val promises = range map (_ => Promise[Unit])
-        val output = Source(subscription.consumer)
+        val result = Source(subscription.consumer)
           .map { case (p, i) => (p, i) }
-          .toMat(Sink.fold(0) {
+          .runWith(Sink.fold(0) {
             case (r, (p, i)) =>
               p.success() // ack the message in rabbitMq
               promises(i).success() // let our test know that this message was handled
               r + i
-          })(Keep.right)
-
-        val result = output.run()
+          })
 
         await(subscription.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
@@ -76,13 +74,12 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     it("yields serialization exceptions through the stream and shuts down the subscription") {
       new RabbitFixtures {
 
-        val output = Source(subscription.consumer)
-          .toMat(Sink.foreach {
+        val result =
+          Source(subscription.consumer)
+          .runWith(Sink.foreach {
             case (p, i) =>
               p.success() // ack the message in rabbitMq
-          })(Keep.right)
-
-        val result = output.run()
+          })
 
         await(subscription.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage("a", queueName()) }
@@ -103,17 +100,15 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           var delivered = range map { _ => Promise[Unit] }
           var floodgate = Promise[Unit]
 
-          val output = Source(subscription.consumer).
+          val result = Source(subscription.consumer).
             mapAsync(qos) { case (p, i) =>
               delivered(i).trySuccess(())
               floodgate.future map { _ => (p, i) }
             }.
-            toMat(Sink.foreach {
+            runWith(Sink.foreach {
               case (p, i) =>
                 p.success() // ack the message in rabbitMq
-            })(Keep.right)
-
-          val result = output.run()
+            })
 
           await(subscription.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
@@ -149,13 +144,12 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         new RabbitFixtures {
           override lazy val binding = QueueBinding(queueName(), durable = false, exclusive = false, autoDelete = true)
           val promises = range map { i => Promise[Unit]}
-          val output = Source(subscription.consumer).
-            toMat(Sink.foreach {
+          val result = Source(subscription.consumer).
+            runWith(Sink.foreach {
               case (p, i) =>
                 promises(i).success()
                 p.success() // ack the message in rabbitMq
-            })(Keep.right)
-          val result = output.run()
+            })
           await(subscription.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
           promises.foreach(p => await(p.future))

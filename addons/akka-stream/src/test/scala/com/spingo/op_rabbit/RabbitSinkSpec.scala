@@ -58,8 +58,7 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
         val data = range map { i => (Promise[Unit], i) }
 
         val published = Source(data).
-          toMat(sink)(Keep.right).
-          run
+          runWith(sink)
 
         val consumed = Source(source.consumer).
           runFold(List.empty[Int]) {
