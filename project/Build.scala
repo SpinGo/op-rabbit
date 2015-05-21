@@ -83,6 +83,7 @@ object OpRabbit extends Build {
     id = "airbrake",
     base = file("./addons/airbrake/"),
     settings = commonSettings ++ Seq(
+      name := "op-rabbit-airbrake",
       libraryDependencies += "io.airbrake" % "airbrake-java" % "2.2.8"
     ))
     .dependsOn(core)
@@ -92,6 +93,7 @@ object OpRabbit extends Build {
     id = "akka-stream",
     base = file("./addons/akka-stream"),
     settings = commonSettings ++ Seq(
+      name := "op-rabbit-akka-stream",
       libraryDependencies ++= Seq(
         "com.typesafe.akka" %% "akka-stream-experimental" % "1.0-RC2"),
       unmanagedResourceDirectories in Test ++= Seq(
