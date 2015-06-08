@@ -82,7 +82,7 @@ Source(subscription.consumer).
   to(Sink.foreach {
     case (ackPromise, work) =>
       doWork(work)
-      ackPromise.success() // fulfilling the promise causes the message to be acknowledge and removed from the queue
+      ackPromise.success() // fulfilling the promise causes the message to be acknowledged and removed from the queue
   })
   .run
 }}}
