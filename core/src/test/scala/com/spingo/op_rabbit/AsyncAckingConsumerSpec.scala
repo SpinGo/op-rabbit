@@ -19,16 +19,17 @@ import scala.util.Random
 
 class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
-  trait RabbitFixtures {
-    // import DefaultMarshalling._
-    implicit val executionContext = ExecutionContext.global
-  }
-  val queueName = ScopedFixture[String] { setter =>
+  val _queueName = ScopedFixture[String] { setter =>
     val name = s"test-queue-rabbit-control-${Math.random()}"
     deleteQueue(name)
     val r = setter(name)
     deleteQueue(name)
     r
+  }
+  trait RabbitFixtures {
+    // import DefaultMarshalling._
+    implicit val executionContext = ExecutionContext.global
+    val queueName = _queueName()
   }
 
   describe("concurrent subscriptions") {
@@ -54,7 +55,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         }
         val subscription = new Subscription(
           QueueBinding(
-            queueName(),
+            queueName,
             durable = false,
             exclusive = false,
             autoDelete = true),
@@ -63,7 +64,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         rabbitControl ! subscription
         Await.result(subscription.initialized, 10 seconds)
         range foreach { i =>
-          rabbitControl ! QueueMessage(i, queueName())
+          rabbitControl ! QueueMessage(i, queueName)
         }
         val results = Await.result(Future.sequence(promises map (_.future)), 5 minutes)
         results should be(range toList)
@@ -92,7 +93,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         }
         val subscription = new Subscription(
           QueueBinding(
-            queueName(),
+            queueName,
             durable = false,
             exclusive = false,
             autoDelete = true),
@@ -100,7 +101,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
         rabbitControl ! subscription
         Await.result(subscription.initialized, 10 seconds)
-        range foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+        range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
         val results = Await.result(Future.sequence(promises.flatten map (_.future)), 10 seconds)
         Thread.sleep(1000) // give it time to finish rejecting messages
         (seen map (_.i)).distinct should be (List(2))
@@ -114,7 +115,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
     it("waits until all pending promises are acked prior to closing the subscription") {
       new RabbitFixtures {
         val binding = QueueBinding(
-          queueName(),
+          queueName,
           durable = true,
           exclusive = false,
           autoDelete = false)
@@ -137,7 +138,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
         rabbitControl ! subscription1
         await(subscription1.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName) }
         ackThem.completeWith(subscription1.closing)
         await(Future.sequence(firstEight.map(_.future)))
         println("Round 1 complete")
@@ -169,7 +170,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         rabbitControl ! new MessageForPublicationLike {
           val dropIfNoChannel = false
           def apply(channel: Channel): Unit =
-            channel.queueDelete(queueName())
+            channel.queueDelete(queueName)
         }
 
         receivedCounts should be (range map (_ => 1))
@@ -179,7 +180,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
     it("does not wait for pending promises to be acked when aborting the subscription") {
       new RabbitFixtures {
         val binding = QueueBinding(
-          queueName(),
+          queueName,
           durable = true,
           exclusive = false,
           autoDelete = false)
@@ -202,7 +203,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
         rabbitControl ! subscription1
         await(subscription1.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName) }
         await(Future.sequence(firstEight.map(_.future)))
         println("Round 1 complete")
         println(s"receivedCounts = ${receivedCounts}")
