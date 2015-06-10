@@ -189,7 +189,7 @@ object RabbitControl {
   - [[Subscription]] - Activate the given subscription
   */
 class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
-  def this() = this(ConnectionParams.fromConfig)
+  def this() = this(ConnectionParams.fromConfig())
   import RabbitControl._
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = -1) {
