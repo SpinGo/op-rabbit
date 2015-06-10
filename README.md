@@ -163,13 +163,12 @@ import com.spingo.op_rabbit._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Json.format[Work] // setup play-json serializer
 
-lazy val subscription = Subscription(
-  new QueueBinding("such-queue", durable = true, exclusive = false, autoDelete = false),
-  RabbitSource[Work](name = "very-stream", qos = qos)) // marshalling is automatically hooked up using implicits
+val publisher = RabbitSource(
+  rabbitMq,
+  QueueBinding("such-queue", durable = true, exclusive = false, autoDelete = false),
+  PromiseAckingSource[Work](name = "very-stream", qos = qos)) // marshalling is automatically hooked up using implicits
 
-rabbitMq ! subscription
-
-Source(subscription.consumer).
+Source(publisher).
   to(Sink.foreach {
     case (ackPromise, work) =>
       doWork(work)
