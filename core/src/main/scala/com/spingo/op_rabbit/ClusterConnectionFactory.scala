@@ -7,11 +7,11 @@ import com.rabbitmq.client.ConnectionFactory
   */
 class ClusterConnectionFactory extends ConnectionFactory() {
   import com.rabbitmq.client.{Address, Connection}
-  var hosts = Array.empty[String]
+  var hosts = Array.empty[Address]
   /**
     Configures connection factory to connect to one of the following hosts.
     */
-  def setHosts(newHosts: Array[String]): Unit = { hosts = newHosts }
+  def setHosts(newHosts: Array[Address]): Unit = { hosts = newHosts }
 
   override def getHost = {
     if (hosts.nonEmpty)
@@ -22,7 +22,7 @@ class ClusterConnectionFactory extends ConnectionFactory() {
 
   override def newConnection(): Connection = {
     if (hosts.nonEmpty)
-      this.newConnection(hosts.map(host => new Address(host, getPort)))
+      this.newConnection(hosts)
     else
       super.newConnection()
   }

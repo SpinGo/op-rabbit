@@ -9,8 +9,8 @@ import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, Channel, Connection
 import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import java.nio.charset.Charset
-import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Future, Promise}
 import scala.util.Try
 
 /**
@@ -188,19 +188,9 @@ object RabbitControl {
   - [[RabbitControl$.GetConnectionActor RabbitControl.GetConnectionActor]] - Return the akka.actor.ActorRef for the `akka-rabbitmq` ConnectionActor
   - [[Subscription]] - Activate the given subscription
   */
-class RabbitControl extends Actor with ActorLogging with Stash {
+class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
+  def this() = this(ConnectionParams.fromConfig)
   import RabbitControl._
-  val config = ConfigFactory.load
-  protected val rabbitMQ = config.getConfig("rabbitmq")
-
-  private val rabbitConnectionFactory = new ClusterConnectionFactory()
-
-  val hosts = Try { rabbitMQ.getStringList("hosts").toArray(new Array[String](0)) } getOrElse { Array(rabbitMQ.getString("host")) }
-  rabbitConnectionFactory.setConnectionTimeout(rabbitMQ.getDuration("timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt)
-  rabbitConnectionFactory.setHosts(hosts)
-  rabbitConnectionFactory.setUsername(rabbitMQ.getString("username"))
-  rabbitConnectionFactory.setPassword(rabbitMQ.getString("password"))
-  rabbitConnectionFactory.setPort(rabbitMQ.getInt("port"))
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = -1) {
     case _: Exception => Resume
@@ -211,8 +201,11 @@ class RabbitControl extends Actor with ActorLogging with Stash {
   implicit val timeout = Timeout(5 seconds)
   implicit val ec = context.dispatcher
 
+  private val connectionFactory = new ClusterConnectionFactory
+  connectionParams.applyTo(connectionFactory)
+
   val connection = context.actorOf(
-    ConnectionActor.props(rabbitConnectionFactory),
+    ConnectionActor.props(connectionFactory),
     name = CONNECTION_ACTOR_NAME)
   override def preStart =
     connection ! CreateChannel(ChannelActor.props(), Some("publisher"))
