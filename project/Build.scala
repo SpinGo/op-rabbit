@@ -6,7 +6,7 @@ object OpRabbit extends Build {
 
   lazy val commonSettings = Seq(
     organization := "com.spingo",
-    version := "1.0.0-M1",
+    version := "1.0.0-M2",
     scalaVersion := "2.11.6",
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
