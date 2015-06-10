@@ -1,5 +1,6 @@
 package com.spingo.op_rabbit
 
+import akka.actor.ActorRef
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 
@@ -13,6 +14,8 @@ case class Subscription[+C <: Consumer](binding: Binding, consumer: C) {
 
   private [op_rabbit] val _closedP = Promise[Unit]
   private [op_rabbit] val _closingP = Promise[FiniteDuration]
+  private [op_rabbit] val _consumerRef = Promise[ActorRef]
+  protected [op_rabbit] val consumerRef = _consumerRef.future
   private val _abortingP = Promise[Unit]
   /**
     Future is completed the moment the subscription closes.

@@ -41,14 +41,24 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
   describe("RabbitSink") {
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
-        val source = Subscription(
+        val publisher = RabbitSource(
+          rabbitControl,
           QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false),
-          RabbitSource[Int](
+          PromiseAckingSource[Int](
             name = "very-stream",
             qos = qos))
-        rabbitControl ! source
+        val consumed = Source(publisher).
+          runFold(List.empty[Int]) {
+            case (acc, (promise, v)) =>
+              println(s"${v == range.max} ${v} == ${range.max}")
+              if (v == range.max)
+                publisher.subscription.close()
+              promise.success()
+              acc ++ List(v)
+          }
 
-        await(source.initialized)
+        await(publisher.subscription.initialized)
+
         val sink = RabbitSink[Int](
           "test-sink",
           rabbitControl,
@@ -59,15 +69,6 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
 
         val published = Source(data).
           runWith(sink)
-
-        val consumed = Source(source.consumer).
-          runFold(List.empty[Int]) {
-            case (acc, (promise, v)) =>
-              println(s"${v == range.max} ${v} == ${range.max}")
-              if (v == range.max) source.close()
-              promise.success()
-              acc ++ List(v)
-          }
 
         await(published)
         await(Future.sequence(data.map(_._1.future))) // this asserts that all of the promises were fulfilled

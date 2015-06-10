@@ -38,20 +38,21 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     }
     val range = (0 to 16) toList
     val qos = 8
-    lazy val binding = new QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false)
-    lazy val subscription = Subscription(
+
+    lazy val binding = QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false)
+    lazy val publisher = RabbitSource(
+      rabbitControl,
       binding,
-      RabbitSource[Int](
-        name = "very-stream",
-        qos = qos))
-    rabbitControl ! subscription
+      PromiseAckingSource[Int](name = "very-stream", qos = qos))
+    lazy val subscription = publisher.subscription
+    lazy val source = Source(publisher)
   }
 
   describe("streaming from rabbitMq") {
     it("subscribes to a stream of events and shuts down sanely") {
       new RabbitFixtures {
         lazy val promises = range map (_ => Promise[Unit])
-        val result = Source(subscription.consumer)
+        val result = source
           .map { case (p, i) => (p, i) }
           .runWith(Sink.fold(0) {
             case (r, (p, i)) =>
@@ -75,7 +76,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
       new RabbitFixtures {
 
         val result =
-          Source(subscription.consumer)
+          source
           .runWith(Sink.foreach {
             case (p, i) =>
               p.success() // ack the message in rabbitMq
@@ -100,7 +101,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           var delivered = range map { _ => Promise[Unit] }
           var floodgate = Promise[Unit]
 
-          val result = Source(subscription.consumer).
+          val result = source.
             mapAsync(qos) { case (p, i) =>
               delivered(i).trySuccess(())
               floodgate.future map { _ => (p, i) }
@@ -144,7 +145,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         new RabbitFixtures {
           override lazy val binding = QueueBinding(queueName(), durable = false, exclusive = false, autoDelete = true)
           val promises = range map { i => Promise[Unit]}
-          val result = Source(subscription.consumer).
+          val result = source.
             runWith(Sink.foreach {
               case (p, i) =>
                 promises(i).success()

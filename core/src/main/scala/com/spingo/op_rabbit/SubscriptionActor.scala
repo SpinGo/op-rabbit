@@ -28,6 +28,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription[Consumer]
 
   val consumer = context.actorOf(subscription.consumer.props(subscription.binding.queueName), "consumer")
   context.watch(consumer)
+  subscription._consumerRef.success(consumer)
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
 

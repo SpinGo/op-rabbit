@@ -2,36 +2,18 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.pipe
+import akka.stream.{OperationAttributes, SourceShape}
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
+import akka.stream.impl.SourceModule
 import com.thenewmotion.akka.rabbitmq.Channel
-import org.reactivestreams.Publisher
-import org.reactivestreams.Subscriber
+import org.reactivestreams.{Publisher, Subscriber}
 import scala.annotation.tailrec
 import scala.collection.mutable.Queue
-import scala.concurrent.ExecutionContext
-import scala.concurrent.{Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 
 object RabbitSource {
   type OUTPUT[T] = (Promise[Unit], T)
-
-  // def apply[T](
-  //   actorRefFactory: ActorRefFactory,
-  //   rabbitControl: ActorRef,
-  //   binding: Binding,
-  //   name: String,
-  //   qos: Int = 3)(implicit
-  //     unmarshaller: RabbitUnmarshaller[T],
-  //     rabbitErrorLogging: RabbitErrorLogging): RabbitSource[T] = {
-
-  //   val ref = actorRefFactory.actorOf(Props(new RabbitSourceActor[T](
-  //     rabbitControl = rabbitControl,
-  //     binding = binding,
-  //     name = name,
-  //     qos = qos)))
-
-  //   new RabbitSource[T](ref)
-  // }
 
   private [op_rabbit] class LostPromiseWatcher[T]() {
     // the key is a strong reference to the upstream promise; the weak-key is the representative promise.
@@ -56,30 +38,42 @@ object RabbitSource {
 }
 
 case class RabbitSource[T](
+  rabbitControl: ActorRef,
+  binding: Binding,
+  consumer: StreamConsumer[T])(implicit ec: ExecutionContext) extends Publisher[T] {
+
+  val subscription = Subscription(binding, consumer)
+  override def subscribe(sub: Subscriber[_ >: T]): Unit = {
+    // wait until stream is read to subscribe
+    rabbitControl ! subscription
+    subscription.consumerRef.foreach { ref =>
+      ActorPublisher[T](ref).subscribe(sub)
+    }
+  }
+}
+
+/**
+  Contract used to enforce that the consumer actors abide by the stream contract.
+  */
+trait StreamConsumer[T] extends Consumer {}
+
+case class PromiseAckingSource[T](
   name: String,
   qos: Int = 3)(implicit
     unmarshaller: RabbitUnmarshaller[T],
-    rabbitErrorLogging: RabbitErrorLogging) extends Consumer with Publisher[RabbitSource.OUTPUT[T]] {
-
-  type O = RabbitSource.OUTPUT[T]
-  private val subscriber = Promise[Subscriber[_ >: O]]
+    rabbitErrorLogging: RabbitErrorLogging) extends StreamConsumer[RabbitSource.OUTPUT[T]] {
 
   def props(queueName: String) =
     Props(new RabbitSourceActor[T](
       queueName     = queueName,
       name          = name,
-      qos           = qos,
-      subscriber    = subscriber.future))
-
-  override def subscribe(sub: Subscriber[_ >: O]): Unit =
-    subscriber.success(sub)
+      qos           = qos))
 }
 
 protected class RabbitSourceActor[T](
   queueName: String,
   name: String,
-  qos: Int = 3,
-  subscriber: Future[Subscriber[_ >: RabbitSource.OUTPUT[T]]])(implicit
+  qos: Int = 3)(implicit
     unmarshaller: RabbitUnmarshaller[T],
     rabbitErrorLogging: RabbitErrorLogging) extends ActorPublisher[RabbitSource.OUTPUT[T]] with ActorLogging {
 
@@ -125,9 +119,6 @@ protected class RabbitSourceActor[T](
   val bufferMax = qos / 2
 
   override def preStart: Unit = {
-    subscriber.foreach { s =>
-      ActorPublisher[RabbitSource.OUTPUT[T]](self).subscribe(s)
-    }
     context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)
   }
 
