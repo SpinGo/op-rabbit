@@ -19,6 +19,7 @@ object AsyncAckingRabbitConsumer {
     if (thisRetryCount < retryCount)
       akka.pattern.after(redeliverDelay, actorSystem.scheduler) {
         val withRetryCountIncremented = PropertyHelpers.setRetryCount(properties, thisRetryCount + 1)
+        // we don't need to worry about reliable delivery here; if this fails to publish, then it is because the message was already nacked.
         channel.basicPublish("", queueName, withRetryCountIncremented, body)
         futureUnit
       }
@@ -76,6 +77,7 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
       val newConsumerTag = setupSubscription(newChannel)
       context.become(connected(newChannel, Some(newConsumerTag)))
+      sender ! true
     case Unsubscribe =>
       handleUnsubscribe(channel, consumerTag)
       sender ! true
@@ -107,6 +109,7 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
         pendingDeliveries.clear
         context stop self
       }
+      sender ! true
     case Unsubscribe =>
       sender ! true
     case RejectOrAck(ack, consumerTag) =>
@@ -147,14 +150,13 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
     )
   }
 
-  def handleUnsubscribe(channel: Channel, consumerTag: Option[String]): Unit = {
+  def handleUnsubscribe(channel: Channel, consumerTag: Option[String]): Unit =
     try {
       consumerTag.foreach(channel.basicCancel(_))
     } catch {
       case RabbitExceptionMatchers.NonFatalRabbitException(_) =>
         ()
     }
-  }
 
   def handleRejectOrAck(ack: Boolean, channel: Channel, consumerTag: Long): Unit = {
     pendingDeliveries.remove(consumerTag)

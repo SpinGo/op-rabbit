@@ -34,6 +34,8 @@ object Consumer {
 
   /**
     Configure a subscription for a new channel
+
+    Must respond to sender with `true` on success.
     */
   case class Subscribe(channel: Channel) extends ConsumerCommand
 
@@ -41,6 +43,8 @@ object Consumer {
     Tell the consumer to stop processing new messages; don't close the
     connection, don't stop, continue to acknowledge any messages in
     process.
+
+    Must respond to sender with `true` on success.
     */
   case object Unsubscribe extends ConsumerCommand
 

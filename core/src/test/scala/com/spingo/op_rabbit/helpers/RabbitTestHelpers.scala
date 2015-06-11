@@ -6,12 +6,13 @@ import akka.actor.{ActorRef, ActorSystem}
 import akka.pattern.ask
 import akka.util.Timeout
 import com.rabbitmq.client.Channel
+import com.rabbitmq.client.impl.recovery.AutorecoveringConnection
 import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
 import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
-import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future, Promise}
 
 trait RabbitTestHelpers extends ScopedFixtures {
   implicit val timeout = Timeout(5 seconds)
@@ -40,6 +41,20 @@ trait RabbitTestHelpers extends ScopedFixtures {
   // kills the rabbitMq connection in such a way that the system will automatically recover and reconnect;
   // synchronously waits for the connection to be terminated, and to be re-established
   def reconnect(rabbitMqControl: ActorRef)(implicit actorSystem: ActorSystem): Unit = {
+    /* reconnect autoRecovering connection */
+    val connection = await((rabbitMqControl ? RabbitControl.GetConnection).mapTo[AutorecoveringConnection])
+
+    val recovered = Promise[Unit]
+    val listener = new com.rabbitmq.client.RecoveryListener {
+      def handleRecovery(recoverable: com.rabbitmq.client.Recoverable): Unit =
+        recovered.success()
+    }
+    connection.addRecoveryListener(listener)
+    com.rabbitmq.tools.Host.closeConnection(connection)
+    await(recovered.future, 30 seconds)
+    connection.removeRecoveryListener(listener)
+
+    /* reconnect connectionActor - phasing this out */
     val connectionActor = await((rabbitMqControl ? RabbitControl.GetConnectionActor).mapTo[ActorRef])
 
     val done = Promise[Unit]

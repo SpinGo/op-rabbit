@@ -5,7 +5,8 @@ import akka.actor._
 import akka.pattern.{ask,pipe}
 import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, Channel, ConnectionFactory, ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
+import com.rabbitmq.client.{Channel, ConnectionFactory}
+import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
 import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import java.nio.charset.Charset
@@ -169,6 +170,7 @@ object RabbitControl {
     [[RabbitControl]] actor with this.
     */
   case object GetConnectionActor
+  case object GetConnection
 }
 
 /**
@@ -203,12 +205,16 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
 
   private val connectionFactory = new ClusterConnectionFactory
   connectionParams.applyTo(connectionFactory)
+  connectionFactory.setAutomaticRecoveryEnabled(true)
+  connectionFactory.setTopologyRecoveryEnabled(true) // this is the default, but here to be specific
 
-  val connection = context.actorOf(
+  private val connection = connectionFactory.newConnection
+
+  val connectionActor = context.actorOf(
     ConnectionActor.props(connectionFactory),
     name = CONNECTION_ACTOR_NAME)
   override def preStart =
-    connection ! CreateChannel(ChannelActor.props(), Some("publisher"))
+    connectionActor ! CreateChannel(ChannelActor.props(), Some("publisher"))
 
   override def postStop: Unit = {
     // Don't restart the child actors!!!
@@ -226,8 +232,10 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
     case m @ MessageForPublicationLike(dropIfNoChannel) =>
       publishChannel ! ChannelMessage(m.apply(_), dropIfNoChannel = dropIfNoChannel)
 
-    case GetConnectionActor =>
+    case GetConnection =>
       sender ! connection
+    case GetConnectionActor =>
+      sender ! connectionActor
 
     case Terminated(ref) if subscriptions.exists(_.path == ref.path) =>
       // TODO - move this logic to a subscription guardian actor? This is doing too much...
@@ -237,7 +245,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
     case q: Subscription[_] =>
       val subscriptionActorRef = context.actorOf(SubscriptionActor.props(q, connection), name = s"subscription-${java.net.URLEncoder.encode(q.consumer.name)}")
       context watch subscriptionActorRef
-      subscriptionActorRef ! Run
+      subscriptionActorRef ! Run // TODO - fix race condition here! If subscriptions are paused while registering a new subscription, that subscription should come up paused.
       subscriptions = subscriptionActorRef :: subscriptions
 
     case c: SubscriptionCommand =>
