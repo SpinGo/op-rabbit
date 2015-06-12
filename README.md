@@ -119,7 +119,7 @@ val consumer = AsyncAckingConsumer("PersonSignup", qos = 3) { person: Person =>
 val subscription = new Subscription(
   TopicBinding(
       queueName = "such-message-queue",
-      topics = List("some-topic.#"),
+      topics = List("some-topic.#")),
   consumer)
 
 rabbitMq ! subscription
