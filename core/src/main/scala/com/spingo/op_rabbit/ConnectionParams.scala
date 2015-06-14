@@ -66,9 +66,10 @@ object ConnectionParams {
     val port = config.getInt("port")
     ConnectionParams(
       hosts = hosts.map { h => new Address(h, port) },
-      connectionTimeout = config.getDuration("timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
+      connectionTimeout = config.getDuration("connection-timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
       username = config.getString("username"),
-      password = config.getString("password")
+      password = config.getString("password"),
+      virtualHost = config.getString("virtual-host")
     )
   }
 }

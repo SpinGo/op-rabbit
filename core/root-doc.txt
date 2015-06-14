@@ -11,7 +11,8 @@ rabbitmq {
   username = "guest"
   password = "guest"
   port = 5672
-  timeout = 3s
+  connection-timeout = 3s
+  virtual-host = "/"
 }
 }}}
 
