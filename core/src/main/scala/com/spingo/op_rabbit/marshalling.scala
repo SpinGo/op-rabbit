@@ -21,10 +21,19 @@ trait RabbitMarshaller[T] {
     Given a value, returns a tuple of:
 
     - The serialized value
-    - A string representing the contentType (e.g. "application/json")
     - An optional string representing the text encoding (e.g. "UTF-8")
     */
-  def marshall(value: T): (Array[Byte], String, Option[String])
+  def marshall(value: T): Array[Byte]
+
+  /**
+    Returns a string representing the contentType (e.g. "application/json")
+    */
+  protected def contentType: String
+
+  /**
+    Returns an optional string representing the text encoding (e.g. "UTF-8")
+    */
+  protected def contentEncoding: Option[String]
 
   /**
     Given a value, and an optional property builder, returns the
@@ -33,11 +42,10 @@ trait RabbitMarshaller[T] {
     Note, that if a property builder is provided, it is mutated by
     this method.
     */
-  def marshallWithProperties(value: T, properties: BasicProperties.Builder = new BasicProperties.Builder()): (Array[Byte], BasicProperties.Builder) = {
-    val (result, contentType, contentEncoding) = marshall(value)
-    properties.contentType(contentType)
-    contentEncoding.foreach(properties.contentEncoding(_))
-    (result, properties)
+  def properties(builder: BasicProperties.Builder = new BasicProperties.Builder()): BasicProperties.Builder = {
+    builder.contentType(contentType)
+    contentEncoding.foreach(builder.contentEncoding(_))
+    builder
   }
 }
 
@@ -59,8 +67,9 @@ trait RabbitUnmarshaller[T] {
   Pull binary message payload raw, without any serialization. An implicit is defined in [[DefaultMarshalling.binaryMarshaller]]
   */
 object BinaryMarshaller extends RabbitMarshaller[Array[Byte]] with RabbitUnmarshaller[Array[Byte]] {
-  val contentType = "application/octet-stream"
-  def marshall(value: Array[Byte]) = (value, contentType, None)
+  protected val contentType = "application/octet-stream"
+  protected val contentEncoding = None
+  def marshall(value: Array[Byte]) = value
   def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]): Array[Byte] = value
 }
 
@@ -69,14 +78,14 @@ object BinaryMarshaller extends RabbitMarshaller[Array[Byte]] with RabbitUnmarsh
   */
 object UTF8StringMarshaller extends RabbitMarshaller[String] with RabbitUnmarshaller[String] {
   val contentType = "text/plain"
-  val encoding = "UTF-8"
+  private val encoding = "UTF-8"
+  protected val contentEncoding = Some(encoding)
   private val utf8 = Charset.forName(encoding)
   def marshall(value: String) =
-    (value.getBytes(utf8), contentType, Some(encoding))
+    value.getBytes(utf8)
 
-  def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]) = {
+  def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]) =
     new String(value, charset map (Charset.forName) getOrElse utf8)
-  }
 }
 
 object DefaultMarshalling {

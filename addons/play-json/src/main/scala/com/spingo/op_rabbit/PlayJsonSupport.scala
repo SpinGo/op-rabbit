@@ -32,10 +32,11 @@ object PlayJsonSupport {
   private val utf8 = Charset.forName("UTF-8")
   implicit def playJsonRabbitMarshaller[T](implicit writer: Writes[T]): RabbitMarshaller[T] = {
     new RabbitMarshaller[T] {
-      val contentType = "application/json"
-      val encoding = "UTF-8"
+      protected val contentType = "application/json"
+      private val encoding = "UTF-8"
+      protected val contentEncoding = Some(encoding)
       def marshall(value: T) =
-        (Json.stringify(writer.writes(value)).getBytes(utf8), contentType, Some(encoding))
+        Json.stringify(writer.writes(value)).getBytes(utf8)
     }
   }
   implicit def playJsonRabbitUnmarshaller[T](implicit reads: Reads[T]): RabbitUnmarshaller[T] = {

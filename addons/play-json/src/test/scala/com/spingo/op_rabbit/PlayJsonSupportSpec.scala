@@ -27,10 +27,13 @@ class PlayJsonSupportSpec extends FunSpec with Matchers {
     }
 
     it("serializes the provided content") {
-      val (body, contentType, contentEncoding) = m.marshall(Thing(5))
-      new String(body) should be ("""{"a":5}""")
-      contentType should be ("application/json")
-      contentEncoding should be (Some("UTF-8"))
+      val body = m.marshall(Thing(5))
+    }
+
+    it("provides the appropriate content headers") {
+      val properties = m.properties().build
+      properties.getContentType should be ("application/json")
+      properties.getContentEncoding should be ("UTF-8")
     }
   }
 }

@@ -14,10 +14,11 @@ trait BaseJson4sSupport {
   private val utf8 = Charset.forName("UTF-8")
   implicit def json4sRabbitMarshaller[T <: AnyRef](implicit formats: Formats): RabbitMarshaller[T] = {
     new RabbitMarshaller[T] {
-      val contentType = "application/json"
-      val encoding = "UTF-8"
+      protected val contentType = "application/json"
+      private val encoding = "UTF-8"
+      protected val contentEncoding = Some(encoding)
       def marshall(value: T) =
-        (serialization.write(value).toString.getBytes(utf8), contentType, Some(encoding))
+        serialization.write(value).toString.getBytes(utf8)
     }
   }
 

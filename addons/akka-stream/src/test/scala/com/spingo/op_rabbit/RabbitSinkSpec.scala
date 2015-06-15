@@ -62,8 +62,7 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
         val sink = RabbitSink[Int](
           "test-sink",
           rabbitControl,
-          GuaranteedPublishedMessage(QueuePublisher(queueName())))
-
+          ConfirmedMessage.factory(QueuePublisher(queueName())))
 
         val data = range map { i => (Promise[Unit], i) }
 

@@ -5,19 +5,6 @@ import com.spingo.op_rabbit.RabbitExceptionMatchers._
 import com.thenewmotion.akka.rabbitmq.{Channel, ChannelCreated, CreateChannel, ChannelActor}
 import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
-private [op_rabbit] object SubscriptionActor {
-  sealed trait State
-  case object Paused extends State
-  case object Running extends State
-  case object Stopped extends State
-
-  sealed trait Commands
-  def props(subscription: Subscription[Consumer], connection: ActorRef): Props =
-    Props(classOf[SubscriptionActor], subscription, connection)
-
-  case object Shutdown extends Commands
-  case class ConnectionInfo(channelActor: Option[ActorRef], channel: Option[Channel])
-}
 
 private [op_rabbit] class SubscriptionActor(subscription: Subscription[Consumer], connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.ConnectionInfo] {
   import SubscriptionActor._
@@ -116,4 +103,18 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription[Consumer]
   def unsubscribe = {
   }
 
+}
+
+private [op_rabbit] object SubscriptionActor {
+  sealed trait State
+  case object Paused extends State
+  case object Running extends State
+  case object Stopped extends State
+
+  sealed trait Commands
+  def props(subscription: Subscription[Consumer], connection: ActorRef): Props =
+    Props(classOf[SubscriptionActor], subscription, connection)
+
+  case object Shutdown extends Commands
+  case class ConnectionInfo(channelActor: Option[ActorRef], channel: Option[Channel])
 }

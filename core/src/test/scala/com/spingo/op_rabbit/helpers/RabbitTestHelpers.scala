@@ -80,10 +80,10 @@ trait RabbitTestHelpers extends ScopedFixtures {
 
   implicit val simpleIntMarshaller = new RabbitMarshaller[Int] with RabbitUnmarshaller[Int] {
     val contentType = "text/plain"
-    val encoding = "UTF-8"
+    val contentEncoding = Some("UTF-8")
 
     def marshall(value: Int) =
-      (value.toString.getBytes, contentType, Some(encoding))
+      value.toString.getBytes
 
     def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]) = {
       new String(value).toInt

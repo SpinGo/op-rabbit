@@ -14,6 +14,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
   trait RabbitFixtures {
     val queueName = s"test-queue-rabbit-control"
     implicit val executionContext = ExecutionContext.global
+    val rabbitControl = rabbitControlFixture()
   }
 
   describe("pausing subscriptions") {
@@ -56,9 +57,110 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         // clean up rabbit queue
         val connectionActor = await(rabbitControl ? GetConnectionActor).asInstanceOf[ActorRef]
         val channel = connectionActor.createChannel(ChannelActor.props())
-        channel ! ChannelMessage { channel =>
-          channel.queueDelete(queueName)
+        deleteQueue(queueName)
+      }
+    }
+  }
+
+  describe("ConfirmedMessage publication") {
+    it("fulfills the published promise on delivery confirmation") {
+      new RabbitFixtures {
+        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { _ =>
+          Future.successful(Unit)
         }
+        val subscription = Subscription(
+          QueueBinding(
+            queueName,
+            durable = false,
+            exclusive = false),
+          consumer)
+        rabbitControl ! subscription
+        await(subscription.initialized)
+
+        val msg = ConfirmedMessage(QueuePublisher(queueName), 5)
+        rabbitControl ! msg
+
+        await(msg.published)
+        deleteQueue(queueName)
+      }
+    }
+
+    // TODO - make this test not suck
+    it("handles connection interruption without dropping messages") {
+      new RabbitFixtures {
+        var received = List.empty[Int]
+        var countConfirmed = 0
+        var countReceived = 0
+        var lastReceived = -1
+        val doneConfirm = Promise[Unit]
+        val doneReceive = Promise[Unit]
+
+        val counter = actorSystem.actorOf(Props(new Actor {
+          def receive = {
+            case ('confirm, -1) =>
+              doneConfirm.success()
+            case ('receive, -1) =>
+              doneReceive.success()
+            case ('confirm, n: Int) =>
+              println(s"== confirm $n")
+              countConfirmed += 1
+            case ('receive, n: Int) =>
+              println(s"receive $n")
+              if(n <= lastReceived) // duplicate message
+                ()
+              else {
+                countReceived += 1
+                lastReceived = n
+              }
+          }
+        }))
+
+        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { i =>
+          counter ! ('receive, i)
+          Future.successful(Unit)
+        }
+        val subscription = Subscription(
+          QueueBinding(
+            queueName,
+            durable = true,
+            exclusive = false),
+          consumer)
+        rabbitControl ! subscription
+        await(subscription.initialized)
+
+        val factory = ConfirmedMessage.factory(QueuePublisher(queueName))
+
+        var keepSending = true
+        val lastSentF = Future {
+          var i = 0
+          while (keepSending) {
+            i = i + 1
+            val n = i
+            val msg = factory(n)
+            msg.published foreach { _ =>
+              counter ! ('confirm, n)
+            }
+            rabbitControl ! msg
+            Thread.sleep(10) // slight delay as to not overwhelm RAM
+          }
+          i
+        }
+
+        Thread.sleep(100)
+        reconnect(rabbitControl)
+        keepSending = false
+        val lastSent = await(lastSentF)
+        val confirmMsg = factory(-1)
+        rabbitControl ! confirmMsg
+        confirmMsg.published foreach { _ =>
+          counter ! ('confirm, -1)
+        }
+        await(doneReceive.future)
+        await(doneConfirm.future)
+        println(lastSent)
+        countReceived should be (countConfirmed)
+
+        deleteQueue(queueName)
       }
     }
   }
