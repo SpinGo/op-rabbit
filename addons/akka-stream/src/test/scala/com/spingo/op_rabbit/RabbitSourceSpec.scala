@@ -7,13 +7,13 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
-import com.spingo.op_rabbit.DefaultMarshalling.utf8StringMarshaller
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Try
+import com.spingo.op_rabbit.subscription.Directives._
 
 class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
@@ -33,7 +33,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     val exceptionReported = Promise[Boolean]
     implicit val errorReporting = new RabbitErrorLogging {
       def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
-        exceptionReported.success(true)
+        exceptionReported.trySuccess(true)
       }
     }
     val range = (0 to 16) toList
@@ -41,10 +41,11 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
 
     lazy val binding = QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false)
     lazy val publisher = RabbitSource(
+      "very-stream",
       rabbitControl,
       binding,
-      PromiseAckingSource[Int](name = "very-stream", qos = qos))
-    lazy val subscription = publisher.subscription
+      body(as[Int]),
+      qos = qos)
     lazy val source = Source(publisher)
   }
 
@@ -61,14 +62,14 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
               r + i
           })
 
-        await(subscription.initialized)
+        await(publisher.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
         await(Future.sequence(promises.map(_.future)))
         // test is done; let's stop the stream
-        subscription.close()
+        publisher.close()
 
         await(result) should be (136)
-        await(subscription.closed) // assert that subscription gets closed
+        await(publisher.closed) // assert that subscription gets closed
       }
     }
 
@@ -82,7 +83,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
               p.success() // ack the message in rabbitMq
           })
 
-        await(subscription.initialized)
+        await(publisher.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage("a", queueName()) }
         // test is done; let's stop the stream
 
@@ -90,7 +91,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           await(result)
         }
 
-        await(subscription.closed) // assert that subscription gets closed
+        await(publisher.closed) // assert that subscription gets closed
         await(exceptionReported.future) should be (true)
       }
     }
@@ -111,7 +112,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
                 p.success() // ack the message in rabbitMq
             })
 
-          await(subscription.initialized)
+          await(publisher.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
           delivered.take(8).foreach(p => await(p.future))
           await(Future.sequence( delivered.take(8).map(_.future)))
@@ -126,8 +127,8 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           delivered.foreach(p => await(p.future)) // if this fails, it means it did not replay every message
 
           // test is done; let's stop the stream
-          subscription.close()
-          await(subscription.closed)
+          publisher.close()
+          await(publisher.closed)
         } finally {
           println("deleting")
           val delete = DeleteQueue(queueName())
@@ -151,10 +152,10 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
                 promises(i).success()
                 p.success() // ack the message in rabbitMq
             })
-          await(subscription.initialized)
+          await(publisher.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
           promises.foreach(p => await(p.future))
-          subscription.close()
+          publisher.close()
           await(result)
         }
       }

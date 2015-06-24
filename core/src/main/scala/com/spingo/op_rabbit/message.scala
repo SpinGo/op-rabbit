@@ -6,7 +6,7 @@ import com.rabbitmq.client.Channel
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Try
-
+import com.spingo.op_rabbit.properties._
 /**
   Basic interface; send to [[RabbitControl]] actor for delivery.
   */
@@ -16,6 +16,7 @@ trait MessageForPublicationLike extends (Channel => Unit) {
 
 object MessageForPublicationLike {
   type Factory[T, M <: MessageForPublicationLike] = (T => M)
+  val defaultProperties = List(properties.DeliveryMode.persistent)
 }
 
 /**
@@ -77,12 +78,12 @@ object UnconfirmedMessage {
     @param dropIfNoChannel If a channel is not available at the time this message is sent, queue the message up internally and send as soon as a connection is available. Default true.
     @param marshaller The implicit [[RabbitMarshaller]] used to serialize data T to binary.
     */
-  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[props.MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]) = {
+  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]) = {
     factory[T](publisher, properties, dropIfNoChannel)(marshaller)(message)
   }
 
-  def factory[T](publisher: MessagePublisher, properties: Seq[props.MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, UnconfirmedMessage] = {
-    val builder = props.applyTo(properties)
+  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, UnconfirmedMessage] = {
+    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
     marshaller.properties(builder)
     val rabbitProperties = builder.build
 
@@ -101,12 +102,12 @@ final class ConfirmedMessage(
 }
 
 object ConfirmedMessage {
-  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[props.MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]) = {
+  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]) = {
     factory[T](publisher, properties)(marshaller)(message)
   }
 
-  def factory[T](publisher: MessagePublisher, properties: Seq[props.MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, ConfirmedMessage] = {
-    val builder = props.applyTo(properties)
+  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, ConfirmedMessage] = {
+    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
     marshaller.properties(builder)
     val rabbitProperties = builder.build
 
@@ -146,14 +147,14 @@ class StatusCheckMessage(timeout: Duration = 5 seconds)(implicit actorSystem: Ac
 }
 
 object TopicMessage {
-  def apply[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[props.MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike =
-    ConfirmedMessage(TopicPublisher(routingKey, exchange), message)
+  def apply[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): ConfirmedMessage =
+    ConfirmedMessage(TopicPublisher(routingKey, exchange), message, properties)
 }
 
 object QueueMessage {
   def apply[T](
     message: T,
     queue: String,
-    properties: Seq[props.MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike =
-    ConfirmedMessage(QueuePublisher(queue), message)
+    properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): ConfirmedMessage =
+    ConfirmedMessage(QueuePublisher(queue), message, properties)
 }

@@ -2,21 +2,16 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
-import akka.util.Timeout
+import com.rabbitmq.client.{Channel, Envelope}
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.rabbitmq.client.Envelope
-import com.rabbitmq.client.Channel
-import com.rabbitmq.client.ShutdownSignalException
+import com.spingo.op_rabbit.subscription.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.AmqpShutdownSignal
-import com.thenewmotion.akka.rabbitmq.ChannelActor
-import com.thenewmotion.akka.rabbitmq.CreateChannel
 import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Random
-
+import com.spingo.op_rabbit.subscription.RecoveryStrategy
 class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
   val _queueName = ScopedFixture[String] { setter =>
@@ -26,9 +21,9 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
     deleteQueue(name)
     r
   }
+  implicit val executionContext = ExecutionContext.global
   trait RabbitFixtures {
     // import DefaultMarshalling._
-    implicit val executionContext = ExecutionContext.global
     val queueName = _queueName()
   }
 
@@ -42,24 +37,29 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
       new RabbitFixtures {
         import RabbitErrorLogging.defaultLogger
 
+        Future { 3 }
+
+
         val range = (0 to 100)
         val promises = range map { i => Promise[Int] } toList
-
         val generator = new Random(123);
-        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { i =>
-          Future {
-            println(s"Received #${i}")
-            Thread.sleep(Math.round(generator.nextDouble() * 100))
-            promises(i).success(i)
-          }
+        val subscription = new Subscription {
+          def config =
+            channel() {
+              consume(queue(
+                queueName,
+                durable    = false,
+                exclusive  = false,
+                autoDelete = true)) {
+                body(as[Int]) { i =>
+                  println(s"Received #${i}")
+                  Thread.sleep(Math.round(generator.nextDouble() * 100))
+                  promises(i).success(i)
+                  ack()
+                }
+              }
+            }
         }
-        val subscription = new Subscription(
-          QueueBinding(
-            queueName,
-            durable = false,
-            exclusive = false,
-            autoDelete = true),
-          consumer)
 
         rabbitControl ! subscription
         Await.result(subscription.initialized, 10 seconds)
@@ -72,8 +72,8 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
     }
   }
 
-  describe("error handling") {
-    it("attempts every message twice") {
+  describe("RecoveryStrategy redeliver") {
+    it("attempts every message twice when retryCount = 1") {
       new RabbitFixtures {
         var errors = 0
         implicit val logging = new RabbitErrorLogging {
@@ -87,17 +87,20 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
         case class Counter(var i: Int = 0) { def ++ = { i+=1; i-1}}
         val seen = range map { _ => Counter(0) } toList
         val promises = range map { i => List(Promise[Int], Promise[Int]) } toList
-        val consumer = AsyncAckingConsumer[Int]("Test", 100 millis, retryCount = 1, qos = 3) { i =>
-          promises(i)(seen(i)++).success(i)
-          Future.failed(new Exception("Such failure"))
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1)
+
+        val subscription = new Subscription {
+          def config = {
+            channel(qos = 3) {
+              consume(queue(queueName, durable = false, exclusive = false, autoDelete = true)) {
+                body(as[Int]) { i =>
+                  promises(i)(seen(i)++).success(i)
+                  ack(Future.failed(new Exception("Such failure")))
+                }
+              }
+            }
+          }
         }
-        val subscription = new Subscription(
-          QueueBinding(
-            queueName,
-            durable = false,
-            exclusive = false,
-            autoDelete = true),
-          consumer)
 
         rabbitControl ! subscription
         Await.result(subscription.initialized, 10 seconds)
@@ -114,27 +117,28 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
     it("waits until all pending promises are acked prior to closing the subscription") {
       new RabbitFixtures {
-        val binding = QueueBinding(
-          queueName,
-          durable = true,
-          exclusive = false,
-          autoDelete = false)
         val ackThem = Promise[Unit]
         val range = (0 to 15) toList
         val receivedCounts = scala.collection.mutable.IndexedSeq.fill(range.length)(0)
         val received = range map { i => Promise[Unit] }
         val firstEight = received.take(8)
 
-        def consumer(n: Int) = AsyncAckingConsumer[Int](s"Consumer${n}", 100 millis, retryCount = 1, qos = 8) { i =>
-          println(s"${i} received")
-          receivedCounts(i) = receivedCounts(i) + 1
-          received(i).success(())
-          ackThem.future.map { _ => Thread.sleep(50 * i) }
+        def getSubscription(n: Int) = new Subscription {
+          def config =
+            channel(qos = 8) {
+              consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)) {
+                body(as[Int]) { i =>
+                  println(s"${i} received")
+                  receivedCounts(i) = receivedCounts(i) + 1
+                  received(i).success(())
+                  ackThem.future.map { _ => Thread.sleep(50 * i) }
+                  ack()
+                }
+              }
+            }
         }
 
-        val subscription1 = new Subscription(
-          binding,
-          consumer(1))
+        val subscription1 = getSubscription(1)
 
         rabbitControl ! subscription1
         await(subscription1.initialized)
@@ -153,9 +157,7 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
         reconnect(rabbitControl)
 
-        val subscription2 = new Subscription(
-          binding,
-          consumer(2))
+        val subscription2 = getSubscription(2)
 
         rabbitControl ! subscription2
         println(s"--------------------------- waiting for the rest of the futures to be consumed")
@@ -179,37 +181,36 @@ class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers 
 
     it("does not wait for pending promises to be acked when aborting the subscription") {
       new RabbitFixtures {
-        val binding = QueueBinding(
-          queueName,
-          durable = true,
-          exclusive = false,
-          autoDelete = false)
         val ackThem = Promise[Unit]
         val range = (0 to 15) toList
         val receivedCounts = scala.collection.mutable.IndexedSeq.fill(range.length)(0)
         val received = range map { i => Promise[Unit] }
         val firstEight = received.take(8)
 
-        def consumer(n: Int) = AsyncAckingConsumer[Int](s"Consumer${n}", 100 millis, retryCount = 1, qos = 8) { i =>
-          println(s"${i} received")
-          receivedCounts(i) = receivedCounts(i) + 1
-          received(i).success(())
-          ackThem.future.map { _ => Thread.sleep(50 * i) }
+        val subscription = new Subscription {
+          def config =
+            channel(qos = 8) {
+              consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)) {
+                body(as[Int]) { i =>
+                  println(s"${i} received")
+                  receivedCounts(i) = receivedCounts(i) + 1
+                  received(i).success(())
+                  ackThem.future.map { _ => Thread.sleep(50 * i) }
+                  ack()
+                }
+              }
+            }
         }
 
-        val subscription1 = new Subscription(
-          binding,
-          consumer(1))
-
-        rabbitControl ! subscription1
-        await(subscription1.initialized)
+        rabbitControl ! subscription
+        await(subscription.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage(i, queueName) }
         await(Future.sequence(firstEight.map(_.future)))
         println("Round 1 complete")
         println(s"receivedCounts = ${receivedCounts}")
-        subscription1.abort
-        ackThem.completeWith(subscription1.closed)
-        await(subscription1.closed) // the fact that we can get here is evidence that it works, since we don't even ack the messages until the consumer is closed
+        subscription.abort
+        ackThem.completeWith(subscription.closed)
+        await(subscription.closed) // the fact that we can get here is evidence that it works, since we don't even ack the messages until the consumer is closed
       }
     }
   }

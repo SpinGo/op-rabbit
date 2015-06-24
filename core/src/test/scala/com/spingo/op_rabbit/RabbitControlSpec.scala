@@ -8,11 +8,18 @@ import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import com.spingo.op_rabbit.subscription.Subscription
 
 class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
+  val _queueName = ScopedFixture[String] { setter =>
+    val name = s"test-queue-rabbit-control-${Math.random()}"
+    try setter(name)
+    finally deleteQueue(name)
+  }
+
   trait RabbitFixtures {
-    val queueName = s"test-queue-rabbit-control"
+    val queueName = _queueName()
     implicit val executionContext = ExecutionContext.global
     val rabbitControl = rabbitControlFixture()
   }
@@ -23,19 +30,20 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         import RabbitControl._
         var count = 0
         val promises = (0 to 2) map { i => Promise[Int] } toList
-        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { i =>
-          Future {
-            println(s"received $i")
-            count += 1
-            promises(i).success(i)
-          }
+
+        val subscription = new Subscription {
+          def config =
+            channel(qos = 5) {
+              consume(queue(queueName, durable = false, exclusive = false)) {
+                body(as[Int]) { i =>
+                  println(s"received $i")
+                  count += 1
+                  promises(i).success(i)
+                  ack()
+                }
+              }
+            }
         }
-        val subscription = Subscription(
-          QueueBinding(
-            queueName,
-            durable = false,
-            exclusive = false),
-          consumer)
 
         rabbitControl ! subscription
         await(subscription.initialized)
@@ -65,15 +73,14 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
   describe("ConfirmedMessage publication") {
     it("fulfills the published promise on delivery confirmation") {
       new RabbitFixtures {
-        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { _ =>
-          Future.successful(Unit)
+        val subscription = new Subscription {
+          def config =
+            channel(qos = 5) {
+              consume(queue(queueName, durable = false, exclusive = false)) {
+                ack()
+              }
+            }
         }
-        val subscription = Subscription(
-          QueueBinding(
-            queueName,
-            durable = false,
-            exclusive = false),
-          consumer)
         rabbitControl ! subscription
         await(subscription.initialized)
 
@@ -115,16 +122,17 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
           }
         }))
 
-        val consumer = AsyncAckingConsumer[Int]("Test", 10 seconds, qos = 5) { i =>
-          counter ! ('receive, i)
-          Future.successful(Unit)
+        val subscription = new Subscription {
+          val config =
+            channel(qos = 1) {
+              consume(queue(queueName, durable = true, exclusive = false)) {
+                body(as[Int]) { i =>
+                  counter ! ('receive, i)
+                  ack()
+                }
+              }
+            }
         }
-        val subscription = Subscription(
-          QueueBinding(
-            queueName,
-            durable = true,
-            exclusive = false),
-          consumer)
         rabbitControl ! subscription
         await(subscription.initialized)
 
@@ -157,7 +165,6 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         }
         await(doneReceive.future)
         await(doneConfirm.future)
-        println(lastSent)
         countReceived should be (countConfirmed)
 
         deleteQueue(queueName)

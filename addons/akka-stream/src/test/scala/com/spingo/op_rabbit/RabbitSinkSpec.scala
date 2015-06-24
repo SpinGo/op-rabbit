@@ -8,10 +8,11 @@ import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
+import com.spingo.op_rabbit.subscription.Directives._
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
-import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
 
 class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
@@ -42,22 +43,22 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
         val publisher = RabbitSource(
+          "very-stream",
           rabbitControl,
           QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false),
-          PromiseAckingSource[Int](
-            name = "very-stream",
-            qos = qos))
+          body(as[Int]),
+          qos = qos)
         val consumed = Source(publisher).
           runFold(List.empty[Int]) {
             case (acc, (promise, v)) =>
               println(s"${v == range.max} ${v} == ${range.max}")
               if (v == range.max)
-                publisher.subscription.close()
+                publisher.close()
               promise.success()
               acc ++ List(v)
           }
 
-        await(publisher.subscription.initialized)
+        await(publisher.initialized)
 
         val sink = RabbitSink[Int](
           "test-sink",

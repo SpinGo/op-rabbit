@@ -9,7 +9,7 @@ import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import scala.concurrent.duration._
 import scala.concurrent.Future
-
+import com.spingo.op_rabbit.subscription.Subscription
 
 object RabbitControl {
   /**
@@ -119,9 +119,10 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       // We need this guardian to have a supervisorStrategy which resumes child actors on failure !!! This way, we won't build up infinite number of promises
       subscriptions = subscriptions.filterNot(_.path == ref.path)
 
-    case q: Subscription[_] =>
-      val subscriptionActorRef = context.actorOf(SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.consumer.name)}")
+    case q: Subscription =>
+      val subscriptionActorRef = context.actorOf(subscription.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}")
       context watch subscriptionActorRef
+      // TODO - we need this actor to know the currect subscription state
       subscriptionActorRef ! Run
       subscriptions = subscriptionActorRef :: subscriptions
 

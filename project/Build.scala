@@ -6,7 +6,7 @@ object OpRabbit extends Build {
 
   lazy val commonSettings = Seq(
     organization := "com.spingo",
-    version := "1.0.0-M2",
+    version := "1.0.0-SNAPSHOT",
     scalaVersion := "2.11.6",
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
@@ -14,6 +14,7 @@ object OpRabbit extends Build {
       "Sonatype Releases"  at "http://oss.sonatype.org/content/repositories/releases"
     ),
     libraryDependencies ++= Seq(
+      "com.chuusai" %%  "shapeless" % "2.2.3",
       "com.typesafe" % "config" % "1.3.0",
       "com.typesafe.akka"     %%  "akka-actor"   % akkaVersion,
       "com.typesafe.akka"     %%  "akka-testkit" % akkaVersion % "test",

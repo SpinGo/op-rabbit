@@ -4,28 +4,13 @@ import akka.actor.{Actor, ActorLogging, ActorSystem, Terminated}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.spingo.op_rabbit._
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
+import com.spingo.op_rabbit.subscription.{Rejection, ExtractRejection, UnhandledExceptionRejection, NackRejection}
+import scala.concurrent.ExecutionContext
 import scala.concurrent.Future
+import scala.concurrent.Promise
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
-
-
-object AsyncAckingRabbitConsumer {
-  type RecoveryStrategy = (Throwable, Channel, Envelope, BasicProperties, Array[Byte]) => Future[Unit]
-  private val futureUnit: Future[Unit] = Future.successful(Unit)
-
-  def withRetry(queueName: String, redeliverDelay: FiniteDuration = 10 seconds, retryCount: Int = 3)(implicit actorSystem: ActorSystem): RecoveryStrategy = { (ex, channel, envelop, properties, body) =>
-    import actorSystem.dispatcher
-    val thisRetryCount = PropertyHelpers.getRetryCount(properties)
-    if (thisRetryCount < retryCount)
-      akka.pattern.after(redeliverDelay, actorSystem.scheduler) {
-        val withRetryCountIncremented = PropertyHelpers.setRetryCount(properties, thisRetryCount + 1)
-        channel.basicPublish("", queueName, withRetryCountIncremented, body)
-        futureUnit
-      }
-    else
-      futureUnit
-  }
-}
+import com.spingo.op_rabbit.subscription.{Handler,Result}
 
 // TODO - implement retry according to this pattern: http://yuserinterface.com/dev/2013/01/08/how-to-schedule-delay-messages-with-rabbitmq-using-a-dead-letter-exchange/
 // - create two direct exchanges: work and retry
@@ -36,15 +21,11 @@ object AsyncAckingRabbitConsumer {
 protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
   queueName: String,
-  recoveryStrategy: AsyncAckingRabbitConsumer.RecoveryStrategy,
-  onChannel: (Channel) => Unit,
-  handle: T => Future[Unit])(implicit
-    unmarshaller: RabbitUnmarshaller[T],
-    rabbitErrorLogging: RabbitErrorLogging) extends Actor with ActorLogging {
+  recoveryStrategy: com.spingo.op_rabbit.subscription.RecoveryStrategy,
+  rabbitErrorLogging: RabbitErrorLogging,
+  handle: Handler)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
 
   import Consumer._
-  private case class PipelineException(msg: String, cause: Throwable)
-  private type PipelineEither[T] = Either[PipelineException, T]
 
   var pendingDeliveries = scala.collection.mutable.Set.empty[Long]
 
@@ -131,13 +112,7 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
       // we're stopped, ignore all the things
   }
 
-  private def wrapping[T](msg: String)(fn: => T): PipelineEither[T] =
-    try { Right(fn) }
-    catch { case e: Throwable => Left(PipelineException(msg, e)) }
-
   def setupSubscription(channel: Channel): String = {
-    println(s"setupSubscription(${channel})")
-    onChannel(channel)
     channel.basicConsume(queueName, false,
       new DefaultConsumer(channel) {
         override def handleDelivery(consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
@@ -171,32 +146,37 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
     lazy val reportError = rabbitErrorLogging(name, _: String, _: Throwable, consumerTag, envelope, properties, body)
 
-    val failureOrFuture: PipelineEither[Future[PipelineEither[Unit]]] = for {
-      data <- wrapping("Error while unmarshalling message") {
-        unmarshaller.unmarshall(body, Option(properties.getContentType), Option(properties.getContentEncoding))
-      }.right
+    val handled = Promise[Result]
 
-      result <- wrapping("Error while initializing Future") {
-        handle(data)
-      }.right
-
-    } yield
-      (result map (Right(_)) recover { case e => Left(PipelineException("Error while processing message", e)) })
-
-    val joined: Future[PipelineEither[Unit]] = failureOrFuture.left.map(e => Future.successful(Left(e))).merge
-
-    val result = joined.flatMap {
-      case Right(_) =>
-        Future.successful(Unit)
-      case Left(PipelineException(msg, cause)) =>
-        reportError(msg, cause)
-        recoveryStrategy(cause, channel, envelope, properties, body)
-    }.onComplete {
-      case Success(_) =>
-        self ! RejectOrAck(true, envelope.getDeliveryTag())
-      case Failure(e) =>
-        log.error(s"recovery strategy refused; or something else went wrong", e)
-        self ! RejectOrAck(false, envelope.getDeliveryTag())
+    Future {
+      try handle(handled, delivery)
+      catch {
+        case e: Throwable =>
+          handled.success(Left(UnhandledExceptionRejection("Error while running handler", e)))
+      }
     }
+
+    handled.future.
+      recover { case e => Left(UnhandledExceptionRejection("Unhandled exception occurred in async acking Future", e)) }.
+      flatMap {
+        case Right(_) =>
+          Future.successful(true)
+        case Left(r @ NackRejection(msg)) =>
+          Future.successful(false) // just nack the message; it was intentional. Don't recover. Don't report
+        case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
+          reportError(msg, cause)
+          recoveryStrategy(cause, channel, queueName, delivery)
+        case Left(r @ ExtractRejection(msg)) =>
+          // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
+          reportError(s"Could not extract required data", r)
+          Future.successful(true) // just nack the message; don't recover
+      }.
+      onComplete {
+        case Success(ack) =>
+          self ! RejectOrAck(ack, envelope.getDeliveryTag())
+        case Failure(e) =>
+          log.error(s"Recovery strategy failed, or something else went horribly wrong", e)
+          self ! RejectOrAck(false, envelope.getDeliveryTag())
+      }
   }
 }

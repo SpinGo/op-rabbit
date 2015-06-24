@@ -2,15 +2,18 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.pipe
-import akka.stream.{OperationAttributes, SourceShape}
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
 import akka.stream.impl.SourceModule
+import akka.stream.{OperationAttributes, SourceShape}
+import com.spingo.op_rabbit.subscription.{Subscription, SubscriptionControl, Directive, Directives, RecoveryStrategy, Handler}
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.{Publisher, Subscriber}
 import scala.annotation.tailrec
 import scala.collection.mutable.Queue
-import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import shapeless._
+import shapeless.ops.hlist.Tupler
 
 object RabbitSource {
   type OUTPUT[T] = (Promise[Unit], T)
@@ -28,158 +31,160 @@ object RabbitSource {
     }
 
     // polls for lost promises
+    // If the downstream weak promise is unallocated, and the upstream
+    // promise is not yet fulfilled, it's certain that the weak
+    // promise cannot fulfill the upstream.
     def lostPromises: Seq[Promise[T]] = {
-      for ((k,v) <- watched.toSeq if v.get.isEmpty) yield {
+      val keys = for { (k,v) <- watched.toSeq if v.get.isEmpty } yield {
         watched.remove(k)
         k
       }
+
+      keys.filterNot(_.isCompleted)
     }
   }
-}
 
-case class RabbitSource[T](
-  rabbitControl: ActorRef,
-  binding: Binding,
-  consumer: StreamConsumer[T])(implicit ec: ExecutionContext) extends Publisher[T] {
+  def apply[L <: HList](
+    name: String,
+    rabbitControl: ActorRef,
+    binding: Binding,
+    directive: Directive[L],
+    qos: Int = 3
+  )(implicit ec: ExecutionContext, rabbitErrorLogging: RabbitErrorLogging, refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
+    new Publisher[tupler.Out] with SubscriptionControl {
 
-  val subscription = Subscription(binding, consumer)
-  override def subscribe(sub: Subscriber[_ >: T]): Unit = {
-    // wait until stream is read to subscribe
-    rabbitControl ! subscription
-    subscription.consumerRef.foreach { ref =>
-      ActorPublisher[T](ref).subscribe(sub)
-    }
-  }
-}
+      protected [op_rabbit] val _abortingP = Promise[Unit]
+      protected [op_rabbit] val _closingP = Promise[FiniteDuration]
+      protected [op_rabbit] val _closedP = Promise[Unit]
+      protected [op_rabbit] val _initializedP = Promise[Unit]
 
-/**
-  Contract used to enforce that the consumer actors abide by the stream contract.
-  */
-trait StreamConsumer[T] extends Consumer {}
+      final val closed = _closedP.future
+      final val closing: Future[Unit] = _closingP.future.map( _ => () )(ExecutionContext.global)
+      final val initialized = _initializedP.future
+      final def close(timeout: FiniteDuration = 5 minutes) = _closingP.trySuccess(timeout)
+      final def abort() = _abortingP.trySuccess(())
 
-case class PromiseAckingSource[T](
-  name: String,
-  qos: Int = 3)(implicit
-    unmarshaller: RabbitUnmarshaller[T],
-    rabbitErrorLogging: RabbitErrorLogging) extends StreamConsumer[RabbitSource.OUTPUT[T]] {
+      class RabbitSourceActor extends ActorPublisher[tupler.Out] with ActorLogging {
 
-  def props(queueName: String) =
-    Props(new RabbitSourceActor[T](
-      queueName     = queueName,
-      name          = name,
-      qos           = qos))
-}
+        import context.dispatcher
+        import ActorPublisherMessage.{Cancel, Request}
 
-protected class RabbitSourceActor[T](
-  queueName: String,
-  name: String,
-  qos: Int = 3)(implicit
-    unmarshaller: RabbitUnmarshaller[T],
-    rabbitErrorLogging: RabbitErrorLogging) extends ActorPublisher[RabbitSource.OUTPUT[T]] with ActorLogging {
+        // State
+        var stopping = false
+        var presentQos = qos
+        val queue = scala.collection.mutable.Queue.empty[tupler.Out]
+        val promiseWatcher = new LostPromiseWatcher[Unit]
 
-  import RabbitSource._
-  import context.dispatcher
-  import ActorPublisherMessage.{Cancel, Request}
+        protected case class MessageReceived(promise: Promise[Unit], msg: L)
+        protected case class StreamException(e: Throwable)
+        protected case class SubscriptionCreated(a: ActorRef)
+        protected case object PollLostPromises
 
-  // State
-  var channel: Option[Channel] = None
-  var stopping = false
-  var presentQos = qos
-  val queue = scala.collection.mutable.Queue.empty[OUTPUT[T]]
-  val promiseWatcher = new LostPromiseWatcher[Unit]
-
-  protected case class MessageReceived(promise: Promise[Unit], msg: T)
-  protected case class StreamException(e: Throwable)
-  protected case object PollLostPromises
-
-  // TODO - manage this / monitor this / integrate with subscription
-  val consumer = context.actorOf(
-    Props {
-      new impl.AsyncAckingRabbitConsumer(
-        name             = name,
-        queueName        = queueName,
-        recoveryStrategy = { (ex, channel, envelop, properties, body) =>
-          // TODO - I should propagate this error downwards; this is grounds for closing the stream
-          self ! StreamException(ex)
-          Future.failed(new Exception("Cowardly refusing to retry a message in a stream source provider"))
-        },
-        onChannel        = { (channel) =>
-          channel.basicQos(presentQos)
-        },
-        handle           = { (msg: T) =>
-          val p = Promise[Unit]
-          self ! MessageReceived(p, msg)
-          p.future
+        val recoveryStrategy: RecoveryStrategy = new RecoveryStrategy {
+          def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Consumer.Delivery): Future[Boolean] = {
+            self ! StreamException(ex)
+            Future.successful(false)
+          }
         }
-      )
-    }
-  )
-  context.watch(consumer)
 
-  val bufferMax = qos / 2
 
-  override def preStart: Unit = {
-    context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)
-  }
+        val consumerDirective = Directives.consume((binding, rabbitErrorLogging, recoveryStrategy, ec))
+        val subscription = new Subscription {
+          def config = {
+            channel(qos = qos) {
+              consumerDirective {
+                directive.happly { l =>
+                  val p = Promise[Unit]
 
-  def receive = {
-    case PollLostPromises =>
-      val lost = promiseWatcher.lostPromises.foreach {
-        _.tryFailure(new Exception(s"Promise for stream consumer ${name} was garbage collected before it was fulfilled."))
+                  self ! MessageReceived(p, l)
+
+                  ack(p.future)
+                }
+              }
+            }
+          }
+        }
+        // Wire up promises on RabbitSource with Subscription promises.
+        // This pattern will likely change.
+        _closedP.completeWith(subscription.closed)
+        _abortingP.future.foreach(_ => subscription.abort())
+        _closingP.future.foreach(subscription.close)
+        _initializedP.completeWith(subscription.initialized)
+
+        override def preStart: Unit = {
+          rabbitControl ! subscription
+          subscription.subscriptionRef foreach ( actorRef => self ! SubscriptionCreated(actorRef) )
+          context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)
+        }
+
+        var subscriptionActor: Option[ActorRef] = None
+        val bufferMax = qos / 2
+
+
+        def receive = {
+          case PollLostPromises =>
+            val lost = promiseWatcher.lostPromises.foreach {
+              _.failure(new Exception(s"Promise for stream consumer ${name} was garbage collected before it was fulfilled."))
+            }
+
+          case Request(demand) =>
+            drain()
+            if (stopping) tryStop()
+
+          // A stream consumer detached
+          case Cancel =>
+            context stop self
+
+
+          // sent by the StreamRabbitConsumer if there is a deserialization error or other issue
+          case StreamException(ex) =>
+            onError(ex)
+            subscription.abort()
+            context stop self
+
+          case MessageReceived(promise, msg) =>
+            val watchedPromise = promiseWatcher(promise)
+            val out = tupler(watchedPromise :: msg)
+            queue.enqueue(out)
+            drain()
+            limitQosOnOverflow()
+
+          case SubscriptionCreated(actorRef) =>
+            subscriptionActor = Some(actorRef)
+            context watch actorRef
+
+          // preStart adds a hook such that this message is sent as soon as the subscription is closed
+          case Terminated(actorRef) if (Some(actorRef) == subscriptionActor) =>
+            subscriptionActor = None
+            stopping = true
+            tryStop()
+        }
+
+        private def tryStop(): Unit =
+          if (queue.length == 0)
+            onCompleteThenStop()
+
+
+        private def drain(): Unit =
+          while ((totalDemand > 0) && (queue.length > 0)) {
+            onNext(queue.dequeue())
+          }
+
+        private def limitQosOnOverflow(): Unit = {
+          subscriptionActor.foreach { ref =>
+            // TODO - think this through
+            val desiredQos = if(queue.length > bufferMax) 1 else presentQos
+            if (desiredQos == presentQos) subscriptionActor.foreach { ref =>
+              ref ! Subscription.SetQos(desiredQos)
+              presentQos = desiredQos
+            }
+          }
+        }
       }
 
-
-    case Request(demand) =>
-      drain()
-      if (stopping) tryStop()
-
-    // A stream consumer detached
-    case Cancel =>
-      context stop self
-
-
-    // sent by the StreamRabbitConsumer if there is a deserialization error or other issue
-    case StreamException(ex) =>
-      onError(ex)
-      context stop self
-
-    case MessageReceived(promise, msg) =>
-      queue.enqueue((promiseWatcher(promise), msg))
-      drain()
-      limitQosOnOverflow()
-
-
-    case subscribeCommand @ Consumer.Subscribe(_channel) =>
-      channel = Some(_channel)
-      consumer ! subscribeCommand
-
-    case c: Consumer.ConsumerCommand =>
-      consumer ! c
-
-    // preStart adds a hook such that this message is sent as soon as the subscription is closed
-    case Terminated(`consumer`) =>
-      stopping = true
-      tryStop()
-  }
-
-  private def tryStop(): Unit =
-    if (queue.length == 0)
-      onCompleteThenStop()
-
-
-  private def drain(): Unit =
-    while ((totalDemand > 0) && (queue.length > 0))
-      onNext(queue.dequeue())
-
-  private def limitQosOnOverflow(): Unit = {
-    // TODO - think this through
-    val desiredQos = if(queue.length > bufferMax) 1 else presentQos
-    try if (desiredQos == presentQos) channel.foreach { channel =>
-      channel.basicQos(desiredQos)
-      presentQos = desiredQos
-    } catch {
-      case RabbitExceptionMatchers.NonFatalRabbitException(_) =>
-        ()
+      override def subscribe(sub: Subscriber[_ >: tupler.Out]): Unit = {
+        val leActor = refFactory.actorOf(Props(new RabbitSourceActor))
+        ActorPublisher[tupler.Out](leActor).subscribe(sub)
+      }
     }
-  }
 }

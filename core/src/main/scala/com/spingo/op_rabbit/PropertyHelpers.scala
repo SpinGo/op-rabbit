@@ -1,11 +1,7 @@
 package com.spingo.op_rabbit
 
 import com.rabbitmq.client.AMQP.BasicProperties
-
-import scala.collection.JavaConversions._
-import com.rabbitmq.client.LongString
-import com.rabbitmq.client.impl.LongStringHelper
-
+import com.spingo.op_rabbit.properties.{Header, builderWithProperties}
 /**
   Helper functions used internally to manipulate getting and setting custom headers
   */
@@ -13,19 +9,14 @@ object PropertyHelpers {
   private val RETRY_HEADER_NAME = "RETRY"
 
   def getRetryCount(properties: BasicProperties) =
-    Option(properties.getHeaders).
-      flatMap { h => Option(h.get(RETRY_HEADER_NAME).asInstanceOf[LongString]) }.
-      map { ls => new String(ls.getBytes).toInt }.
-      getOrElse(0)
+    Header(RETRY_HEADER_NAME).unapply(properties).map(_.asString.toInt) getOrElse (0)
 
   def setRetryCount(properties: BasicProperties, count: Int) = {
-    val retryEntry = (RETRY_HEADER_NAME -> LongStringHelper.asLongString(count.toString))
-    val updatedHeaders: Map[String, Object] = Option(properties.getHeaders) map { _.toMap + retryEntry } getOrElse { Map(retryEntry) }
+    import java.util.HashMap
+    val p = Header(RETRY_HEADER_NAME, count)
 
-    properties.
-      builder.
-      headers(updatedHeaders).
-      build
+    val map = Option(properties.getHeaders) map (new HashMap[String, Object](_)) getOrElse { new HashMap[String, Object] }
+
+    builderWithProperties(Seq(p), properties.builder, map).build
   }
-
 }

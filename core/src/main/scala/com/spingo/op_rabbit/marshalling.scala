@@ -88,7 +88,12 @@ object UTF8StringMarshaller extends RabbitMarshaller[String] with RabbitUnmarsha
     new String(value, charset map (Charset.forName) getOrElse utf8)
 }
 
-object DefaultMarshalling {
-  implicit val binaryMarshaller = BinaryMarshaller
-  implicit val utf8StringMarshaller = UTF8StringMarshaller
+object RabbitUnmarshaller {
+  implicit val binaryUnmarshaller: RabbitUnmarshaller[Array[Byte]] = BinaryMarshaller
+  implicit val stringMarshaller: RabbitUnmarshaller[String] = UTF8StringMarshaller
+}
+
+object RabbitMarshaller {
+  implicit val binaryUnmarshaller: RabbitMarshaller[Array[Byte]] = BinaryMarshaller
+  implicit val stringMarshaller: RabbitMarshaller[String] = UTF8StringMarshaller
 }
