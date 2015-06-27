@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Success, Try}

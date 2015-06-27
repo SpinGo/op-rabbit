@@ -1,8 +1,7 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
 import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.MessageProperties
-import com.spingo.op_rabbit.Consumer.Delivery
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._

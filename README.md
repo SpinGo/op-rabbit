@@ -47,7 +47,7 @@ resolvers ++= Seq(
   "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
 )
 
-val opRabbitVersion = "1.0.0-M2"
+val opRabbitVersion = "1.0.0-M3"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
@@ -105,22 +105,23 @@ val rabbitMq = actorSystem.actorOf(Props[RabbitControl])
 ```scala
 import com.spingo.op_rabbit.PlayJsonSupport._
 import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.consumer._
+import com.spingo.op_rabbit.subscription.Directives._
 
+import scala.concurrent.ExecutionContext.Implicits.global
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
-// A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
-val consumer = AsyncAckingConsumer("PersonSignup", qos = 3) { person: Person =>
-  Future {
-    // do work; when this Future completes, the message will be acknowledged.
-    // if the Future fails, after a delay the message will be redelivered for retry (up to 3 times, by default)
-  }
-}
-
 val subscription = new Subscription(
-  TopicBinding(
-      queueName = "such-message-queue",
-      topics = List("some-topic.#")),
-  consumer)
+  // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
+  def config = channel(qos = 3) {
+    consume(topic("such-message-queue", List("some-topic.#"))) {
+      body(as[Person]) { person =>
+        // do work; when this Future completes, the message will be acknowledged.
+        // if the Future fails, after a delay the message will be redelivered for retry (up to 3 times, by default)
+        ack()
+      }
+    }
+  }
 
 rabbitMq ! subscription
 ```
@@ -160,13 +161,16 @@ By default, messages will be queued up until a connection is available.
 
 ```scala
 import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.subscription._
+import com.spingo.op_rabbit.subscription.Directives._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Json.format[Work] // setup play-json serializer
 
 val publisher = RabbitSource(
   rabbitMq,
-  QueueBinding("such-queue", durable = true, exclusive = false, autoDelete = false),
-  PromiseAckingSource[Work](name = "very-stream", qos = qos)) // marshalling is automatically hooked up using implicits
+  channel(qos = 3),
+  consume(queue("such-queue", durable = true, exclusive = false, autoDelete = false)),
+  body(as[Work])) // marshalling is automatically hooked up using implicits
 
 Source(publisher).
   to(Sink.foreach {

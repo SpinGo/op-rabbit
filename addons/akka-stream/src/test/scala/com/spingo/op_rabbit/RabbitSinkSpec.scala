@@ -8,7 +8,7 @@ import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
-import com.spingo.op_rabbit.subscription.Directives._
+import com.spingo.op_rabbit.consumer.Directives._
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.duration._
@@ -29,7 +29,7 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
   trait RabbitFixtures {
     implicit val materializer = ActorFlowMaterializer()
     val exceptionReported = Promise[Boolean]
-    implicit val errorReporting = new RabbitErrorLogging {
+    implicit val errorReporting = new consumer.RabbitErrorLogging {
       def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
         exceptionReported.success(true)
       }
@@ -42,12 +42,12 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
   describe("RabbitSink") {
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
-        val publisher = RabbitSource(
+        val publisher = consumer.RabbitSource(
           "very-stream",
           rabbitControl,
-          QueueBinding(queueName(), durable = true, exclusive = false, autoDelete = false),
-          body(as[Int]),
-          qos = qos)
+          channel(qos),
+          consume(queue(queueName(), durable = true, exclusive = false, autoDelete = false)),
+          body(as[Int]))
         val consumed = Source(publisher).
           runFold(List.empty[Int]) {
             case (acc, (promise, v)) =>

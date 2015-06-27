@@ -1,17 +1,17 @@
-package com.spingo.op_rabbit
+package com.spingo.op_rabbit.consumer
 
+import com.spingo.op_rabbit._
 import akka.actor._
 import akka.pattern.ask
 import com.rabbitmq.client.{Channel, Envelope}
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.spingo.op_rabbit.subscription.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
-import helpers.RabbitTestHelpers
+import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Random
-import com.spingo.op_rabbit.subscription.RecoveryStrategy
+
 class AsyncAckingConsumerSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
   val _queueName = ScopedFixture[String] { setter =>

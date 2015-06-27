@@ -1,7 +1,6 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
 import akka.actor._
-import com.spingo.op_rabbit.Consumer
 import com.spingo.op_rabbit.RabbitControl.{Pause, Run}
 import com.spingo.op_rabbit.RabbitExceptionMatchers
 import com.spingo.op_rabbit.RabbitExceptionMatchers._
@@ -16,7 +15,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
   startWith(Paused, ConnectionInfo(None, subscription.channelConfiguration.qos))
 
   val props = Props {
-    new com.spingo.op_rabbit.impl.AsyncAckingRabbitConsumer(
+    new impl.AsyncAckingRabbitConsumer(
       name             = subscription.binding.queueName,
       queueName        = subscription.binding.queueName,
       recoveryStrategy = subscription._recoveryStrategy,

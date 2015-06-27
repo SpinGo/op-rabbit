@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
 sealed trait Rejection extends Exception { val reason: String }
 

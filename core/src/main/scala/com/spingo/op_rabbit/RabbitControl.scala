@@ -9,7 +9,7 @@ import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import scala.concurrent.duration._
 import scala.concurrent.Future
-import com.spingo.op_rabbit.subscription.Subscription
+import com.spingo.op_rabbit.consumer.Subscription
 
 object RabbitControl {
   /**
@@ -120,7 +120,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       subscriptions = subscriptions.filterNot(_.path == ref.path)
 
     case q: Subscription =>
-      val subscriptionActorRef = context.actorOf(subscription.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}")
+      val subscriptionActorRef = context.actorOf(consumer.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}")
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state
       subscriptionActorRef ! Run

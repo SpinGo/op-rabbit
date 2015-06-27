@@ -1,11 +1,9 @@
-package com.spingo.op_rabbit
+package com.spingo.op_rabbit.consumer
 
 import akka.actor._
 import akka.pattern.pipe
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
-import akka.stream.impl.SourceModule
 import akka.stream.{OperationAttributes, SourceShape}
-import com.spingo.op_rabbit.subscription.{Subscription, SubscriptionControl, Directive, Directives, RecoveryStrategy, Handler}
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.{Publisher, Subscriber}
 import scala.annotation.tailrec
@@ -47,10 +45,10 @@ object RabbitSource {
   def apply[L <: HList](
     name: String,
     rabbitControl: ActorRef,
-    binding: Binding,
-    directive: Directive[L],
-    qos: Int = 3
-  )(implicit ec: ExecutionContext, rabbitErrorLogging: RabbitErrorLogging, refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
+    channelDirective: ChannelDirective,
+    binding: SubscriptionDirective,
+    directive: Directive[L]
+  )(implicit ec: ExecutionContext, refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
     new Publisher[tupler.Out] with SubscriptionControl {
 
       protected [op_rabbit] val _abortingP = Promise[Unit]
@@ -71,7 +69,8 @@ object RabbitSource {
 
         // State
         var stopping = false
-        var presentQos = qos
+        val initialQos = channelDirective.config.qos
+        var presentQos = initialQos
         val queue = scala.collection.mutable.Queue.empty[tupler.Out]
         val promiseWatcher = new LostPromiseWatcher[Unit]
 
@@ -80,19 +79,20 @@ object RabbitSource {
         protected case class SubscriptionCreated(a: ActorRef)
         protected case object PollLostPromises
 
-        val recoveryStrategy: RecoveryStrategy = new RecoveryStrategy {
-          def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Consumer.Delivery): Future[Boolean] = {
-            self ! StreamException(ex)
-            Future.successful(false)
+        val interceptiongRecoveryStrategy = new RecoveryStrategy {
+          def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
+            val downstream = binding.recoveryStrategy(ex, channel, queueName, delivery)
+            // if recovery strategy fails, then yield the exception through the stream
+            downstream.onFailure { case ex => self ! StreamException(ex) }
+            downstream
           }
         }
 
-
-        val consumerDirective = Directives.consume((binding, rabbitErrorLogging, recoveryStrategy, ec))
+        val streamConsumerDirective = binding.copy(recoveryStrategy = interceptiongRecoveryStrategy)
         val subscription = new Subscription {
           def config = {
-            channel(qos = qos) {
-              consumerDirective {
+            channelDirective {
+              streamConsumerDirective {
                 directive.happly { l =>
                   val p = Promise[Unit]
 
@@ -118,7 +118,7 @@ object RabbitSource {
         }
 
         var subscriptionActor: Option[ActorRef] = None
-        val bufferMax = qos / 2
+        val bufferMax = initialQos / 2
 
 
         def receive = {

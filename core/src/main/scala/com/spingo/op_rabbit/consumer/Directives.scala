@@ -1,15 +1,9 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
-import com.spingo.op_rabbit.QueueBinding
-import com.spingo.op_rabbit.RabbitControl
-import com.spingo.op_rabbit.RabbitErrorLogging
-import com.spingo.op_rabbit.TopicBinding
-import com.spingo.op_rabbit.{Binding, Consumer, RabbitUnmarshaller}
+import com.spingo.op_rabbit.{Binding, QueueBinding, RabbitControl, RabbitUnmarshaller, TopicBinding}
 import com.spingo.op_rabbit.properties.PropertyExtractor
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Success, Try}
 import shapeless._
-import shapeless.ops.hlist.Prepend
 
 trait Ackable {
   val handler: Handler
@@ -96,13 +90,13 @@ trait Directives {
     }
   }
 
-  def extract[T](map: Consumer.Delivery => T) = new Directive1[T] {
+  def extract[T](map: Delivery => T) = new Directive1[T] {
     def happly(fn: ::[T, HNil] => Handler): Handler = { (promise, delivery) =>
       val data = map(delivery)
       fn(data :: HNil)(promise, delivery)
     }
   }
-  def extractEither[T](map: Consumer.Delivery => Either[Rejection, T]) = new Directive1[T] {
+  def extractEither[T](map: Delivery => Either[Rejection, T]) = new Directive1[T] {
     def happly(fn: ::[T, HNil] => Handler): Handler = { (promise, delivery) =>
       map(delivery) match {
         case Left(rejection) => promise.success(Left(rejection))

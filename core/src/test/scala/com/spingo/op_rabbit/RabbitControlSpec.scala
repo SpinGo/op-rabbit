@@ -8,7 +8,7 @@ import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import com.spingo.op_rabbit.subscription.Subscription
+import com.spingo.op_rabbit.consumer.Subscription
 
 class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 

@@ -1,33 +1,24 @@
-package com.spingo.op_rabbit.impl
+package com.spingo.op_rabbit.consumer.impl
 
-import akka.actor.{Actor, ActorLogging, ActorSystem, Terminated}
+import akka.actor.{Actor, ActorLogging, Terminated}
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.RabbitExceptionMatchers
+import com.spingo.op_rabbit.consumer._
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
-import com.spingo.op_rabbit.subscription.{Rejection, ExtractRejection, UnhandledExceptionRejection, NackRejection}
-import scala.concurrent.ExecutionContext
-import scala.concurrent.Future
-import scala.concurrent.Promise
-import scala.concurrent.duration._
+import scala.collection.mutable
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success, Try}
-import com.spingo.op_rabbit.subscription.{Handler,Result}
 
-// TODO - implement retry according to this pattern: http://yuserinterface.com/dev/2013/01/08/how-to-schedule-delay-messages-with-rabbitmq-using-a-dead-letter-exchange/
-// - create two direct exchanges: work and retry
-// - Publish to rety with additional header set/incremented: x-redelivers
-// -  { "x-dead-letter-exchange", WORK_EXCHANGE },
-// -  { "x-message-ttl", RETRY_DELAY }
-// -   (setting since nothing consumes the direct exchange, it will go back to retry queue)
 protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
   queueName: String,
-  recoveryStrategy: com.spingo.op_rabbit.subscription.RecoveryStrategy,
+  recoveryStrategy: com.spingo.op_rabbit.consumer.RecoveryStrategy,
   rabbitErrorLogging: RabbitErrorLogging,
   handle: Handler)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
 
   import Consumer._
 
-  var pendingDeliveries = scala.collection.mutable.Set.empty[Long]
+  var pendingDeliveries = mutable.Set.empty[Long]
 
   case class RejectOrAck(ack: Boolean, deliveryTag: Long)
 
@@ -162,21 +153,22 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
         case Right(_) =>
           Future.successful(true)
         case Left(r @ NackRejection(msg)) =>
-          Future.successful(false) // just nack the message; it was intentional. Don't recover. Don't report
+          Future.successful(false) // just nack the message; it was intentional. Don't recover. Don't report.
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
           recoveryStrategy(cause, channel, queueName, delivery)
         case Left(r @ ExtractRejection(msg)) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
-          Future.successful(true) // just nack the message; don't recover
+          recoveryStrategy(r, channel, queueName, delivery)
       }.
       onComplete {
         case Success(ack) =>
           self ! RejectOrAck(ack, envelope.getDeliveryTag())
         case Failure(e) =>
-          log.error(s"Recovery strategy failed, or something else went horribly wrong", e)
+          log.error(s"Recovery strategy failed, or something else went horribly wrong; rejecting, then shutting consumer down.", e)
           self ! RejectOrAck(false, envelope.getDeliveryTag())
+          self ! Shutdown
       }
   }
 }

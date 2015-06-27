@@ -3,7 +3,7 @@ package com.spingo.op_rabbit
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import com.spingo.op_rabbit.subscription.Subscription
+import com.spingo.op_rabbit.consumer.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{Channel, RichConnectionActor}
 import helpers.RabbitTestHelpers

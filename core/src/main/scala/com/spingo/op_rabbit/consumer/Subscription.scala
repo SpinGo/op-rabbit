@@ -1,7 +1,7 @@
-package com.spingo.op_rabbit.subscription
+package com.spingo.op_rabbit.consumer
 
 import akka.actor.ActorRef
-import com.spingo.op_rabbit.{Binding, Consumer}
+import com.spingo.op_rabbit.Binding
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 

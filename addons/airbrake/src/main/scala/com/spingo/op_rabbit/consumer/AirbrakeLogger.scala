@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit
+package com.spingo.op_rabbit.consumer
 
 import airbrake.{AirbrakeNoticeBuilder, AirbrakeNotifier}
 import com.rabbitmq.client.Envelope
