@@ -134,7 +134,37 @@ val subscription = new Subscription(
 rabbitMq ! subscription
 ```
 
-The following methods are available on subscription:
+#### Accessing additional headers
+
+If there are other headers you'd like to access, you can extract multiple using nested functions, or combine multiple directives to a single one. IE:
+
+```
+import com.spingo.op_rabbit.properties._
+
+// Nexted directives
+// ...
+      body(as[Person]) { person =>
+        optionalProperty(properties.ReplyTo) { replyTo =>
+          // do work
+          ack()
+        }
+      }
+// ...
+
+// Compound directive
+// ...
+      (body(as[Person]) & optionalProperty(properties.ReplyTo)) { (person, replyTo) =>
+        // do work
+        ack()
+      }
+// ...
+```
+
+Please see the documentation on [Directives](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.consumer.Directives) for more details.
+
+#### Shutting down a consumer
+
+The following methods are available on subscription which will allow control over the subscription.
 
 ```scala
 // stop receiving new messages from RabbitMQ immediately; shut down consumer and channel as soon as pending messages are completed. A grace period of 30 seconds is given, after which the subscription forcefully shuts down.
@@ -161,7 +191,10 @@ rabbitMq ! TopicMessage(Person(name = "Mike How", age = 33), routingKey = "some-
 rabbitMq ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
 ```
 
-By default, messages will be queued up until a connection is available.
+By default:
+
+- Messages will be queued up until a connection is available
+- Messages are monitored via publisherConfirms; if a connection is lost before RabbitMQ confirms receipt of the message, then the message is published again. This means that the message may be delivered twice, the default opinion being that `at-least-once` is better than `at-most-once`. You can use `UnconfirmedMessage` if you'd like `at-most-once` delivery instead.
 
 ### Consuming using Akka streams
 
@@ -233,6 +266,12 @@ object LogbackLogger extends RabbitErrorLogging {
   }
 }
 ```
+
+### Notes
+
+#### Shapeless dependency
+
+Note, Op-Rabbit depends on [shapeless](https://github.com/milessabin/shapeless) `2.2.3`; if you are using `spray`, then you'll need to use the version built for shapeless `2.1.0`; shapeless `2.2.3` is [noted to be binary compatible with `2.1.x` in most cases](https://github.com/milessabin/shapeless/blob/e78c95926550a1f9a6ca82fad07548ddaedd4901/notes/2.2.2.markdown).
 
 ### Credits
 
