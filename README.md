@@ -10,6 +10,14 @@ See the latest API Docs:
 - [op-rabbit-airbrake](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/airbrake/current/index.html)
 - [op-rabbit-akka-stream](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html)
 
+For announcements, discussions, etc., join the discussion:
+
+- [https://groups.google.com/forum/#!forum/op-rabbit](Op-rabbit discussion forum)
+
+Issues go here:
+
+- https://github.com/SpinGo/op-rabbit/issues
+
 # Intro
 
 Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for interacting with RabbitMQ; the following is a high-level feature list:
