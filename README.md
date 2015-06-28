@@ -271,7 +271,7 @@ object LogbackLogger extends RabbitErrorLogging {
 
 #### Shapeless dependency
 
-Note, Op-Rabbit depends on [shapeless](https://github.com/milessabin/shapeless) `2.2.3`; if you are using `spray`, then you'll need to use the version built for shapeless `2.1.0`; shapeless `2.2.3` is [noted to be binary compatible with `2.1.x` in most cases](https://github.com/milessabin/shapeless/blob/e78c95926550a1f9a6ca82fad07548ddaedd4901/notes/2.2.2.markdown).
+Note, Op-Rabbit depends on [shapeless](https://github.com/milessabin/shapeless) `2.2.3`; if you are using `spray`, then you'll need to use the [version built for shapeless `2.1.0`](http://repo.spray.io/io/spray/spray-routing-shapeless2_2.11/1.3.3/); shapeless `2.2.3` is [noted to be binary compatible with `2.1.x` in most cases](https://github.com/milessabin/shapeless/blob/e78c95926550a1f9a6ca82fad07548ddaedd4901/notes/2.2.2.markdown).
 
 ### Credits
 
