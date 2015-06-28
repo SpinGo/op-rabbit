@@ -14,7 +14,7 @@ case class MismatchedContentType(received: String, expected: String) extends Exc
   This trait is used to serialize messages for publication; it
   configures a property builder and sets the appropriate headers
 
-  @see [[RabbitUnmarshaller]], [[DefaultMarshalling$ DefaultMarshalling]]
+  @see [[RabbitUnmarshaller]], [[UTF8StringMarshaller]], [[BinaryMarshaller]]
   */
 trait RabbitMarshaller[T] {
   /**
@@ -54,7 +54,7 @@ trait RabbitMarshaller[T] {
   use in Consumers; it checks and honors the contentType / encoding
   message headers, as appropriate.
   
-  @see [[RabbitMarshaller]], [[DefaultMarshalling$ DefaultMarshalling]]
+  @see [[RabbitMarshaller]], [[UTF8StringMarshaller]], [[BinaryMarshaller]]
   */
 trait RabbitUnmarshaller[T] {
   /**
@@ -64,7 +64,7 @@ trait RabbitUnmarshaller[T] {
 }
 
 /**
-  Pull binary message payload raw, without any serialization. An implicit is defined in [[DefaultMarshalling.binaryMarshaller]]
+  Pull binary message payload raw, without any serialization. An implicit is defined in [[RabbitUnmarshaller$.binaryUnmarshaller]] and [[RabbitMarshaller$.binaryUnmarshaller]]
   */
 object BinaryMarshaller extends RabbitMarshaller[Array[Byte]] with RabbitUnmarshaller[Array[Byte]] {
   protected val contentType = "application/octet-stream"
@@ -74,7 +74,7 @@ object BinaryMarshaller extends RabbitMarshaller[Array[Byte]] with RabbitUnmarsh
 }
 
 /**
-  Converts binary message to a UTF8 string, and back. An implicit is defined in [[DefaultMarshalling.utf8StringMarshaller]]
+  Converts binary message to a UTF8 string, and back. An implicit is defined in [[RabbitUnmarshaller$.stringMarshaller]] and [[RabbitMarshaller$.stringMarshaller]]
   */
 object UTF8StringMarshaller extends RabbitMarshaller[String] with RabbitUnmarshaller[String] {
   val contentType = "text/plain"

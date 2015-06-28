@@ -34,7 +34,7 @@ trait MessagePublisher {
   @param routingKey The routing key (or topic)
   @param exchange The exchange to which the strategy will publish the message
 
-  @see [[QueuePublisher]], [[MessageForPublication]]
+  @see [[QueuePublisher]], [[MessageForPublicationLike]]
   */
 case class TopicPublisher(routingKey: String, exchange: String = RabbitControl topicExchangeName) extends MessagePublisher {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
@@ -44,7 +44,7 @@ case class TopicPublisher(routingKey: String, exchange: String = RabbitControl t
 /**
   Publishes messages directly to the specified message-queue; note that this is a strategy which receives message data and publishes it to a channel.
 
-  @see [[TopicPublisher]], [[MessageForPublication]]
+  @see [[TopicPublisher]], [[MessageForPublicationLike]]
   */
 case class QueuePublisher(queue: String) extends MessagePublisher {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
@@ -52,11 +52,11 @@ case class QueuePublisher(queue: String) extends MessagePublisher {
 }
 
 /**
-  Describes a messages data, along with publication strategy; send to [[RabbitControl]] actor for delivery.
+  Contains a message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Delivery is not confirmed, although care is taken to not send if a channel is unavailable.
 
-  Use the factory method [[MessageForPublication$.apply]] to instantiate one of these using a [[RabbitMarshaller]].
+  Use the factory method [[UnconfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
 
-  @see [[MessageForPublication$]]
+  @see [[UnconfirmedMessage$]]
   */
 class UnconfirmedMessage(
   val publisher: MessagePublisher,
@@ -69,7 +69,7 @@ class UnconfirmedMessage(
 object UnconfirmedMessage {
 
   /**
-    Factory method for instantiating a MessageForPublication
+    Factory method for instantiating an [[UnconfirmedMessage]]
 
     Note, serialization occurs in the thread calling the constructor, not the actor thread responsible for sending messages.
 
@@ -91,6 +91,13 @@ object UnconfirmedMessage {
   }
 }
 
+/**
+  Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, the Future [[ConfirmedMessage.published]] will complete.
+
+  Use the factory method [[ConfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
+
+  @see [[ConfirmedMessage$]], [[TopicMessage$]], [[QueueMessage$]]
+  */
 final class ConfirmedMessage(
   val publisher: MessagePublisher,
   val data: Array[Byte],
@@ -146,11 +153,17 @@ class StatusCheckMessage(timeout: Duration = 5 seconds)(implicit actorSystem: Ac
   }
 }
 
+/**
+  Shorthand for [[ConfirmedMessage$.apply ConfirmedMessage]](TopicPublisher(...), ...)
+  */
 object TopicMessage {
   def apply[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): ConfirmedMessage =
     ConfirmedMessage(TopicPublisher(routingKey, exchange), message, properties)
 }
 
+/**
+  Shorthand for [[ConfirmedMessage$.apply ConfirmedMessage]](QueuePublisher(...), ...)
+  */
 object QueueMessage {
   def apply[T](
     message: T,

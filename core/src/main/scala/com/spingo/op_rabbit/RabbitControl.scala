@@ -51,16 +51,16 @@ object RabbitControl {
   RabbitControl is the top-level actor which handles the following:
 
   - Pull configuration from the rabbitmq config block, and establish connection to RabbitMQ
-  - Manage [[Subscription subscriptions]]
+  - Manage [[consumer.Subscription subscriptions]]
   
   == Messages received ==
   
   RabbitControl accepts the following commands / queries:
 
-  - [[MessageForPublication]] - Publish the given message
+  - [[MessageForPublicationLike]] - Publish the given message
   - [[RabbitControl$.SubscriptionCommand RabbitControl.SubscriptionCommand]] - [[RabbitControl$.Pause Pause]] / [[RabbitControl$.Run Resume]] all register subscriptions (consumers)
   - [[RabbitControl$.GetConnectionActor RabbitControl.GetConnectionActor]] - Return the akka.actor.ActorRef for the `akka-rabbitmq` ConnectionActor
-  - [[Subscription]] - Activate the given subscription
+  - [[consumer.Subscription]] - Activate the given subscription
   */
 class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
   def this() = this(ConnectionParams.fromConfig())

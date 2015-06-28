@@ -40,7 +40,7 @@ trait RabbitErrorLogging {
   /**
     Called by consumer to report an exception processing a message
 
-    @param name The name of the consumer which threw the exception; see [[Consumer.name]]
+    @param name The name of the message queue which threw the exception
     @param context A string describing the context in which the message was throw (IE: error while deserializing message)
     @param exception The exception thrown by the consumer while attempting to unmarshall the message, or process the message
     @param consumerTag RabbitMQ specific unique identifier for the consumer

@@ -1,5 +1,6 @@
 package com.spingo.op_rabbit
 
+// TODO - move to consumer in m4
 import com.thenewmotion.akka.rabbitmq.Channel
 
 /**
