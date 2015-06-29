@@ -86,6 +86,7 @@ Set up RabbitMQ connection information in `application.conf`:
 ```conf
 rabbitmq {
   topic-exchange-name = "op-rabbit-testeroni"
+  virtual-host = "/"
   hosts = ["127.0.0.1"]
   username = "guest"
   password = "guest"
@@ -138,7 +139,7 @@ rabbitMq ! subscription
 
 If there are other headers you'd like to access, you can extract multiple using nested functions, or combine multiple directives to a single one. IE:
 
-```
+```scala
 import com.spingo.op_rabbit.properties._
 
 // Nexted directives
