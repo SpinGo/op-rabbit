@@ -268,7 +268,8 @@ It's important to know when your consumers fail. Out of the box, `op-rabbit` shi
 You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `logback` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
 
 ```scala
-import com.spingo.op_rabbit.{LogbackLogger, RabbitControl}
+import com.spingo.op_rabbit.consumer.LogbackLogger
+import com.spingo.op_rabbit.RabbitControl
 
 implicit val rabbitErrorLogging = LogbackLogger + AirbrakeLogger.fromConfig
 ```
