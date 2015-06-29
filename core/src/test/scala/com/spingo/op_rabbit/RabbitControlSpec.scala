@@ -85,9 +85,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         await(subscription.initialized)
 
         val msg = ConfirmedMessage(QueuePublisher(queueName), 5)
-        rabbitControl ! msg
-
-        await(msg.published)
+        await(rabbitControl ? msg)
         deleteQueue(queueName)
       }
     }
@@ -145,10 +143,9 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
             i = i + 1
             val n = i
             val msg = factory(n)
-            msg.published foreach { _ =>
+            (rabbitControl ? msg) foreach { _ =>
               counter ! ('confirm, n)
             }
-            rabbitControl ! msg
             Thread.sleep(10) // slight delay as to not overwhelm RAM
           }
           i
@@ -159,8 +156,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         keepSending = false
         val lastSent = await(lastSentF)
         val confirmMsg = factory(-1)
-        rabbitControl ! confirmMsg
-        confirmMsg.published foreach { _ =>
+        (rabbitControl ? confirmMsg) foreach { _ =>
           counter ! ('confirm, -1)
         }
         await(doneReceive.future)

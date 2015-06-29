@@ -40,8 +40,9 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     channelActor foreach (context stop _)
 
   var channelActor: Option[ActorRef] = None
-  val pendingConfirmation = mutable.LinkedHashMap.empty[Long, ConfirmedMessage]
-  val heldMessages = mutable.Queue.empty[ConfirmedMessage]
+  val pendingConfirmation = mutable.LinkedHashMap.empty[Long, (ConfirmedMessage, ActorRef)]
+  val heldMessages = mutable.Queue.empty[(ConfirmedMessage, ActorRef)]
+  val deadLetters = context.system.deadLetters
 
   val waitingForChannelActor: Receive = {
     case ChannelCreated(_channelActor) =>
@@ -57,11 +58,11 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     case channel: Channel =>
       context.become(connected(channel))
       unstashAll()
-      (pendingConfirmation.values ++ heldMessages) foreach { message => self ! message }
+      (pendingConfirmation.values ++ heldMessages) foreach { case (sender, message) => self.tell(sender, message) }
       pendingConfirmation.clear()
       heldMessages.clear()
     case message: ConfirmedMessage =>
-      heldMessages.enqueue(message)
+      heldMessages.enqueue((message, sender))
     case ChannelDisconnected =>
       ()
     case Terminated(actorRef) if Some(actorRef) == channelActor =>
@@ -80,16 +81,18 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     case message: ConfirmedMessage =>
       val nextDeliveryTag = channel.getNextPublishSeqNo()
       message(channel)
-      pendingConfirmation(nextDeliveryTag) = message
+      pendingConfirmation(nextDeliveryTag) = (message, sender)
     case Ack(deliveryTag, multiple) =>
-      handle(resolveTags(deliveryTag, multiple))(_.success())
+      handle(resolveTags(deliveryTag, multiple))(true)
     case Nack(deliveryTag, multiple) =>
-      handle(resolveTags(deliveryTag, multiple))(_.failure(Nacked))
+      handle(resolveTags(deliveryTag, multiple))(false)
   }
 
-  def handle(deliveryTags: Iterable[Long])(fn: Promise[Unit] => Unit): Unit = {
+  def handle(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
     deliveryTags foreach { tag =>
-      fn(pendingConfirmation(tag).publishedPromise)
+      val pending = pendingConfirmation(tag)
+      if (pending._2 !=  deadLetters)
+        pending._2 ! acked
       pendingConfirmation.remove(tag)
     }
   }

@@ -195,6 +195,11 @@ By default:
 
 - Messages will be queued up until a connection is available
 - Messages are monitored via publisherConfirms; if a connection is lost before RabbitMQ confirms receipt of the message, then the message is published again. This means that the message may be delivered twice, the default opinion being that `at-least-once` is better than `at-most-once`. You can use `UnconfirmedMessage` if you'd like `at-most-once` delivery instead.
+- If you would like to be notified of confirmation, use the ask pattern:
+
+      ```scala
+        val received = (rabbitMq ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
+      ```
 
 ### Consuming using Akka streams
 

@@ -106,7 +106,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
 
   def withChannel(publishChannel: ActorRef): Receive = {
     case m: ConfirmedMessage =>
-      confirmedPublisher ! m
+      confirmedPublisher.tell(m, sender)
 
     case m: MessageForPublicationLike =>
       publishChannel ! ChannelMessage(m.apply(_), dropIfNoChannel = m.dropIfNoChannel)

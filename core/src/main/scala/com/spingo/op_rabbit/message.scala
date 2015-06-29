@@ -52,46 +52,6 @@ case class QueuePublisher(queue: String) extends MessagePublisher {
 }
 
 /**
-  Contains a message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Delivery is not confirmed, although care is taken to not send if a channel is unavailable.
-
-  Use the factory method [[UnconfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
-
-  @see [[UnconfirmedMessage$]]
-  */
-class UnconfirmedMessage(
-  val publisher: MessagePublisher,
-  val data: Array[Byte],
-  val properties: BasicProperties,
-  val dropIfNoChannel: Boolean = false) extends MessageForPublicationLike {
-  def apply(c: Channel) = publisher(c, data, properties)
-}
-
-object UnconfirmedMessage {
-
-  /**
-    Factory method for instantiating an [[UnconfirmedMessage]]
-
-    Note, serialization occurs in the thread calling the constructor, not the actor thread responsible for sending messages.
-
-    @param publisher [[MessagePublisher]] which defines how and to where this message will be published.
-    @param message The message data.
-    @param dropIfNoChannel If a channel is not available at the time this message is sent, queue the message up internally and send as soon as a connection is available. Default true.
-    @param marshaller The implicit [[RabbitMarshaller]] used to serialize data T to binary.
-    */
-  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]) = {
-    factory[T](publisher, properties, dropIfNoChannel)(marshaller)(message)
-  }
-
-  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty, dropIfNoChannel: Boolean = false)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, UnconfirmedMessage] = {
-    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
-    marshaller.properties(builder)
-    val rabbitProperties = builder.build
-
-    { (message) => new UnconfirmedMessage(publisher, marshaller.marshall(message), rabbitProperties, dropIfNoChannel) }
-  }
-}
-
-/**
   Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, the Future [[ConfirmedMessage.published]] will complete.
 
   Use the factory method [[ConfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
@@ -102,9 +62,7 @@ final class ConfirmedMessage(
   val publisher: MessagePublisher,
   val data: Array[Byte],
   val properties: BasicProperties) extends MessageForPublicationLike {
-  val dropIfNoChannel: Boolean = false
-  protected [op_rabbit] val publishedPromise = Promise[Unit]
-  val published = publishedPromise.future
+  val dropIfNoChannel = false
   def apply(c: Channel) = publisher(c, data, properties)
 }
 
