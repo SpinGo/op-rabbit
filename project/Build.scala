@@ -97,7 +97,7 @@ object OpRabbit extends Build {
     settings = commonSettings ++ Seq(
       name := "op-rabbit-akka-stream",
       libraryDependencies ++= Seq(
-        "com.typesafe.akka" %% "akka-stream-experimental" % "1.0-RC2"),
+        "com.typesafe.akka" %% "akka-stream-experimental" % "1.0-RC4"),
       unmanagedResourceDirectories in Test ++= Seq(
         (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
       unmanagedSourceDirectories in Test ++= Seq(

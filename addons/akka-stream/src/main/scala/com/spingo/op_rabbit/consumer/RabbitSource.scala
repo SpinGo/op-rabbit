@@ -3,7 +3,7 @@ package com.spingo.op_rabbit.consumer
 import akka.actor._
 import akka.pattern.pipe
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
-import akka.stream.{OperationAttributes, SourceShape}
+import akka.stream.SourceShape
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.{Publisher, Subscriber}
 import scala.annotation.tailrec
