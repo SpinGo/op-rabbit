@@ -120,19 +120,30 @@ import com.spingo.op_rabbit.subscription.Directives._
 import scala.concurrent.ExecutionContext.Implicits.global
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
-val subscription = new Subscription(
+val subscription = new Subscription {
   // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
   def config = channel(qos = 3) {
     consume(topic("such-message-queue", List("some-topic.#"))) {
       body(as[Person]) { person =>
-        // do work; when this Future completes, the message will be acknowledged.
-        // if the Future fails, after a delay the message will be redelivered for retry (up to 3 times, by default)
+        // do work; this body is executed in a separate thread, as provided by the implicit execution context
         ack()
       }
     }
   }
+}
 
 rabbitMq ! subscription
+```
+
+Note, if your call generates an additional future, you can pass it to ack, and message will be acked based off the Future success, and nacked if the Future fails:
+
+```scala
+      body(as[Person]) { person =>
+        // do work; this body is executed in a separate thread, as provided by the implicit execution context
+        val result: Future[Unit] = myApi.methodCall(person)
+        ack(result)
+      }
+
 ```
 
 #### Accessing additional headers
@@ -142,10 +153,10 @@ If there are other headers you'd like to access, you can extract multiple using 
 ```scala
 import com.spingo.op_rabbit.properties._
 
-// Nexted directives
+// Nested directives
 // ...
       body(as[Person]) { person =>
-        optionalProperty(properties.ReplyTo) { replyTo =>
+        optionalProperty(ReplyTo) { replyTo =>
           // do work
           ack()
         }
@@ -154,7 +165,7 @@ import com.spingo.op_rabbit.properties._
 
 // Compound directive
 // ...
-      (body(as[Person]) & optionalProperty(properties.ReplyTo)) { (person, replyTo) =>
+      (body(as[Person]) & optionalProperty(ReplyTo)) { (person, replyTo) =>
         // do work
         ack()
       }
