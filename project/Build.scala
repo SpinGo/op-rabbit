@@ -1,5 +1,6 @@
 import sbt._
 import Keys._
+import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 object OpRabbit extends Build {
   val akkaVersion = "2.3.10"
@@ -44,7 +45,7 @@ object OpRabbit extends Build {
   lazy val core =
     Project(id = "core",
       base = file("./core"),
-      settings = commonSettings ++ Seq(
+      settings = Boilerplate.settings ++ commonSettings ++ Seq(
         name := "op-rabbit-core"
       ))
 

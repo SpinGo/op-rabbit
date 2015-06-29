@@ -1,6 +1,6 @@
 package com.spingo.op_rabbit.consumer
 
-import com.spingo.op_rabbit.{Binding, QueueBinding, RabbitControl, RabbitUnmarshaller, TopicBinding}
+import com.spingo.op_rabbit.{RabbitControl, RabbitUnmarshaller}
 import com.spingo.op_rabbit.properties.PropertyExtractor
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import shapeless._
@@ -22,6 +22,11 @@ object Ackable {
       p.success(Right(u))
     }
   }
+}
+
+class TypeHolder[T] {}
+object TypeHolder {
+  def apply[T] = new TypeHolder[T]
 }
 
 trait Nackable {
@@ -49,7 +54,6 @@ case class BoundChannel(configuration: ChannelConfiguration, boundSubscription: 
 case class ChannelDirective(config: ChannelConfiguration) {
   def apply(thunk: => BoundSubscription) = BoundChannel(config, thunk)
 }
-
 
 /**
   Directives power the declarative DSL of op-rabbit.
@@ -92,7 +96,6 @@ case class ChannelDirective(config: ChannelConfiguration) {
     }
   }
   }}}
-
   */
 trait Directives {
   /**
@@ -124,6 +127,7 @@ trait Directives {
     exchangeDurable: Boolean = true)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) = (TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable), errorReporting, recoveryStrategy, executionContext)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
+  def typeOf[T] = new TypeHolder[T]
 
   /**
     
@@ -214,7 +218,7 @@ trait Directives {
   def property[T](extractor: PropertyExtractor[T]) = extractEither { delivery =>
     extractor.unapply(delivery.properties) match {
       case Some(v) => Right(v)
-      case None => Left(ExtractRejection(s"Property ${extractor.extractorName} was not provided"))
+      case None => Left(ValueExpectedExtractRejection(s"Property ${extractor.extractorName} was not provided"))
     }
   }
 

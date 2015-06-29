@@ -157,7 +157,7 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
           recoveryStrategy(cause, channel, queueName, delivery)
-        case Left(r @ ExtractRejection(msg)) =>
+        case Left(r @ ExtractRejection(msg, _)) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
           recoveryStrategy(r, channel, queueName, delivery)

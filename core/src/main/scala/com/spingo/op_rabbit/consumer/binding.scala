@@ -1,6 +1,6 @@
-package com.spingo.op_rabbit
+package com.spingo.op_rabbit.consumer
 
-// TODO - move to consumer in m4
+import com.spingo.op_rabbit.RabbitControl
 import com.thenewmotion.akka.rabbitmq.Channel
 
 /**
@@ -17,7 +17,7 @@ trait Binding {
 
 /**
   Binding which declares a message queue, and then binds various topics to it. Note that bindings are idempotent.
-  
+
   @see [[QueueBinding]], [[Subscription]]
 
   @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.

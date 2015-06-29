@@ -11,6 +11,9 @@ import scala.concurrent.Promise
 
 case object Nacked extends Exception(s"Message was nacked")
 
+/**
+  This actor handles confirmed message publications
+  */
 class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
   case object ChannelDisconnected
   case class Ack(deliveryTag: Long, multiple: Boolean)
