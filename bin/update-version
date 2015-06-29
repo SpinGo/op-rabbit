@@ -1,0 +1,5 @@
+#!/bin/bash
+. project/version.properties
+gsed  -E 's/^(val opRabbitVersion = ")(.+)(")/val opRabbitVersion = "'$version'"/g'  README.md -i.bak
+
+echo $version 1>&2

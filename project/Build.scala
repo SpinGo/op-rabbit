@@ -2,12 +2,20 @@ import sbt._
 import Keys._
 import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
+import java.util.Properties
+
 object OpRabbit extends Build {
   val akkaVersion = "2.3.10"
 
+  val appProperties = {
+    val prop = new Properties()
+    IO.load(prop, new File("project/version.properties"))
+    prop
+  }
+
   lazy val commonSettings = Seq(
     organization := "com.spingo",
-    version := "1.0.0-SNAPSHOT",
+    version := appProperties.getProperty("version"),
     scalaVersion := "2.11.6",
     resolvers ++= Seq(
       "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
