@@ -2,7 +2,7 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
-import akka.stream.ActorFlowMaterializer
+import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
@@ -27,7 +27,7 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
   }
 
   trait RabbitFixtures {
-    implicit val materializer = ActorFlowMaterializer()
+    implicit val materializer = ActorMaterializer()
     val exceptionReported = Promise[Boolean]
     implicit val errorReporting = new consumer.RabbitErrorLogging {
       def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {

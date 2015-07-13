@@ -11,6 +11,13 @@ import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 
 object RabbitSink {
+  private[op_rabbit] object InternalCallbackExecutor extends ExecutionContext {
+    def execute(r: Runnable): Unit =
+      r.run()
+    override def reportFailure(t: Throwable): Unit =
+      throw new IllegalStateException("problem in scala.concurrent internal callback", t)
+  }
+
   case object MessageNacked extends Exception(s"A published message was nacked by the broker.")
   /**
     @param timeoutAfter The duration for which we'll wait for a message to be acked; note, timeouts and non-acknowledged messages will cause the Sink to throw an exception.
@@ -21,11 +28,19 @@ object RabbitSink {
       map { case (p, payload) =>
         val msg = messageFactory(payload)
 
-        (rabbitControl ? msg).mapTo[Boolean]
+        implicit val ec = InternalCallbackExecutor
+        val acked = (rabbitControl ? msg).mapTo[Boolean] flatMap { a =>
+          if (a)
+            Future.successful(())
+          else
+            Future.failed(MessageNacked)
+        }
+        p.completeWith(acked)
+        acked
       }.
       mapAsync(8)(identity). // resolving the futures in the stream causes back-pressure in the case of a rabbitMQ connection being unavailable; specifying a number greater than 1 is for buffering
-      toMat(Sink.foreach { acked =>
-        if (! acked) throw MessageNacked
+      toMat(Sink.foreach { _ =>
+        ()
       })(Keep.right)
   }
 }
