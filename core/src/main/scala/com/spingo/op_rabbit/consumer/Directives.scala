@@ -17,11 +17,15 @@ object Ackable {
     }
   }
 
-  implicit def ackableFromUnit(u: Unit) = new Ackable {
-    val handler: Handler = { (p, delivery) =>
-      p.success(Right(u))
-    }
+  val ackUnitHandler: Handler = { (p, delivery) =>
+    p.success(Right(Unit))
   }
+
+  val unitAck = new Ackable {
+    val handler: Handler = ackUnitHandler
+  }
+
+  implicit def ackableFromUnit(u: Unit) = unitAck
 }
 
 class TypeHolder[T] {}
@@ -154,6 +158,7 @@ trait Directives {
     Note that in the case of acking with a Future, if the Future fails, then the message is counted as erroneous, and the [[RecoveryStrategy]] is use is applied.
     */
   def ack(f: Ackable): Handler = f.handler
+  def ack: Handler = Ackable.ackUnitHandler
 
   /**
     Nack the message; does NOT trigger the [[RecoveryStrategy]] in use.
