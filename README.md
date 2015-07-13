@@ -251,7 +251,7 @@ implicit val workFormat = Format[Work] // setup play-json serializer
 val sink = RabbitSink[Work](
   "my-sink-name",
   rabbitMq,
-  GuaranteedPublishedMessage(QueuePublisher("such-queue")))
+  ConfirmedMessage.factory(QueuePublisher(queueName())))
 
 Source(1 to 15).
   map { i => (Promise[Unit], i) }.  // each promise will be completed by the sink when message delivery occurs
