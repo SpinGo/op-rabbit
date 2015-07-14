@@ -80,3 +80,4 @@ src/test/resources/logback-test.xml
 .\#*
 scratch/
 .history
+erl_crash.dump

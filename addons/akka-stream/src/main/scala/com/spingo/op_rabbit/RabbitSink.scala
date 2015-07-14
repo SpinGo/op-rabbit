@@ -10,13 +10,15 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 
+// WARNING!!! Don't block inside of Runnable (Future) that uses this.
+private[op_rabbit] object SameThreadExecutionContext extends ExecutionContext {
+  def execute(r: Runnable): Unit =
+    r.run()
+  override def reportFailure(t: Throwable): Unit =
+    throw new IllegalStateException("problem in op_rabbit internal callback", t)
+}
+
 object RabbitSink {
-  private[op_rabbit] object InternalCallbackExecutor extends ExecutionContext {
-    def execute(r: Runnable): Unit =
-      r.run()
-    override def reportFailure(t: Throwable): Unit =
-      throw new IllegalStateException("problem in scala.concurrent internal callback", t)
-  }
 
   case object MessageNacked extends Exception(s"A published message was nacked by the broker.")
   /**
@@ -28,7 +30,7 @@ object RabbitSink {
       map { case (p, payload) =>
         val msg = messageFactory(payload)
 
-        implicit val ec = InternalCallbackExecutor
+        implicit val ec = SameThreadExecutionContext
         val acked = (rabbitControl ? msg).mapTo[Boolean] flatMap { a =>
           if (a)
             Future.successful(())

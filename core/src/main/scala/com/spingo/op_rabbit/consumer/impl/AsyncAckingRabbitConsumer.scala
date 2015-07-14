@@ -133,7 +133,6 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
   def handleDelivery(channel: Channel, delivery: Delivery): Unit = {
     val Delivery(consumerTag, envelope, properties, body) = delivery
     pendingDeliveries.add(envelope.getDeliveryTag)
-    import context.dispatcher // we're just going to borrow it for a few milliseconds... we'll give it back, we promise!
 
     lazy val reportError = rabbitErrorLogging(name, _: String, _: Throwable, consumerTag, envelope, properties, body)
 

@@ -3,13 +3,13 @@ package com.spingo.op_rabbit.consumer
 import akka.actor._
 import akka.pattern.pipe
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
-import akka.stream.SourceShape
+import com.spingo.op_rabbit.SameThreadExecutionContext
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.{Publisher, Subscriber}
 import scala.annotation.tailrec
 import scala.collection.mutable.Queue
-import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.duration._
 import shapeless._
 import shapeless.ops.hlist.Tupler
 
@@ -48,7 +48,7 @@ object RabbitSource {
     channelDirective: ChannelDirective,
     binding: SubscriptionDirective,
     directive: Directive[L]
-  )(implicit ec: ExecutionContext, refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
+  )(implicit refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
     new Publisher[tupler.Out] with SubscriptionControl {
 
       protected [op_rabbit] val _abortingP = Promise[Unit]
@@ -57,14 +57,13 @@ object RabbitSource {
       protected [op_rabbit] val _initializedP = Promise[Unit]
 
       final val closed = _closedP.future
-      final val closing: Future[Unit] = _closingP.future.map( _ => () )(ExecutionContext.global)
+      final val closing: Future[Unit] = _closingP.future.map( _ => () )(SameThreadExecutionContext)
       final val initialized = _initializedP.future
       final def close(timeout: FiniteDuration = 5 minutes) = _closingP.trySuccess(timeout)
       final def abort() = _abortingP.trySuccess(())
 
       class RabbitSourceActor extends ActorPublisher[tupler.Out] with ActorLogging {
 
-        import context.dispatcher
         import ActorPublisherMessage.{Cancel, Request}
 
         // State
@@ -83,7 +82,7 @@ object RabbitSource {
           def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
             val downstream = binding.recoveryStrategy(ex, channel, queueName, delivery)
             // if recovery strategy fails, then yield the exception through the stream
-            downstream.onFailure { case ex => self ! StreamException(ex) }
+            downstream.onFailure({ case ex => self ! StreamException(ex) })(SameThreadExecutionContext)
             downstream
           }
         }
@@ -92,7 +91,7 @@ object RabbitSource {
         val subscription = new Subscription {
           def config = {
             channelDirective {
-              streamConsumerDirective {
+              streamConsumerDirective.copy(executionContext = SameThreadExecutionContext) {
                 directive.happly { l =>
                   val p = Promise[Unit]
 
@@ -107,14 +106,14 @@ object RabbitSource {
         // Wire up promises on RabbitSource with Subscription promises.
         // This pattern will likely change.
         _closedP.completeWith(subscription.closed)
-        _abortingP.future.foreach(_ => subscription.abort())
-        _closingP.future.foreach(subscription.close)
+        _abortingP.future.foreach(_ => subscription.abort())(SameThreadExecutionContext)
+        _closingP.future.foreach(subscription.close)(SameThreadExecutionContext)
         _initializedP.completeWith(subscription.initialized)
 
         override def preStart: Unit = {
           rabbitControl ! subscription
-          subscription.subscriptionRef foreach ( actorRef => self ! SubscriptionCreated(actorRef) )
-          context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)
+          subscription.subscriptionRef.foreach( actorRef => self ! SubscriptionCreated(actorRef) )(SameThreadExecutionContext)
+          context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)(context.dispatcher)
         }
 
         var subscriptionActor: Option[ActorRef] = None
@@ -143,7 +142,7 @@ object RabbitSource {
             context stop self
 
           case MessageReceived(promise, msg) =>
-            val watchedPromise = promiseWatcher(promise)
+            val watchedPromise = promiseWatcher(promise)(context.dispatcher)
             val out = tupler(watchedPromise :: msg)
             queue.enqueue(out)
             drain()
