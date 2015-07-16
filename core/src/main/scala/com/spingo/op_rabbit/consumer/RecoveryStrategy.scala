@@ -33,6 +33,7 @@ object RecoveryStrategy {
       import actorSystem.dispatcher
       val thisRetryCount = PropertyHelpers.getRetryCount(delivery.properties)
       if (thisRetryCount < retryCount)
+        // NOTE !!! errors are swallowed here!!
         akka.pattern.after(redeliverDelay, actorSystem.scheduler) {
           val withRetryCountIncremented = PropertyHelpers.setRetryCount(delivery.properties, thisRetryCount + 1)
           channel.basicPublish("", queueName, withRetryCountIncremented, delivery.body)
