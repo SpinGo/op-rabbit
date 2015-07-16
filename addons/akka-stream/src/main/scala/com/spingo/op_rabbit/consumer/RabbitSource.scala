@@ -48,8 +48,9 @@ object RabbitSource {
     channelDirective: ChannelDirective,
     binding: SubscriptionDirective,
     directive: Directive[L]
-  )(implicit refFactory: ActorRefFactory, tupler: Tupler[::[Promise[Unit], L]]) =
-    new Publisher[tupler.Out] with SubscriptionControl {
+  )(implicit refFactory: ActorRefFactory, tupler: Tupler[L]) = {
+    type Out = (Promise[Unit], tupler.Out)
+    new Publisher[Out] with SubscriptionControl {
 
       protected [op_rabbit] val _abortingP = Promise[Unit]
       protected [op_rabbit] val _closingP = Promise[FiniteDuration]
@@ -62,7 +63,7 @@ object RabbitSource {
       final def close(timeout: FiniteDuration = 5 minutes) = _closingP.trySuccess(timeout)
       final def abort() = _abortingP.trySuccess(())
 
-      class RabbitSourceActor extends ActorPublisher[tupler.Out] with ActorLogging {
+      class RabbitSourceActor extends ActorPublisher[Out] with ActorLogging {
 
         import ActorPublisherMessage.{Cancel, Request}
 
@@ -70,10 +71,10 @@ object RabbitSource {
         var stopping = false
         val initialQos = channelDirective.config.qos
         var presentQos = initialQos
-        val queue = scala.collection.mutable.Queue.empty[tupler.Out]
+        val queue = scala.collection.mutable.Queue.empty[Out]
         val promiseWatcher = new LostPromiseWatcher[Unit]
 
-        protected case class MessageReceived(promise: Promise[Unit], msg: L)
+        protected case class MessageReceived(promise: Promise[Unit], msg: tupler.Out)
         protected case class StreamException(e: Throwable)
         protected case class SubscriptionCreated(a: ActorRef)
         protected case object PollLostPromises
@@ -95,7 +96,7 @@ object RabbitSource {
                 directive.happly { l =>
                   val p = Promise[Unit]
 
-                  self ! MessageReceived(p, l)
+                  self ! MessageReceived(p, tupler(l))
 
                   ack(p.future)
                 }
@@ -143,8 +144,7 @@ object RabbitSource {
 
           case MessageReceived(promise, msg) =>
             val watchedPromise = promiseWatcher(promise)(context.dispatcher)
-            val out = tupler(watchedPromise :: msg)
-            queue.enqueue(out)
+            queue.enqueue((promise, msg))
             drain()
             limitQosOnOverflow()
 
@@ -181,9 +181,10 @@ object RabbitSource {
         }
       }
 
-      override def subscribe(sub: Subscriber[_ >: tupler.Out]): Unit = {
+      override def subscribe(sub: Subscriber[_ >: Out]): Unit = {
         val leActor = refFactory.actorOf(Props(new RabbitSourceActor))
-        ActorPublisher[tupler.Out](leActor).subscribe(sub)
+        ActorPublisher[Out](leActor).subscribe(sub)
       }
     }
+  }
 }
