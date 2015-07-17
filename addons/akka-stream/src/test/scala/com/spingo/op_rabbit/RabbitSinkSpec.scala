@@ -14,6 +14,7 @@ import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.Try
+import shapeless._
 
 class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   implicit val executionContext = ExecutionContext.global
@@ -42,23 +43,23 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
   describe("RabbitSink") {
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
-        val publisher = consumer.RabbitSource(
+        import consumer.HListToValueOrTuple
+
+        val (subscription, consumed) = consumer.RabbitSource(
           "very-stream",
           rabbitControl,
           channel(qos),
           consume(queue(queueName(), durable = true, exclusive = false, autoDelete = false)),
-          body(as[Int]))
-        val consumed = Source(publisher).
-          runFold(List.empty[Int]) {
-            case (acc, (promise, v)) =>
+          body(as[Int])).
+          acked.
+          take(range.length).
+          toMat(Sink.fold(List.empty[Int]) {
+            case (acc, v) =>
               println(s"${v == range.max} ${v} == ${range.max}")
-              if (v == range.max)
-                publisher.close()
-              promise.success()
               acc ++ List(v)
-          }
+          })(Keep.both).run
 
-        await(publisher.initialized)
+        await(subscription.initialized)
 
         val sink = RabbitSink[Int](
           "test-sink",

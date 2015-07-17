@@ -3,6 +3,7 @@ package com.spingo.op_rabbit.consumer
 import akka.actor._
 import akka.pattern.ask
 import akka.stream.ActorMaterializer
+import akka.stream.scaladsl.Keep
 import akka.stream.scaladsl.{Sink, Source}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
@@ -41,50 +42,40 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
 
     implicit val recoveryStrategy = RecoveryStrategy.none
     lazy val binding = queue(queueName(), durable = true, exclusive = false, autoDelete = false)
-    lazy val publisher = RabbitSource(
+    lazy val source = RabbitSource(
       "very-stream",
       rabbitControl,
       channel(qos = qos),
       consume(binding),
       body(as[Int]))
-    lazy val source = Source(publisher)
   }
 
   describe("streaming from rabbitMq") {
     it("subscribes to a stream of events and shuts down sanely") {
       new RabbitFixtures {
         lazy val promises = range map (_ => Promise[Unit])
-        val result = source
-          .map { case (p, i) => (p, i) }
-          .runWith(Sink.fold(0) {
-            case (r, (p, i)) =>
-              p.success() // ack the message in rabbitMq
-              promises(i).success() // let our test know that this message was handled
-              r + i
-          })
+        val (subscription, result) = source.
+          map { i => promises(i).success(); i }.
+          acked.
+          toMat(Sink.fold(0)(_ + _))(Keep.both).run
 
-        await(publisher.initialized)
+        await(subscription.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
         await(Future.sequence(promises.map(_.future)))
         // test is done; let's stop the stream
-        publisher.close()
+        subscription.close()
 
         await(result) should be (136)
-        await(publisher.closed) // assert that subscription gets closed
+        await(subscription.closed) // assert that subscription gets closed
       }
     }
 
     it("yields serialization exceptions through the stream and shuts down the subscription") {
       new RabbitFixtures {
 
-        val result =
-          source
-          .runWith(Sink.foreach {
-            case (p, i) =>
-              p.success() // ack the message in rabbitMq
-          })
+        val (subscription, result) = source.runAckMat(Keep.both)
 
-        await(publisher.initialized)
+        await(subscription.initialized)
         (range) foreach { i => rabbitControl ! QueueMessage("a", queueName()) }
         // test is done; let's stop the stream
 
@@ -92,7 +83,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           await(result)
         }
 
-        await(publisher.closed) // assert that subscription gets closed
+        await(subscription.closed) // assert that subscription gets closed
         await(exceptionReported.future) should be (true)
       }
     }
@@ -103,17 +94,14 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           var delivered = range map { _ => Promise[Unit] }
           var floodgate = Promise[Unit]
 
-          val result = source.
-            mapAsync(qos) { case (p, i) =>
+          val (subscription, result) = source.
+            mapAsync(qos) { i =>
               delivered(i).trySuccess(())
-              floodgate.future map { _ => (p, i) }
+              floodgate.future map { _ => i }
             }.
-            runWith(Sink.foreach {
-              case (p, i) =>
-                p.success() // ack the message in rabbitMq
-            })
+            runAckMat(Keep.both)
 
-          await(publisher.initialized)
+          await(subscription.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
           delivered.take(8).foreach(p => await(p.future))
           await(Future.sequence( delivered.take(8).map(_.future)))
@@ -128,8 +116,8 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           delivered.foreach(p => await(p.future)) // if this fails, it means it did not replay every message
 
           // test is done; let's stop the stream
-          publisher.close()
-          await(publisher.closed)
+          subscription.close()
+          await(subscription.closed)
         } finally {
           println("deleting")
           val delete = DeleteQueue(queueName())
@@ -147,16 +135,13 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         new RabbitFixtures {
           override lazy val binding = queue(queueName(), durable = false, exclusive = false, autoDelete = true)
           val promises = range map { i => Promise[Unit]}
-          val result = source.
-            runWith(Sink.foreach {
-              case (p, i) =>
-                promises(i).success()
-                p.success() // ack the message in rabbitMq
-            })
-          await(publisher.initialized)
+          val (subscription, result) = source.
+            map(promises(_).success(())).
+            runAckMat(Keep.both)
+          await(subscription.initialized)
           (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
           promises.foreach(p => await(p.future))
-          publisher.close()
+          subscription.close()
           await(result)
         }
       }

@@ -2,7 +2,10 @@ package com.spingo.op_rabbit.consumer
 
 import akka.actor._
 import akka.pattern.pipe
+import akka.stream.Materializer
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
+import akka.stream.scaladsl.Keep
+import akka.stream.scaladsl.{Source, Sink}
 import com.spingo.op_rabbit.SameThreadExecutionContext
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.{Publisher, Subscriber}
@@ -13,34 +16,146 @@ import scala.concurrent.duration._
 import shapeless._
 import shapeless.ops.hlist.Tupler
 
-object RabbitSource {
-  type OUTPUT[T] = (Promise[Unit], T)
+private [op_rabbit] case class StreamException(e: Throwable)
 
-  private [op_rabbit] class LostPromiseWatcher[T]() {
-    // the key is a strong reference to the upstream promise; the weak-key is the representative promise.
-    private var watched = scala.collection.concurrent.TrieMap.empty[Promise[T], scala.ref.WeakReference[Promise[T]]]
+private [op_rabbit] class LostPromiseWatcher[T]() {
+  // the key is a strong reference to the upstream promise; the weak-key is the representative promise.
+  private var watched = scala.collection.concurrent.TrieMap.empty[Promise[T], scala.ref.WeakReference[Promise[T]]]
 
-    def apply(p: Promise[T])(implicit ec : ExecutionContext): Promise[T] = {
-      val weakPromise = Promise[T]
-      watched(p) = scala.ref.WeakReference(weakPromise)
-      p.completeWith(weakPromise.future) // this will not cause p to have a strong reference to weakPromise
-      p.future.onComplete { _ => watched.remove(p) }
-      weakPromise
+  def apply(p: Promise[T])(implicit ec : ExecutionContext): Promise[T] = {
+    val weakPromise = Promise[T]
+    watched(p) = scala.ref.WeakReference(weakPromise)
+    p.completeWith(weakPromise.future) // this will not cause p to have a strong reference to weakPromise
+    p.future.onComplete { _ => watched.remove(p) }
+    weakPromise
+  }
+
+  // polls for lost promises
+  // If the downstream weak promise is unallocated, and the upstream
+  // promise is not yet fulfilled, it's certain that the weak
+  // promise cannot fulfill the upstream.
+  def lostPromises: Seq[Promise[T]] = {
+    val keys = for { (k,v) <- watched.toSeq if v.get.isEmpty } yield {
+      watched.remove(k)
+      k
     }
 
-    // polls for lost promises
-    // If the downstream weak promise is unallocated, and the upstream
-    // promise is not yet fulfilled, it's certain that the weak
-    // promise cannot fulfill the upstream.
-    def lostPromises: Seq[Promise[T]] = {
-      val keys = for { (k,v) <- watched.toSeq if v.get.isEmpty } yield {
-        watched.remove(k)
-        k
+    keys.filterNot(_.isCompleted)
+  }
+}
+
+class RabbitSourceActor[T](
+  name: String,
+  abort: Promise[Unit],
+  consumerStopped: Future[Unit],
+  initialQos: Int,
+  MessageReceived: MessageExtractor[T] ) extends ActorPublisher[(Promise[Unit], T)] with ActorLogging {
+
+  type Out = (Promise[Unit], T)
+  import ActorPublisherMessage.{Cancel, Request}
+
+  // State
+  var stopping = false
+  var presentQos = initialQos
+  val queue = scala.collection.mutable.Queue.empty[Out]
+  val promiseWatcher = new LostPromiseWatcher[Unit]
+
+  protected case object PollLostPromises
+
+  override def preStart: Unit = {
+    implicit val ec = SameThreadExecutionContext
+    consumerStopped.foreach { _ => self ! Status.Success }
+    context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)(context.dispatcher)
+  }
+
+  var subscriptionActor: Option[ActorRef] = None
+  val bufferMax = initialQos / 2
+
+
+  def receive = {
+    case PollLostPromises =>
+      val lost = promiseWatcher.lostPromises.foreach {
+        _.failure(new Exception(s"Promise for stream consumer ${name} was garbage collected before it was fulfilled."))
       }
 
-      keys.filterNot(_.isCompleted)
+    case Request(demand) =>
+      drain()
+      if (stopping) tryStop()
+
+    // A stream consumer detached
+    case Cancel =>
+      context stop self
+
+
+    // sent by the StreamRabbitConsumer if there is a deserialization error or other issue
+    case StreamException(ex) =>
+      onError(ex)
+      abort.success(())
+      context stop self
+
+    case MessageReceived(promise, msg) =>
+      val watchedPromise = promiseWatcher(promise)(context.dispatcher)
+      queue.enqueue((promise, msg))
+      drain()
+      limitQosOnOverflow()
+
+    case Status.Success =>
+      subscriptionActor = None
+      stopping = true
+      tryStop()
+  }
+
+  private def tryStop(): Unit =
+    if (queue.length == 0)
+      onCompleteThenStop()
+
+
+  private def drain(): Unit =
+    while ((totalDemand > 0) && (queue.length > 0)) {
+      onNext(queue.dequeue())
+    }
+
+  private def limitQosOnOverflow(): Unit = {
+    subscriptionActor.foreach { ref =>
+      // TODO - think this through
+      val desiredQos = if(queue.length > bufferMax) 1 else presentQos
+      if (desiredQos == presentQos) subscriptionActor.foreach { ref =>
+        ref ! Subscription.SetQos(desiredQos)
+        presentQos = desiredQos
+      }
     }
   }
+}
+
+trait MessageExtractor[Out] {
+  def unapply(m: Any): Option[(Promise[Unit], Out)]
+}
+
+
+class RabbitSource[+Out, +Mat](val wrappedRepr: Source[(Promise[Unit], Out), Mat]) extends RabbitFlowOps[Out, Mat] {
+  type UnwrappedRepr[+O, +M] = Source[O, M]
+  type WrappedRepr[+O, +M] = Source[(Promise[Unit], O), M]
+  type Repr[+O, +M] = RabbitSource[O, M]
+
+  /**
+   * Connect this [[akka.stream.scaladsl.Source]] to a [[akka.stream.scaladsl.Sink]],
+   * concatenating the processing steps of both.
+   */
+  def runAckMat[Mat2](combine: (Mat, Future[Unit]) ⇒ Mat2)(implicit materializer: Materializer): Mat2 = {
+    wrappedRepr.toMat(Sink.foreach { case (p, data) =>
+      p.success(())
+    })(combine).run
+  }
+
+  def runAck(implicit materializer: Materializer) = runAckMat(Keep.right)
+
+  protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[(Promise[Unit], U), Mat2]): Repr[U, Mat2] = {
+    new RabbitSource(next)
+  }
+}
+
+object RabbitSource {
+  type OUTPUT[T] = (Promise[Unit], T)
 
   def apply[L <: HList](
     name: String,
@@ -48,143 +163,55 @@ object RabbitSource {
     channelDirective: ChannelDirective,
     binding: SubscriptionDirective,
     directive: Directive[L]
-  )(implicit refFactory: ActorRefFactory, tupler: Tupler[L]) = {
+  )(implicit refFactory: ActorRefFactory, tupler: HListToValueOrTuple[L]) = {
     type Out = (Promise[Unit], tupler.Out)
-    new Publisher[Out] with SubscriptionControl {
+    case class MessageReceived(promise: Promise[Unit], msg: tupler.Out)
 
-      protected [op_rabbit] val _abortingP = Promise[Unit]
-      protected [op_rabbit] val _closingP = Promise[FiniteDuration]
-      protected [op_rabbit] val _closedP = Promise[Unit]
-      protected [op_rabbit] val _initializedP = Promise[Unit]
-
-      final val closed = _closedP.future
-      final val closing: Future[Unit] = _closingP.future.map( _ => () )(SameThreadExecutionContext)
-      final val initialized = _initializedP.future
-      final def close(timeout: FiniteDuration = 5 minutes) = _closingP.trySuccess(timeout)
-      final def abort() = _abortingP.trySuccess(())
-
-      class RabbitSourceActor extends ActorPublisher[Out] with ActorLogging {
-
-        import ActorPublisherMessage.{Cancel, Request}
-
-        // State
-        var stopping = false
-        val initialQos = channelDirective.config.qos
-        var presentQos = initialQos
-        val queue = scala.collection.mutable.Queue.empty[Out]
-        val promiseWatcher = new LostPromiseWatcher[Unit]
-
-        protected case class MessageReceived(promise: Promise[Unit], msg: tupler.Out)
-        protected case class StreamException(e: Throwable)
-        protected case class SubscriptionCreated(a: ActorRef)
-        protected case object PollLostPromises
-
-        val interceptiongRecoveryStrategy = new RecoveryStrategy {
-          def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
-            val downstream = binding.recoveryStrategy(ex, channel, queueName, delivery)
-            // if recovery strategy fails, then yield the exception through the stream
-            downstream.onFailure({ case ex => self ! StreamException(ex) })(SameThreadExecutionContext)
-            downstream
-          }
-        }
-
-        val streamConsumerDirective = binding.copy(recoveryStrategy = interceptiongRecoveryStrategy)
-        val subscription = new Subscription {
-          def config = {
-            channelDirective {
-              streamConsumerDirective.copy(executionContext = SameThreadExecutionContext) {
-                directive.happly { l =>
-                  val p = Promise[Unit]
-
-                  self ! MessageReceived(p, tupler(l))
-
-                  ack(p.future)
-                }
-              }
-            }
-          }
-        }
-        // Wire up promises on RabbitSource with Subscription promises.
-        // This pattern will likely change.
-        _closedP.completeWith(subscription.closed)
-        _abortingP.future.foreach(_ => subscription.abort())(SameThreadExecutionContext)
-        _closingP.future.foreach(subscription.close)(SameThreadExecutionContext)
-        _initializedP.completeWith(subscription.initialized)
-
-        override def preStart: Unit = {
-          rabbitControl ! subscription
-          subscription.subscriptionRef.foreach( actorRef => self ! SubscriptionCreated(actorRef) )(SameThreadExecutionContext)
-          context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)(context.dispatcher)
-        }
-
-        var subscriptionActor: Option[ActorRef] = None
-        val bufferMax = initialQos / 2
-
-
-        def receive = {
-          case PollLostPromises =>
-            val lost = promiseWatcher.lostPromises.foreach {
-              _.failure(new Exception(s"Promise for stream consumer ${name} was garbage collected before it was fulfilled."))
-            }
-
-          case Request(demand) =>
-            drain()
-            if (stopping) tryStop()
-
-          // A stream consumer detached
-          case Cancel =>
-            context stop self
-
-
-          // sent by the StreamRabbitConsumer if there is a deserialization error or other issue
-          case StreamException(ex) =>
-            onError(ex)
-            subscription.abort()
-            context stop self
-
-          case MessageReceived(promise, msg) =>
-            val watchedPromise = promiseWatcher(promise)(context.dispatcher)
-            queue.enqueue((promise, msg))
-            drain()
-            limitQosOnOverflow()
-
-          case SubscriptionCreated(actorRef) =>
-            subscriptionActor = Some(actorRef)
-            context watch actorRef
-
-          // preStart adds a hook such that this message is sent as soon as the subscription is closed
-          case Terminated(actorRef) if (Some(actorRef) == subscriptionActor) =>
-            subscriptionActor = None
-            stopping = true
-            tryStop()
-        }
-
-        private def tryStop(): Unit =
-          if (queue.length == 0)
-            onCompleteThenStop()
-
-
-        private def drain(): Unit =
-          while ((totalDemand > 0) && (queue.length > 0)) {
-            onNext(queue.dequeue())
-          }
-
-        private def limitQosOnOverflow(): Unit = {
-          subscriptionActor.foreach { ref =>
-            // TODO - think this through
-            val desiredQos = if(queue.length > bufferMax) 1 else presentQos
-            if (desiredQos == presentQos) subscriptionActor.foreach { ref =>
-              ref ! Subscription.SetQos(desiredQos)
-              presentQos = desiredQos
-            }
-          }
-        }
-      }
-
-      override def subscribe(sub: Subscriber[_ >: Out]): Unit = {
-        val leActor = refFactory.actorOf(Props(new RabbitSourceActor))
-        ActorPublisher[Out](leActor).subscribe(sub)
+    val messageReceivedExtractor = new MessageExtractor[tupler.Out] {
+      type AcceptedType = MessageReceived
+      def unapply(m: Any) = m match {
+        case d: MessageReceived =>
+          Some((d.promise, d.msg))
+        case _ =>
+          None
       }
     }
+
+    val abort = Promise[Unit]
+    val consumerStopped = Promise[Unit]
+    val leActor: ActorRef = refFactory.actorOf(Props(new RabbitSourceActor(name, abort, consumerStopped.future, channelDirective.config.qos, messageReceivedExtractor )))
+
+    def interceptingRecoveryStrategy = new RecoveryStrategy {
+      def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
+        val downstream = binding.recoveryStrategy(ex, channel, queueName, delivery)
+        // if recovery strategy fails, then yield the exception through the stream
+        downstream.onFailure({ case ex => leActor ! StreamException(ex) })(SameThreadExecutionContext)
+        downstream
+      }
+    }
+
+    val streamConsumerDirective = binding.copy(recoveryStrategy = interceptingRecoveryStrategy)
+    val subscription = new Subscription {
+      def config = {
+        channelDirective {
+          streamConsumerDirective.copy(executionContext = SameThreadExecutionContext) {
+            directive.happly { l =>
+              val p = Promise[Unit]
+
+              leActor ! MessageReceived(p, tupler(l))
+
+              ack(p.future)
+            }
+          }
+        }
+      }
+    }
+
+    rabbitControl ! subscription
+
+    implicit val ec = SameThreadExecutionContext
+    abort.future.foreach { _ => subscription.abort() }
+    consumerStopped.completeWith(subscription.closed)
+    new RabbitSource(Source(ActorPublisher[Out](leActor)).mapMaterializedValue(_ => subscription))
   }
 }
