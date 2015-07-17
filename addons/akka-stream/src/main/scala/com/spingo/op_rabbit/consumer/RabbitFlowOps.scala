@@ -122,7 +122,7 @@ abstract class RabbitFlowOps[+Out, +Mat] extends AnyRef {
   def mapAsync[T](parallelism: Int)(f: Out ⇒ Future[T]): Repr[T, Mat] = andThen {
     wrappedRepr.mapAsync(parallelism) { case (p, d) =>
       implicit val ec = SameThreadExecutionContext
-      propException(p, f(d)) map { r => (p, r) }
+      propFutureException(p)(f(d)) map { r => (p, r) }
     }
   }
 
@@ -132,7 +132,7 @@ abstract class RabbitFlowOps[+Out, +Mat] extends AnyRef {
   def mapAsyncUnordered[T](parallelism: Int)(f: Out ⇒ Future[T]): Repr[T, Mat] = andThen {
     wrappedRepr.mapAsyncUnordered(parallelism) { case (p, d) =>
       implicit val ec = SameThreadExecutionContext
-      propException(p, f(d)) map { r => (p, r) }
+      propFutureException(p)(f(d)) map { r => (p, r) }
     }
   }
 
@@ -149,9 +149,9 @@ abstract class RabbitFlowOps[+Out, +Mat] extends AnyRef {
   }
 
   // propagate exception, doesn't recover
-  private def propException[T](p: Promise[Unit], f: Future[T]): Future[T] = {
+  private def propFutureException[T](p: Promise[Unit])(f: => Future[T]): Future[T] = {
     implicit val ec = SameThreadExecutionContext
-    f.onFailure { case e => p.tryFailure(e) }
+    propException(p)(f).onFailure { case e => p.tryFailure(e) }
     f
   }
 
