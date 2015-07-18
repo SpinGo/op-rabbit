@@ -7,6 +7,7 @@ import akka.stream.scaladsl.{Keep, Sink, Source}
 import akka.util.Timeout
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
+import com.spingo.op_rabbit.consumer.AckedSource
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.op_rabbit.consumer.Directives._
 import com.spingo.scoped_fixtures.ScopedFixtures
@@ -45,7 +46,7 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
       new RabbitFixtures {
         import consumer.HListToValueOrTuple
 
-        val (subscription, consumed) = consumer.RabbitSource(
+        val (subscription, consumed) = AckedSource.consume(
           "very-stream",
           rabbitControl,
           channel(qos),
@@ -61,14 +62,14 @@ class RabbitSinkSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
 
         await(subscription.initialized)
 
-        val sink = RabbitSink[Int](
+        val sink = AckedSink.confirmedPublisher[Int](
           "test-sink",
           rabbitControl,
           ConfirmedMessage.factory(QueuePublisher(queueName())))
 
         val data = range map { i => (Promise[Unit], i) }
 
-        val published = Source(data).
+        val published = AckedSource(data).
           runWith(sink)
 
         await(published)

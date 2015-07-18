@@ -20,7 +20,7 @@ import scala.concurrent.duration._
 import scala.util.{Try,Success,Failure}
 import com.spingo.op_rabbit.SameThreadExecutionContext
 
-class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
+class AckedSourceSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
   val queueName = ScopedFixture[String] { setter =>
     val name = s"test-queue-rabbit-control-${Math.random()}"
@@ -44,7 +44,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
 
     implicit val recoveryStrategy = RecoveryStrategy.none
     lazy val binding = queue(queueName(), durable = true, exclusive = false, autoDelete = false)
-    lazy val source = RabbitSource(
+    lazy val source = AckedSource.consume(
       "very-stream",
       rabbitControl,
       channel(qos = qos),
@@ -150,8 +150,8 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     }
   }
 
-  describe("RabbitSource operations") {
-    def runLeTest[T, U](input: scala.collection.immutable.Iterable[T] = Range(1, 20))(fn: RabbitSource[T, Unit] => Future[U])(implicit materializer: Materializer) = {
+  describe("AckedSource operations") {
+    def runLeTest[T, U](input: scala.collection.immutable.Iterable[T] = Range(1, 20))(fn: AckedSource[T, Unit] => Future[U])(implicit materializer: Materializer) = {
       val withPromise = (Stream.continually(Promise[Unit]) zip input).toList
       val promises = withPromise.map(_._1)
       implicit val ec = ExecutionContext.Implicits.global
@@ -160,7 +160,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         p.future.map { r => Success(r) }.recover { case e => Failure(e) }
       }
 
-      val returnValue = await(fn(new RabbitSource(Source(withPromise))))
+      val returnValue = await(fn(new AckedSource(Source(withPromise))))
       (results.map { f => Try { await(f, duration = 100 milliseconds) } toOption }, returnValue)
     }
 
@@ -170,7 +170,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     def assertAcked(completions: Seq[Option[Try[Unit]]]) =
       asOptBool(completions) should be (List.fill(completions.length)(Some(true)))
 
-    def assertOperationCatches(fn: (Throwable, RabbitSource[Int, Unit]) => RabbitSource[_, Unit]) = {
+    def assertOperationCatches(fn: (Throwable, AckedSource[Int, Unit]) => AckedSource[_, Unit]) = {
       case object LeException extends Exception("le fail")
       implicit val materializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(Supervision.resumingDecider : Supervision.Decider))
       val (completions, result) = runLeTest(Range.inclusive(1,20)) { s => fn(LeException, s).runAck }
@@ -234,7 +234,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
 
     describe("groupBy") {
       it("catches exceptions and propagates them to the promise") {
-        assertOperationCatches { (e, source) => new RabbitSource(source.groupBy { n => throw e })}
+        assertOperationCatches { (e, source) => new AckedSource(source.groupBy { n => throw e })}
       }
     }
 
