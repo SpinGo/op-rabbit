@@ -224,18 +224,14 @@ import com.spingo.op_rabbit.subscription.Directives._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Json.format[Work] // setup play-json serializer
 
-val publisher = RabbitSource(
+AckedSource.consume(
   rabbitMq,
   channel(qos = 3),
   consume(queue("such-queue", durable = true, exclusive = false, autoDelete = false)),
-  body(as[Work])) // marshalling is automatically hooked up using implicits
-
-Source(publisher).
-  to(Sink.foreach {
-    case (ackPromise, work) =>
-      doWork(work)
-      ackPromise.success() // fulfilling the promise causes the message to be acknowledge and removed from the queue
-  })
+  body(as[Work])). // marshalling is automatically hooked up using implicits
+  runForeach { work =>
+    doWork(work)
+  } // after each successful iteration the message is acknowledged.
   .run
 ```
 
@@ -248,13 +244,12 @@ import com.spingo.op_rabbit._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Format[Work] // setup play-json serializer
 
-val sink = RabbitSink[Work](
+val sink = AckedSink.confirmedPublisher[Work](
   "my-sink-name",
   rabbitMq,
   ConfirmedMessage.factory(QueuePublisher(queueName())))
 
-Source(1 to 15).
-  map { i => (Promise[Unit], i) }.  // each promise will be completed by the sink when message delivery occurs
+AckedSource(Stream.continually(Promise[Unit]) zip (1 to 15)). // each promise will be completed by the sink when message delivery occurs
   to(sink)
   .run
 ```

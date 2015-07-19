@@ -1,10 +1,8 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit.stream
 
 import akka.event.LoggingAdapter
 import akka.stream.{Graph, Materializer, OverflowStrategy}
 import akka.stream.scaladsl.{Flow, Keep, RunnableGraph, Sink, Source}
-import com.spingo.op_rabbit.AckedSink
-import com.spingo.op_rabbit.SameThreadExecutionContext
 import scala.annotation.unchecked.uncheckedVariance
 import scala.collection.{GenSeqLike, immutable}
 import scala.concurrent.{Future, Promise}
@@ -34,7 +32,7 @@ object RabbitFlowHelpers {
 
 abstract class AckedFlowOps[+Out, +Mat] extends AnyRef {
   type UnwrappedRepr[+O, +M] <: akka.stream.scaladsl.FlowOps[O, M]
-  type WrappedRepr[+O, +M] <: akka.stream.scaladsl.FlowOps[(Promise[Unit], O), M]
+  type WrappedRepr[+O, +M] <: akka.stream.scaladsl.FlowOps[AckTup[O], M]
   type Repr[+O, +M] <: AckedFlowOps[O, M]
   import RabbitFlowHelpers.{propException, propFutureException}
 
@@ -172,15 +170,29 @@ abstract class AckedFlowOps[+Out, +Mat] extends AnyRef {
     }
   }
 
-  protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[(Promise[Unit], U), Mat2]): Repr[U, Mat2]
+  def take(n: Long): Repr[Out, Mat] = andThen {
+    wrappedRepr.take(n)
+  }
+
+  def takeWhile(predicate: (Out) ⇒ Boolean): Repr[Out, Mat] = andThen {
+    wrappedRepr.takeWhile { case (p, out) =>
+      propException(p)(predicate(out))
+    }
+  }
+
+  def takeWithin(d: FiniteDuration): Repr[Out, Mat] = andThen {
+    wrappedRepr.takeWithin(d)
+  }
+
+  protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[U, Mat2]): Repr[U, Mat2]
 
   // The compiler needs a little bit of help to know that this conversion is possible
   private implicit def collapse2to1[U, Mat2 >: Mat](next: wrappedRepr.Repr[_, _]#Repr[U, Mat2]): wrappedRepr.Repr[U, Mat2] = next.asInstanceOf[wrappedRepr.Repr[U, Mat2]]
-  private implicit def collapse2to0[U, Mat2 >: Mat](next: wrappedRepr.Repr[_, _]#Repr[U, Mat2]): WrappedRepr[U, Mat2] = next.asInstanceOf[WrappedRepr[U, Mat2]]
-  implicit def collapse1to0[U, Mat2 >: Mat](next: wrappedRepr.Repr[_, _]): WrappedRepr[U, Mat2] = next.asInstanceOf[WrappedRepr[U, Mat2]]
+  private implicit def collapse2to0[U, Mat2 >: Mat](next: wrappedRepr.Repr[_, _]#Repr[AckTup[U], Mat2]): WrappedRepr[U, Mat2] = next.asInstanceOf[WrappedRepr[U, Mat2]]
+  implicit def collapse1to0[U, Mat2 >: Mat](next: wrappedRepr.Repr[AckTup[U], Mat2]): WrappedRepr[U, Mat2] = next.asInstanceOf[WrappedRepr[U, Mat2]]
 
   // Combine all promises into one, such that the fulfillment of that promise fulfills the entire group
-  private def andThenCombine[U, Mat2 >: Mat](next: wrappedRepr.Repr[immutable.Seq[(Promise[Unit], U)], Mat2]): Repr[immutable.Seq[U], Mat2] =
+  private def andThenCombine[U, Mat2 >: Mat](next: wrappedRepr.Repr[immutable.Seq[AckTup[U]], Mat2]): Repr[immutable.Seq[U], Mat2] =
     andThen {
       next.map { data =>
         (
@@ -191,10 +203,13 @@ abstract class AckedFlowOps[+Out, +Mat] extends AnyRef {
     }
 }
 
-class RabbitFlow[-In, +Out, +Mat](val wrappedRepr: Flow[(Promise[Unit], In), (Promise[Unit], Out), Mat]) extends AckedFlowOps[Out, Mat] {
+class AckedFlow[-In, +Out, +Mat](val wrappedRepr: Flow[AckTup[In], AckTup[Out], Mat]) extends AckedFlowOps[Out, Mat] with AckedGraph[AckedFlowShape[In, Out], Mat] {
   type UnwrappedRepr[+O, +M] = Flow[In @uncheckedVariance, O, M]
-  type WrappedRepr[+O, +M] = Flow[(Promise[Unit], In @uncheckedVariance), (Promise[Unit], O), M]
-  type Repr[+O, +M] = RabbitFlow[In @uncheckedVariance, O, M]
+  type WrappedRepr[+O, +M] = Flow[AckTup[In] @uncheckedVariance, AckTup[O], M]
+  type Repr[+O, +M] = AckedFlow[In @uncheckedVariance, O, M]
+
+  lazy val shape = new AckedFlowShape(wrappedRepr.shape)
+  val akkaGraph = wrappedRepr
 
   def to[Mat2](sink: AckedSink[Out, Mat2]): AckedSink[In, Mat] =
     AckedSink(wrappedRepr.to(sink.akkaSink))
@@ -202,13 +217,13 @@ class RabbitFlow[-In, +Out, +Mat](val wrappedRepr: Flow[(Promise[Unit], In), (Pr
   def toMat[Mat2, Mat3](sink: AckedSink[Out, Mat2])(combine: (Mat, Mat2) ⇒ Mat3): AckedSink[In, Mat3] =
     AckedSink(wrappedRepr.toMat(sink.akkaSink)(combine))
 
-  protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[(Promise[Unit], U), Mat2] @uncheckedVariance): Repr[U, Mat2] = {
-    new RabbitFlow(next)
+  protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[U, Mat2] @uncheckedVariance): Repr[U, Mat2] = {
+    new AckedFlow(next)
   }
 }
 
-object RabbitFlow {
-  def apply[T] = new RabbitFlow(Flow.apply[(Promise[Unit], T)])
+object AckedFlow {
+  def apply[T] = new AckedFlow(Flow.apply[AckTup[T]])
 
-  def apply[In, Out, Mat](wrappedFlow: Flow[(Promise[Unit], In), (Promise[Unit], Out), Mat]) = new RabbitFlow(wrappedFlow)
+  def apply[In, Out, Mat](wrappedFlow: Flow[AckTup[In], AckTup[Out], Mat]) = new AckedFlow(wrappedFlow)
 }
