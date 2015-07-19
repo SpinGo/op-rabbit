@@ -224,7 +224,7 @@ import com.spingo.op_rabbit.subscription.Directives._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Json.format[Work] // setup play-json serializer
 
-AckedSource.consume(
+RabbitSource(
   rabbitMq,
   channel(qos = 3),
   consume(queue("such-queue", durable = true, exclusive = false, autoDelete = false)),
@@ -235,26 +235,29 @@ AckedSource.consume(
   .run
 ```
 
+Note: `RabbitSource` yields an AckedSource, which can be combined with an AckedSink (such as `ConfirmedPublisherSink`). You can convert an acked stream into a normal stream by calling `AckedStream.acked`; once messages flow passed the `acked` component, they are considered acknowledged, and acknowledgement tracking is no longer a concern (and thus, you are free to use the akka-stream library in it's entirety).
+
 ### Publishing using Akka streams
 
 (this example uses `op-rabbit-play-json` and `op-rabbit-akka-streams`)
 
 ```scala
 import com.spingo.op_rabbit._
+import com.spingo.op_rabbit.stream._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Format[Work] // setup play-json serializer
 
-val sink = AckedSink.confirmedPublisher[Work](
+val sink = ConfirmedPublisherSink[Work](
   "my-sink-name",
   rabbitMq,
   ConfirmedMessage.factory(QueuePublisher(queueName())))
 
-AckedSource(Stream.continually(Promise[Unit]) zip (1 to 15)). // each promise will be completed by the sink when message delivery occurs
+AckedSource(1 to 15). // Each element in source will be acknowledged after publish confirmation is received
   to(sink)
   .run
 ```
 
-If you can see the pattern here, combining an akka-stream rabbitmq consumer and publisher allows for guaranteed at-least-once message delivery from head to tail; in other words, don't acknowledge the original message until any and all side-effect events have been published and persisted.
+If you can see the pattern here, combining an akka-stream rabbitmq consumer and publisher allows for guaranteed at-least-once message delivery from head to tail; in other words, don't acknowledge the original message from the message queue until any and all side-effect events have been published to other queues and persisted.
 
 ### Error notification
 

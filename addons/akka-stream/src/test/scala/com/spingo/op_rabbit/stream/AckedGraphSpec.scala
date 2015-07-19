@@ -32,7 +32,7 @@ class AckedGraphSpec extends FunSpec with ScopedFixtures with Matchers with Rabb
       case class LeException(msg: String) extends Exception(msg)
       implicit val materializer = ActorMaterializer()
 
-      val source1 = AckedSource.fromIterableData(1 to 5).unsafe.map { case (p, d) =>
+      val source1 = AckedSource(1 to 5).unsafe.map { case (p, d) =>
         implicit val ec = SameThreadExecutionContext
         p.future.onComplete { t => println(s"Promise $d completed: ${t}") }
         (p,d)

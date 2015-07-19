@@ -46,11 +46,33 @@ class AckedSource[+Out, +Mat](val wrappedRepr: Source[AckTup[Out], Mat]) extends
 object AckedSource {
   type OUTPUT[T] = AckTup[T]
 
-  def apply[T](iterable: scala.collection.immutable.Iterable[AckTup[T]]): AckedSource[T, Unit] = {
-    new AckedSource(Source(iterable))
+  def apply[T](magnet: AckedSourceMagnet) = magnet.apply
+}
+
+trait AckedSourceMagnet {
+  type Out
+  def apply: Out
+}
+object AckedSourceMagnet extends LowerPriorityAckedSourceMagnet {
+  implicit def fromPromiseIterable[T](iterable: scala.collection.immutable.Iterable[AckTup[T]]) = new AckedSourceMagnet {
+    type Out = AckedSource[T, Unit]
+    def apply = new AckedSource(Source(iterable))
   }
 
-  def fromIterableData[T](iterable: scala.collection.immutable.Iterable[T]): AckedSource[T, Unit] = {
-    apply(Stream.continually(Promise[Unit]) zip iterable)
+  implicit def fromPromiseSource[T, M](source: Source[AckTup[T], M]) = new AckedSourceMagnet {
+    type Out = AckedSource[T, M]
+    def apply = new AckedSource(source)
+  }
+}
+
+private[stream] abstract class LowerPriorityAckedSourceMagnet {
+  implicit def fromIterable[T](iterable: scala.collection.immutable.Iterable[T]) = new AckedSourceMagnet {
+    type Out = AckedSource[T, Unit]
+    def apply = new AckedSource(Source(Stream.continually(Promise[Unit]) zip iterable))
+  }
+
+  implicit def fromSource[T, M](source: Source[T, M]) = new AckedSourceMagnet {
+    type Out = AckedSource[T, M]
+    def apply = new AckedSource(source.map(d => (Promise[Unit], d)))
   }
 }
