@@ -20,7 +20,7 @@ README.md: project/version.properties
 prev-%: addons/%/target/scala-2.11/api/index.html
 	open addons/$*/target/scala-2.11/api/index.html
 
-docs: core/target/docs-published addons/json4s/target/docs-published addons/airbrake/target/docs-published addons/play-json/target/docs-published addons/akka-stream/target/docs-published
+docs: README.md core/target/docs-published addons/json4s/target/docs-published addons/airbrake/target/docs-published addons/play-json/target/docs-published addons/akka-stream/target/docs-published
 
 clean:
 	rm -rf {addons/*,core}/target/scala-2.11/api {addons/*,core}/target/docs-published

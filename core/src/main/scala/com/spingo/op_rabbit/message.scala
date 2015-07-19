@@ -52,7 +52,7 @@ case class QueuePublisher(queue: String) extends MessagePublisher {
 }
 
 /**
-  Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, the Future [[ConfirmedMessage.published]] will complete.
+  Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, [[RabbitControl]] will respond to the sender with `true`.
 
   Use the factory method [[ConfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
 
