@@ -44,6 +44,14 @@ case class TopicBinding(
   }
 }
 
+case class TopicBindingPassive(queueName: String, topics: List[String], exchangeName: String = RabbitControl topicExchangeName) extends Binding {
+  def bind(c: Channel): Unit = {
+    c.exchangeDeclarePassive(exchangeName)
+    c.queueDeclarePassive(queueName)
+    topics foreach { c.queueBind(queueName, RabbitControl.topicExchangeName, _)}
+  }
+}
+
 /**
   Binding which declare a message queue, without any exchange or topic bindings.
 
@@ -62,5 +70,11 @@ case class QueueBinding(
 
   def bind(c: Channel): Unit = {
     c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
+  }
+}
+
+case class QueueBindingPassive(queueName: String) extends Binding {
+  def bind(c: Channel): Unit = {
+    c.queueDeclarePassive(queueName)
   }
 }
