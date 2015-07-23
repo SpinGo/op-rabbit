@@ -1,9 +1,11 @@
 package com.spingo.op_rabbit.stream
 
+import akka.actor.Cancellable
 import akka.pattern.pipe
 import akka.stream.{Graph, Materializer}
 import akka.stream.scaladsl.{Keep, RunnableGraph, Source}
 import scala.annotation.tailrec
+import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{Future, Promise}
 
 
@@ -74,5 +76,10 @@ private[stream] abstract class LowerPriorityAckedSourceMagnet {
   implicit def fromSource[T, M](source: Source[T, M]) = new AckedSourceMagnet {
     type Out = AckedSource[T, M]
     def apply = new AckedSource(source.map(d => (Promise[Unit], d)))
+  }
+
+  implicit def fromInterval[T](initialDelay: FiniteDuration, interval: FiniteDuration, tick: T) = new AckedSourceMagnet {
+    type Out = AckedSource[T, Cancellable]
+    def apply = new AckedSource(Source(initialDelay, interval, tick).map(d => (Promise[Unit], d)))
   }
 }
