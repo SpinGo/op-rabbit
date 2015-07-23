@@ -68,7 +68,7 @@ lazy val `play-json` = (project in file("./addons/play-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-play-json",
-    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.3.0").
+    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.2").
   dependsOn(core)
 
 lazy val `pg-change` = (project in file("./addons/pg-change")).
