@@ -40,7 +40,7 @@ case class TopicBinding(
   def bind(c: Channel): Unit = {
     c.exchangeDeclare(exchangeName, "topic", exchangeDurable)
     c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
-    topics foreach { c.queueBind(queueName, RabbitControl.topicExchangeName, _) }
+    topics foreach { c.queueBind(queueName, exchangeName, _) }
   }
 }
 
