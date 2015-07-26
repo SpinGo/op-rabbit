@@ -97,8 +97,7 @@ class RabbitSourceActor[T](
       context stop self
 
     case MessageReceived(promise, msg) =>
-      val watchedPromise = promiseWatcher(promise)(context.dispatcher)
-      queue.enqueue((promise, msg))
+      queue.enqueue((promiseWatcher(promise)(context.dispatcher), msg))
       drain()
       limitQosOnOverflow()
 
