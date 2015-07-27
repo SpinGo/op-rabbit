@@ -121,6 +121,13 @@ trait Directives {
     exclusive: Boolean = false,
     autoDelete: Boolean = false)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) = (QueueBinding(queue, durable, exclusive, autoDelete), errorReporting, recoveryStrategy, executionContext)
 
+  /**
+   * Passive queue binding
+   */
+  def pqueue(queue: String)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
+    (QueueBindingPassive(queue), errorReporting, recoveryStrategy, executionContext)
+
+
   def topic(
     queue: String,
     topics: List[String],
@@ -129,6 +136,15 @@ trait Directives {
     exclusive: Boolean = false,
     autoDelete: Boolean = false,
     exchangeDurable: Boolean = true)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) = (TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable), errorReporting, recoveryStrategy, executionContext)
+
+  /**
+   * Passive topic binding
+   */
+  def ptopic(
+    queue: String,
+    topics: List[String],
+    exchange: String = RabbitControl topicExchangeName)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
+    (TopicBindingPassive(queue, topics, exchange), errorReporting, recoveryStrategy, executionContext)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
   def typeOf[T] = new TypeHolder[T]
