@@ -1,15 +1,16 @@
 package com.spingo.op_rabbit.consumer
 
 import akka.actor._
+import com.rabbitmq.client.ShutdownSignalException
 import com.spingo.op_rabbit.RabbitControl.{Pause, Run}
-import com.spingo.op_rabbit.RabbitExceptionMatchers
 import com.spingo.op_rabbit.RabbitExceptionMatchers._
-import com.thenewmotion.akka.rabbitmq.ChannelMessage
-import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, CreateChannel}
+import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, ChannelMessage, CreateChannel}
+import java.io.IOException
 import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
 
-private [op_rabbit] class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.ConnectionInfo] {
+
+class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.ConnectionInfo] {
   import SubscriptionActor._
 
   startWith(Paused, ConnectionInfo(None, subscription.channelConfiguration.qos))
@@ -107,13 +108,32 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
     } system stop self
   }
 
+  // some errors close the channel and cause the error to come through async as the shutdown cause.
+  def withShutdownCatching[T](channel:Channel)(fn: => T): Either[ShutdownSignalException, T] = {
+    try {
+      Right(fn)
+    } catch {
+      case e: IOException if ! channel.isOpen && ! channel.getCloseReason.isHardError => // hardError = true indicates connection issue, false = channel issue.
+        Left(channel.getCloseReason())
+    }
+  }
+
   def subscribe(connectionInfo: ConnectionInfo) = {
     connectionInfo.channelActor foreach { channelActor =>
       channelActor ! ChannelMessage { channel =>
         channel.basicQos(connectionInfo.qos)
-        subscription.binding.bind(channel)
-        subscription._initializedP.trySuccess(Unit)
-        consumer ! Consumer.Subscribe(channel)
+
+        withShutdownCatching(channel) {
+          subscription.binding.bind(channel)
+        } match {
+          case Left(ex) =>
+            subscription._initializedP.tryFailure(ex)
+            subscription._closedP.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+            context stop self
+          case Right(_) =>
+            subscription._initializedP.trySuccess(Unit)
+            consumer ! Consumer.Subscribe(channel)
+        }
       }
     }
     goto(Running)
