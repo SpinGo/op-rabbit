@@ -23,10 +23,10 @@ object MessageForPublicationLike {
   Common interface for publication strategies
 
   @see [[TopicPublisher]], [[QueuePublisher]]
+
+  TODO - rename to MessageDestination or something
   */
-trait MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit
-}
+case class MessagePublisher(exchange: String, routingKey: String)
 
 /**
   Publishes messages to specified topic; note that this is a strategy which receives message data and publishes it to a channel.
@@ -36,9 +36,8 @@ trait MessagePublisher {
 
   @see [[QueuePublisher]], [[MessageForPublicationLike]]
   */
-case class TopicPublisher(routingKey: String, exchange: String = RabbitControl topicExchangeName) extends MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
-    c.basicPublish(exchange, routingKey, properties, data)
+object TopicPublisher {
+  def apply(routingKey: String, exchange: String = RabbitControl topicExchangeName) = MessagePublisher(exchange, routingKey)
 }
 
 /**
@@ -46,9 +45,8 @@ case class TopicPublisher(routingKey: String, exchange: String = RabbitControl t
 
   @see [[TopicPublisher]], [[MessageForPublicationLike]]
   */
-case class QueuePublisher(queue: String) extends MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
-    c.basicPublish("", queue, properties, data)
+object QueuePublisher {
+  def apply(queue: String) = MessagePublisher("", queue)
 }
 
 /**
@@ -63,7 +61,8 @@ final class ConfirmedMessage(
   val data: Array[Byte],
   val properties: BasicProperties) extends MessageForPublicationLike {
   val dropIfNoChannel = false
-  def apply(c: Channel) = publisher(c, data, properties)
+  def apply(c: Channel) =
+    c.basicPublish(publisher.exchange, publisher.routingKey, properties, data)
 }
 
 object ConfirmedMessage {
