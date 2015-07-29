@@ -8,12 +8,11 @@ import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, Ch
 import java.io.IOException
 import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
+import scala.util.{Try,Failure,Success}
 
-
-class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.ConnectionInfo] {
+class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
-
-  startWith(Paused, ConnectionInfo(None, subscription.channelConfiguration.qos))
+  startWith(Paused, SubscriptionPayload(None, subscription.channelConfiguration.qos, false, None))
 
   val props = Props {
     new impl.AsyncAckingRabbitConsumer(
@@ -29,9 +28,6 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
   subscription._subscriptionRef.success(self)
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
-
-  val consumerStoppedP = Promise[Unit]
-  val channelActorP = Promise[ActorRef]
 
   when(Running) {
     case Event(ChannelConnected(_, _), info) =>
@@ -52,19 +48,42 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
       stay replying true
   }
 
+  when(Stopping) {
+    // Because you can't monitor same-state transitions (A => A) in Akka 2.3.x, we send a Nudge message to self each time an action that would potentially cause the actor to be ready to be stopped.
+    case Event(Nudge, payload) =>
+      if (payload.consumerStopped && payload.channelActor.nonEmpty) {
+        context stop self
+        goto(Stopped)
+      } else stay
+  }
+
   whenUnhandled {
     case Event(ChannelCreated(channelActor_), info) =>
-      channelActorP.success(channelActor_)
       stay using info.copy(channelActor = Some(channelActor_))
 
-    case Event(Terminated(actor), _) if actor == consumer =>
-      // our consumer stopped; time to shut ourself down
-      consumerStoppedP.success(())
+    case Event(Nudge, _) =>
       stay
 
     case Event(Subscription.SetQos(qos), connectionInfo) =>
       connectionInfo.channelActor foreach { _ ! ChannelMessage { _.basicQos(qos) } }
       stay using connectionInfo.copy(qos = qos)
+
+    case Event(Terminated(actor), payload) if actor == consumer =>
+      println(s"TERMINATED")
+      self ! Nudge
+      goto(Stopping) using payload.copy(consumerStopped = true)
+
+    case Event(Stop(cause, timeout), connectionInfo) =>
+      consumer ! Consumer.Shutdown
+      import context.dispatcher
+      context.system.scheduler.scheduleOnce(timeout, self, Abort(cause))
+      self ! Nudge
+      goto(Stopping) using connectionInfo.copy(shutdownCause = cause)
+
+    case Event(Abort(cause), connectionInfo) =>
+      consumer ! Consumer.Abort
+      self ! Nudge
+      goto(Stopping) using connectionInfo.copy(shutdownCause = cause)
 
     case Event(e, s) =>
       log.error("received unhandled request {} in state {}/{}", e, stateName, s)
@@ -73,7 +92,12 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
 
   onTermination {
     case StopEvent(_, _, connectionInfo) =>
-      subscription._closedP.trySuccess(())
+      connectionInfo.channelActor.foreach { a =>
+        context.system stop a
+      }
+      subscription._closedP.tryComplete(
+        connectionInfo.shutdownCause.map(Failure(_)).getOrElse(Success(Unit))
+      )
       stop()
   }
 
@@ -82,34 +106,21 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
   override def preStart: Unit = {
     import ExecutionContext.Implicits.global
     val system = context.system
+    // TODO - this code stinks, big time. Move to state machine
     subscription._closingP.future.foreach { timeout =>
-      consumer ! Consumer.Shutdown
-      context.system.scheduler.scheduleOnce(timeout) {
-        subscription.abort()
-      }
+      self ! Stop(None, timeout)
     }
     subscription.aborting.onComplete { _ =>
-      consumer ! Consumer.Abort
+      self ! Abort(None)
     }
     connection ! CreateChannel(ChannelActor.props({(channel: Channel, channelActor: ActorRef) =>
       log.info(s"Channel created; ${channel}")
       self ! ChannelConnected(channel, channelActor)
     }))
-
-    for {
-      _               <- subscription.closed
-      channelActorRef <- channelActorP.future
-      _               <- consumerStoppedP.future
-    } system stop channelActorRef
-
-    for {
-      _ <- consumerStoppedP.future
-      _ <- channelActorP.future
-    } system stop self
   }
 
   // some errors close the channel and cause the error to come through async as the shutdown cause.
-  def withShutdownCatching[T](channel:Channel)(fn: => T): Either[ShutdownSignalException, T] = {
+  private def withShutdownCatching[T](channel:Channel)(fn: => T): Either[ShutdownSignalException, T] = {
     try {
       Right(fn)
     } catch {
@@ -118,7 +129,7 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
     }
   }
 
-  def subscribe(connectionInfo: ConnectionInfo) = {
+  def subscribe(connectionInfo: SubscriptionPayload) = {
     connectionInfo.channelActor foreach { channelActor =>
       channelActor ! ChannelMessage { channel =>
         channel.basicQos(connectionInfo.qos)
@@ -143,16 +154,19 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
   }
 }
 
-private [op_rabbit] object SubscriptionActor {
+object SubscriptionActor {
   sealed trait State
   case object Paused extends State
   case object Running extends State
+  case object Stopping extends State
   case object Stopped extends State
 
   sealed trait Commands
   def props(subscription: Subscription, connection: ActorRef): Props =
     Props(classOf[SubscriptionActor], subscription, connection)
 
-  case object Shutdown extends Commands
-  case class ConnectionInfo(channelActor: Option[ActorRef], qos: Int)
+  case class Stop(shutdownCause: Option[ShutdownSignalException], timeout: FiniteDuration) extends Commands
+  case class Abort(shutdownCause: Option[ShutdownSignalException]) extends Commands
+  case object Nudge extends Commands
+  case class SubscriptionPayload(channelActor: Option[ActorRef], qos: Int, consumerStopped: Boolean, shutdownCause: Option[ShutdownSignalException])
 }
