@@ -58,8 +58,10 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     case channel: Channel =>
       context.become(connected(channel))
       unstashAll()
-      (pendingConfirmation.values ++ heldMessages) foreach { case (sender, message) => self.tell(sender, message) }
-      pendingConfirmation.clear()
+      // Publish any messages that were held while we were disconnected (includes published but not yet confirmed before disconnect)
+      heldMessages foreach { m =>
+        handleDelivery(channel, m._1, m._2)
+      }
       heldMessages.clear()
     case message: ConfirmedMessage =>
       heldMessages.enqueue((message, sender))
@@ -75,20 +77,27 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     case channel: Channel =>
       context.become(connected(channel))
     case ChannelDisconnected =>
+      // First, mark any messages that have not been confirmed yet but were published as held, so they will be redelivered.
+      pendingConfirmation.values.foreach(heldMessages.enqueue(_))
+      pendingConfirmation.clear
       context.become(waitingForChannel)
     case Terminated(actorRef) if Some(actorRef) == channelActor =>
       context stop self
     case message: ConfirmedMessage =>
-      val nextDeliveryTag = channel.getNextPublishSeqNo()
-      message(channel)
-      pendingConfirmation(nextDeliveryTag) = (message, sender)
+      handleDelivery(channel, message, sender)
     case Ack(deliveryTag, multiple) =>
-      handle(resolveTags(deliveryTag, multiple))(true)
+      handleAck(resolveTags(deliveryTag, multiple))(true)
     case Nack(deliveryTag, multiple) =>
-      handle(resolveTags(deliveryTag, multiple))(false)
+      handleAck(resolveTags(deliveryTag, multiple))(false)
   }
 
-  def handle(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
+  def handleDelivery(channel: Channel, message: ConfirmedMessage, replyTo: ActorRef): Unit = {
+    val nextDeliveryTag = channel.getNextPublishSeqNo()
+    message(channel)
+    pendingConfirmation(nextDeliveryTag) = (message, replyTo)
+  }
+
+  def handleAck(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
     deliveryTags foreach { tag =>
       val pending = pendingConfirmation(tag)
       if (pending._2 !=  deadLetters)
