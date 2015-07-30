@@ -79,10 +79,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
   connectionParams.applyTo(connectionFactory)
 
   val connectionActor = context.actorOf(
-    ConnectionActor.props(
-      connectionFactory,
-      setupConnection = { (connection, _) => self ! connection }
-    ),
+    ConnectionActor.props(connectionFactory),
     name = CONNECTION_ACTOR_NAME)
 
   val confirmedPublisher = context.actorOf(
