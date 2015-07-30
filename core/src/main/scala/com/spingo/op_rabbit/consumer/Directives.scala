@@ -48,8 +48,8 @@ object Nackable {
 
 case class BoundSubscription(binding: Binding, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext)
 
-case class SubscriptionDirective(binding: Binding, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) {
-  def apply(thunk: => Handler) =
+case class BindingDirective(binding: Binding) {
+  def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
     BoundSubscription(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext)
 }
 
@@ -110,7 +110,7 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(tuple: (Binding, RabbitErrorLogging, RecoveryStrategy, ExecutionContext)) = SubscriptionDirective.tupled(tuple)
+  def consume(binding: Binding) = BindingDirective(binding)
 
   /**
     Provides values for the [[consume]] directive.
@@ -119,13 +119,13 @@ trait Directives {
     queue: String,
     durable: Boolean = true,
     exclusive: Boolean = false,
-    autoDelete: Boolean = false)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) = (QueueBinding(queue, durable, exclusive, autoDelete), errorReporting, recoveryStrategy, executionContext)
+    autoDelete: Boolean = false) = QueueBinding(queue, durable, exclusive, autoDelete)
 
   /**
    * Passive queue binding
    */
-  def pqueue(queue: String)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
-    (QueueBindingPassive(queue), errorReporting, recoveryStrategy, executionContext)
+  def pqueue(queue: String) =
+    QueueBindingPassive(queue)
 
 
   def topic(
@@ -135,7 +135,7 @@ trait Directives {
     durable: Boolean = true,
     exclusive: Boolean = false,
     autoDelete: Boolean = false,
-    exchangeDurable: Boolean = true)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) = (TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable), errorReporting, recoveryStrategy, executionContext)
+    exchangeDurable: Boolean = true) = TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable)
 
   /**
    * Passive topic binding
@@ -143,8 +143,8 @@ trait Directives {
   def ptopic(
     queue: String,
     topics: List[String],
-    exchange: String = RabbitControl topicExchangeName)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
-    (TopicBindingPassive(queue, topics, exchange), errorReporting, recoveryStrategy, executionContext)
+    exchange: String = RabbitControl topicExchangeName) =
+    TopicBindingPassive(queue, topics, exchange)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
   def typeOf[T] = new TypeHolder[T]

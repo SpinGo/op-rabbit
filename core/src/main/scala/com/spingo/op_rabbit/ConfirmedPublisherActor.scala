@@ -1,13 +1,9 @@
 package com.spingo.op_rabbit
 
-import akka.actor.Stash
-import akka.actor.Terminated
-import akka.actor.{Actor, ActorRef}
-import com.rabbitmq.client.ConfirmListener
-import com.rabbitmq.client.{Channel, ShutdownListener, ShutdownSignalException}
+import akka.actor.{Actor, ActorRef, Stash, Terminated}
+import com.rabbitmq.client.{AMQP, Channel, ConfirmListener, ReturnListener, ShutdownListener, ShutdownSignalException}
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
 import scala.collection.mutable
-import scala.concurrent.Promise
 
 case object Nacked extends Exception(s"Message was nacked")
 

@@ -5,7 +5,7 @@ import akka.pattern.pipe
 import akka.stream.{Graph, Materializer}
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
 import akka.stream.scaladsl.Source
-import com.spingo.op_rabbit.consumer.{ChannelDirective, Delivery, Directive, HListToValueOrTuple, RecoveryStrategy, Subscription, SubscriptionDirective}
+import com.spingo.op_rabbit.consumer.{ChannelDirective, Delivery, Directive, HListToValueOrTuple, RabbitErrorLogging, RecoveryStrategy, Subscription, BindingDirective}
 import com.thenewmotion.akka.rabbitmq.Channel
 import org.reactivestreams.Publisher
 import scala.annotation.tailrec
@@ -134,9 +134,9 @@ object RabbitSource {
     name: String,
     rabbitControl: ActorRef,
     channelDirective: ChannelDirective,
-    binding: SubscriptionDirective,
+    subscriptionDirective: BindingDirective,
     directive: Directive[L]
-  )(implicit refFactory: ActorRefFactory, tupler: HListToValueOrTuple[L]) = {
+  )(implicit refFactory: ActorRefFactory, tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy) = {
     type Out = (Promise[Unit], tupler.Out)
     case class MessageReceived(promise: Promise[Unit], msg: tupler.Out)
 
@@ -156,18 +156,17 @@ object RabbitSource {
 
     def interceptingRecoveryStrategy = new RecoveryStrategy {
       def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
-        val downstream = binding.recoveryStrategy(ex, channel, queueName, delivery)
+        val downstream = recoveryStrategy(ex, channel, queueName, delivery)
         // if recovery strategy fails, then yield the exception through the stream
         downstream.onFailure({ case ex => leActor ! StreamException(ex) })(SameThreadExecutionContext)
         downstream
       }
     }
 
-    val streamConsumerDirective = binding.copy(recoveryStrategy = interceptingRecoveryStrategy)
     val subscription = new Subscription {
       def config = {
         channelDirective {
-          streamConsumerDirective.copy(executionContext = SameThreadExecutionContext) {
+          subscriptionDirective({
             directive.happly { l =>
               val p = Promise[Unit]
 
@@ -175,15 +174,14 @@ object RabbitSource {
 
               ack(p.future)
             }
-          }
+          })(errorReporting, interceptingRecoveryStrategy, SameThreadExecutionContext)
         }
       }
     }
 
     rabbitControl ! subscription
 
-    implicit val ec = SameThreadExecutionContext
-    abort.future.foreach { _ => subscription.abort() }
+    abort.future.foreach({ _ => subscription.abort() })(SameThreadExecutionContext)
     consumerStopped.completeWith(subscription.closed)
     new AckedSource(Source(ActorPublisher[Out](leActor)).mapMaterializedValue(_ => subscription))
   }
