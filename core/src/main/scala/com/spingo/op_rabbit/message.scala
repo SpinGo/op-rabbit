@@ -29,7 +29,7 @@ trait MessagePublisher {
 }
 
 /**
-  Publishes messages to specified topic; note that this is a strategy which receives message data and publishes it to a channel.
+  Publishes messages to specified topic
 
   @param routingKey The routing key (or topic)
   @param exchange The exchange to which the strategy will publish the message
@@ -42,13 +42,32 @@ case class TopicPublisher(routingKey: String, exchange: String = RabbitControl t
 }
 
 /**
-  Publishes messages directly to the specified message-queue; note that this is a strategy which receives message data and publishes it to a channel.
+  Publishes messages directly to the specified message-queue
 
   @see [[TopicPublisher]], [[MessageForPublicationLike]]
   */
 case class QueuePublisher(queue: String) extends MessagePublisher {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
     c.basicPublish("", queue, properties, data)
+}
+
+/**
+  Publishes messages directly to the specified message-queue; on first message, verifies that the destination queue exists, returning an exception if not.
+
+  This is useful if you want to prevent publishing to a non-existent queue
+  */
+case class VerifiedQueuePublisher(queue: String) extends MessagePublisher {
+  private var verified = false
+  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit = {
+    if (!verified) {
+      RabbitHelpers.tempChannel(c.getConnection) { _.queueDeclarePassive(queue) } match {
+        case Left(ex) => throw ex
+        case _ => ()
+      }
+      verified = true
+    }
+    c.basicPublish("", queue, properties, data)
+  }
 }
 
 /**

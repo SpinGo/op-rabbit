@@ -3,7 +3,7 @@ package com.spingo.op_rabbit.consumer
 import akka.actor._
 import com.rabbitmq.client.ShutdownSignalException
 import com.spingo.op_rabbit.RabbitControl.{Pause, Run}
-import com.spingo.op_rabbit.RabbitExceptionMatchers._
+import com.spingo.op_rabbit.RabbitHelpers.withChannelShutdownCatching
 import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, ChannelMessage, CreateChannel}
 import java.io.IOException
 import scala.concurrent.{ExecutionContext, Promise}
@@ -69,7 +69,6 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
       stay using connectionInfo.copy(qos = qos)
 
     case Event(Terminated(actor), payload) if actor == consumer =>
-      println(s"TERMINATED")
       self ! Nudge
       goto(Stopping) using payload.copy(consumerStopped = true)
 
@@ -119,22 +118,12 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
     }))
   }
 
-  // some errors close the channel and cause the error to come through async as the shutdown cause.
-  private def withShutdownCatching[T](channel:Channel)(fn: => T): Either[ShutdownSignalException, T] = {
-    try {
-      Right(fn)
-    } catch {
-      case e: IOException if ! channel.isOpen && ! channel.getCloseReason.isHardError => // hardError = true indicates connection issue, false = channel issue.
-        Left(channel.getCloseReason())
-    }
-  }
-
   def subscribe(connectionInfo: SubscriptionPayload) = {
     connectionInfo.channelActor foreach { channelActor =>
       channelActor ! ChannelMessage { channel =>
         channel.basicQos(connectionInfo.qos)
 
-        withShutdownCatching(channel) {
+        withChannelShutdownCatching(channel) {
           subscription.binding.bind(channel)
         } match {
           case Left(ex) =>

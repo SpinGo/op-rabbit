@@ -2,13 +2,14 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
+import com.spingo.op_rabbit.consumer.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelMessage, RichConnectionActor}
+import com.thenewmotion.akka.rabbitmq.{ChannelActor, RichConnectionActor}
 import helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
-import scala.concurrent.{Await, ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import com.spingo.op_rabbit.consumer.Subscription
+import scala.util.{Failure, Try}
 
 class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
@@ -166,5 +167,14 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         deleteQueue(queueName)
       }
     }
+
+    it("fails delivery to non-existent queues when using VerifiedQueuePublisher") {
+      new RabbitFixtures {
+        val Failure(ex: com.rabbitmq.client.ShutdownSignalException) = Try(await((rabbitControl ? ConfirmedMessage(VerifiedQueuePublisher("non-existent-queue"), 1)).mapTo[Boolean]))
+
+        ex.getMessage() should include ("no queue 'non-existent-queue'")
+      }
+    }
+
   }
 }

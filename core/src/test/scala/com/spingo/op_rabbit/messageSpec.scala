@@ -2,6 +2,7 @@ package com.spingo.op_rabbit
 
 import org.scalatest.{FunSpec, Matchers}
 import com.spingo.op_rabbit.properties._
+
 class MessageSpec extends FunSpec with Matchers {
   case class Data(name: String, age: Int)
 
@@ -42,25 +43,3 @@ class MessageSpec extends FunSpec with Matchers {
     msg.properties.getReplyTo should be ("respond.here.please")
   }
 }
-
-
-// val msg = QueueMessage(
-//   Data("Tim", age = 5),
-//   queue = "destination.queue",
-//   properties = List(DeliveryMode.persistent, ReplyTo("my.queue"), ClusterId("hi")))
-// rabbitMq ! msg
-
-// await(msg.published)
-// // + no need to set up timeout
-// // - messages are stateful
-// // - must assign message, publish, then check promise
-
-// msg = QueueMessage(
-//   Data("Tim", age = 5),
-//   queue = "destination.queue",
-//   properties = List(DeliveryMode.persistent, ReplyTo("my.queue"), ClusterId("hi")),
-//   confirm = true)
-// implicit val timeout = akka.util.Timeout(5 seconds)
-// await(rabbitMq ? msg)
-// // + can reuse the same message object, unique future for each delivery
-// // - need to set up akka timeout
