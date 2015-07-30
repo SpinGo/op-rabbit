@@ -15,8 +15,7 @@ class MessageSpec extends FunSpec with Matchers {
 
       println(msg.properties)
       msg.data should be ("very payload".getBytes)
-      msg.publisher.routingKey should be ("destination.topic")
-      msg.publisher.exchange should be ("")
+      msg.publisher.isInstanceOf[QueuePublisher] should be (true)
       msg.properties.getDeliveryMode should be (2)
       msg.properties.getReplyTo should be ("respond.here.please")
     }
@@ -32,8 +31,7 @@ class MessageSpec extends FunSpec with Matchers {
       println(msg.properties)
       msg.properties.getDeliveryMode should be (2)
       msg.properties.getReplyTo should be ("respond.here.please")
-      msg.publisher.routingKey should be ("destination.topic")
-      msg.publisher.exchange should be (RabbitControl.topicExchangeName)
+      msg.publisher.isInstanceOf[TopicPublisher] should be (true)
       msg.properties.getReplyTo should be ("respond.here.please")
     }
   }
