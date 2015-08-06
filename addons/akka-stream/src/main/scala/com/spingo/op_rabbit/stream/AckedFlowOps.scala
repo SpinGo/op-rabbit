@@ -83,7 +83,7 @@ abstract class AckedFlowOps[+Out, +Mat] extends AnyRef {
       val items = Stream.continually(Promise[Unit]) zip propException(p)(f(data))
       if (items.length == 0) {
         p.success(()) // effectively a filter. We're done with this message.
-          items
+        items
       } else {
         implicit val ec = SameThreadExecutionContext
         p.completeWith(Future.sequence(items.map(_._1.future)).map(_ => ()))

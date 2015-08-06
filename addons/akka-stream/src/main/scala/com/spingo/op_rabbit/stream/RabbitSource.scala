@@ -16,33 +16,6 @@ import shapeless._
 
 private [op_rabbit] case class StreamException(e: Throwable)
 
-private [op_rabbit] class LostPromiseWatcher[T]() {
-  // the key is a strong reference to the upstream promise; the weak-key is the representative promise.
-  private var watched = scala.collection.concurrent.TrieMap.empty[Promise[T], scala.ref.WeakReference[Promise[T]]]
-
-  def apply(p: Promise[T])(implicit ec : ExecutionContext): Promise[T] = {
-    val weakPromise = Promise[T]
-    watched(p) = scala.ref.WeakReference(weakPromise)
-    p.completeWith(weakPromise.future) // this will not cause p to have a strong reference to weakPromise
-    p.future.onComplete { _ => watched.remove(p) }
-    weakPromise
-  }
-
-  // polls for lost promises
-  // If the downstream weak promise is unallocated, and the upstream
-  // promise is not yet fulfilled, it's certain that the weak
-  // promise cannot fulfill the upstream.
-  def lostPromises: Seq[Promise[T]] = {
-    val keys = for { (k,v) <- watched.toSeq if v.get.isEmpty } yield {
-      watched.remove(k)
-      k
-    }
-
-    keys.filterNot(_.isCompleted)
-  }
-}
-
-
 trait MessageExtractor[Out] {
   def unapply(m: Any): Option[(Promise[Unit], Out)]
 }
@@ -61,14 +34,10 @@ class RabbitSourceActor[T](
   var stopping = false
   var presentQos = initialQos
   val queue = scala.collection.mutable.Queue.empty[Out]
-  val promiseWatcher = new LostPromiseWatcher[Unit]
-
-  protected case object PollLostPromises
 
   override def preStart: Unit = {
     implicit val ec = SameThreadExecutionContext
     consumerStopped.foreach { _ => self ! Status.Success }
-    context.system.scheduler.schedule(15 seconds, 15 seconds, self, PollLostPromises)(context.dispatcher)
   }
 
   var subscriptionActor: Option[ActorRef] = None
@@ -76,11 +45,6 @@ class RabbitSourceActor[T](
 
 
   def receive = {
-    case PollLostPromises =>
-      val lost = promiseWatcher.lostPromises.foreach {
-        _.failure(new Exception(s"Promise for stream consumer ${name} was garbage collected before it was fulfilled."))
-      }
-
     case Request(demand) =>
       drain()
       if (stopping) tryStop()
@@ -97,7 +61,7 @@ class RabbitSourceActor[T](
       context stop self
 
     case MessageReceived(promise, msg) =>
-      queue.enqueue((promiseWatcher(promise)(context.dispatcher), msg))
+      queue.enqueue((promise, msg))
       drain()
       limitQosOnOverflow()
 
@@ -113,9 +77,8 @@ class RabbitSourceActor[T](
 
 
   private def drain(): Unit =
-    while ((totalDemand > 0) && (queue.length > 0)) {
+    while ((totalDemand > 0) && (queue.length > 0))
       onNext(queue.dequeue())
-    }
 
   private def limitQosOnOverflow(): Unit = {
     subscriptionActor.foreach { ref =>

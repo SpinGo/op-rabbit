@@ -17,6 +17,7 @@ import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import scala.util.Random
 import scala.util.{Try,Success,Failure}
 
 class AckedSourceSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
@@ -146,6 +147,58 @@ class AckedSourceSpec extends FunSpec with ScopedFixtures with Matchers with Rab
       it("catches exceptions and propagates them to the promise") {
         assertOperationCatches { (e, source) => source.mapConcat { n => throw e } }
       }
+    }
+  }
+
+  it("stress test") {
+    val ex = new Exception("lame")
+    var unexpectedException = false
+    (1 until 20) foreach { _ =>
+      val data = Stream.continually(Promise[Unit]) zip Range(1, Math.max(40, (Random.nextInt(200))))
+      val logger = org.slf4j.LoggerFactory.getLogger("stress test")
+      val decider: Supervision.Decider = { (e: Throwable) =>
+        if (e != ex) {
+          unexpectedException = true
+          logger.error(s"Stream error; message dropped. ${e.getMessage}", e)
+        }
+        Supervision.Resume
+      }
+      implicit val materializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(decider))
+
+      import scala.concurrent.ExecutionContext.Implicits.global
+      await(AckedSource(data).
+        grouped(Math.max(1,Random.nextInt(11))).
+        mapConcat { _ filter {
+          case 59 => throw ex
+          case n if n % 2 == 0 => true
+          case _ => false
+        }
+        }.
+        mapAsync(8) {
+          case 36 =>
+            Future {
+              Thread.sleep(Math.abs(scala.util.Random.nextInt(10)))
+              throw ex
+            }
+          case 12 =>
+            Thread.sleep(Math.abs(scala.util.Random.nextInt(10)))
+            throw ex
+          case x =>
+            Future {
+              Thread.sleep(Math.abs(scala.util.Random.nextInt(10)))
+              x
+            }
+        }.
+        runAck)
+      // make sure every promise is fulfilled
+      data.foreach { case (p, _) =>
+        Try(await(p.future)) match {
+          case Failure(`ex`) => ()
+          case Success(()) => ()
+          case other => throw new Exception(s"${other} not expected")
+        }
+      }
+      assert(! unexpectedException)
     }
   }
 }
