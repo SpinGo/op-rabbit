@@ -46,7 +46,7 @@ lazy val `op-rabbit` = (project in file(".")).
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
   dependsOn(core).
-  aggregate(core, `play-json`, `pg-change`, airbrake, `akka-stream`, json4s)
+  aggregate(core, `play-json`, `pg-change`, airbrake, `akka-stream`, json4s, `play-json-23`, `pg-change-23`)
 
 lazy val core = (project in file("./core")).
   settings(Boilerplate.settings: _*).
@@ -75,6 +75,22 @@ lazy val `pg-change` = (project in file("./addons/pg-change")).
   settings(commonSettings: _*).
   settings(name := "op-rabbit-pg-change").
   dependsOn(core, `play-json`)
+
+lazy val `play-json-23` = (project in file("./addons/play-json-23")).
+  settings(commonSettings: _*).
+  settings(
+    scalaSource in Compile := `play-json`.base.getAbsoluteFile / "src" / "main" / "scala",
+    name := "op-rabbit-play-json-23",
+    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.3.4").
+  dependsOn(core)
+
+lazy val `pg-change-23` = (project in file("./addons/pg-change-23")).
+  settings(commonSettings: _*).
+  settings(
+    name := "op-rabbit-pg-change-23",
+    scalaSource in Compile := `pg-change`.base.getAbsoluteFile / "src" / "main" / "scala"
+  ).
+  dependsOn(core, `play-json-23`)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).
   settings(commonSettings: _*).
