@@ -94,6 +94,28 @@ class AckedSourceSpec extends FunSpec with ScopedFixtures with Matchers with Rab
         assertOperationCatches { (e, source) => source.mapAsync(4) { n => throw e } }
         assertOperationCatches { (e, source) => source.mapAsync(4) { n => Future.failed(e) } }
       }
+
+      for {
+        (thisCase, fn) <- Map[String, (Int) => Future[Int]](
+          "successful" -> { n => Future.successful(n) },
+          "failed future" -> { n => Future.failed(new Exception(s"$n is not the number of the day!!!")) },
+          "exception thrown" -> { n => throw new Exception(s"$n is not the number of the day!!!") }
+        )} {
+
+        it(s"only calls the function once per element when ${thisCase} (regression test)") {
+          var count = 0
+          implicit val materializer = ActorMaterializer(ActorMaterializerSettings(actorSystem).withSupervisionStrategy(Supervision.resumingDecider : Supervision.Decider))
+          val (completions, result) = runLeTest(1 to 1) { _.
+            mapAsync(4) { n =>
+              count = count + 1
+              fn(n)
+            }.
+            runAck
+          }
+
+          count should be (1)
+        }
+      }
     }
 
     describe("mapAsyncUnordered") {

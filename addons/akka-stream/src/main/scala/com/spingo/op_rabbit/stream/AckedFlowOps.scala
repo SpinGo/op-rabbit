@@ -12,8 +12,9 @@ object RabbitFlowHelpers {
   // propagate exception, doesn't recover
   def propFutureException[T](p: Promise[Unit])(f: => Future[T]): Future[T] = {
     implicit val ec = SameThreadExecutionContext
-    propException(p)(f).onFailure { case e => p.failure(e) }
-    f
+    val result = propException(p)(f)
+    result.onFailure { case e => p.failure(e) }
+    result
   }
 
   // Catch and propagate exception; exception is still thrown
