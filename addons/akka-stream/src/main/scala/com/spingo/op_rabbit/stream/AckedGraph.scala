@@ -134,7 +134,7 @@ object AckedFlowGraph {
 
       val wrappedRepr: WrappedRepr[Out, Mat] = left
 
-      protected def andThen[U, Mat2 >: Mat](next: WrappedRepr[U, Mat2]): Repr[U, Mat2] =
+      protected def andThen[U, Mat2](next: WrappedRepr[U, Mat2]): Repr[U, Mat2] =
         new AckedPortOps(next)
     }
 
