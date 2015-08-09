@@ -28,7 +28,7 @@ val commonSettings = Seq(
     "com.typesafe" % "config" % "1.3.0",
     "com.typesafe.akka"     %%  "akka-actor"   % akkaVersion,
     "com.typesafe.akka"     %%  "akka-testkit" % akkaVersion % "test",
-    "com.thenewmotion.akka" %% "akka-rabbitmq" % "1.3.0-SPINGO",
+    "com.thenewmotion.akka" %% "akka-rabbitmq" % "1.2.7",
     "ch.qos.logback" % "logback-classic" % "1.1.2",
     "org.scalatest" %% "scalatest" % "2.2.1" % "test",
     "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test"
