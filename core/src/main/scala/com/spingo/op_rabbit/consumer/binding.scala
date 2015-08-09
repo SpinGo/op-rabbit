@@ -27,7 +27,7 @@ trait Binding {
   @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
   @param exclusive    Specifies whether or not other connections can see this connection; default false.
   @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
-  @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default true.
+  @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class TopicBinding(
   queueName: String,
@@ -97,6 +97,15 @@ case class QueueBindingPassive(queueName: String) extends Binding {
   The op-rabbit Header properties class is modeled, such that the
   compiler will not allow you to specify a type that RabbitMQ does not
   suport. Scala maps / seqs are appropriately converted.
+
+  @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
+  @param exchangeName The name of the fanout exchange; idempotently declared.
+  @param headers      List of modeled Header values used for matching.
+  @param matchAll     Should all headers match in order to route the message to this queue? Default true. If false, then any if any of the match headers are matched, route the message. Pointless if only one match header defined.
+  @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
+  @param exclusive    Specifies whether or not other connections can see this connection; default false.
+  @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
+  @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class HeadersBinding(
   queueName: String,
@@ -122,6 +131,13 @@ case class HeadersBinding(
 
 /**
   Idempotently declare a fanout exchange, and queue. Bind queue to exchange.
+
+  @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
+  @param exchangeName The name of the fanout exchange; idempotently declared.
+  @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
+  @param exclusive    Specifies whether or not other connections can see this connection; default false.
+  @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
+  @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class FanoutBinding(
   queueName: String,
