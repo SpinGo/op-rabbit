@@ -21,6 +21,41 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
     r
   }
 
+  describe("FanoutBinding") {
+    it("properly declares the fanout binding") {
+      import scala.concurrent.ExecutionContext.Implicits.global
+
+      val consumerResult = List(Promise[String], Promise[String])
+
+      val subscriptions = (0 to 1) map { case idx =>
+        val queueName = _queueName() + idx
+        new Subscription {
+          def config = channel() {
+            consume(FanoutBinding(
+              queueName = queueName,
+              "test-fanout-exchange",
+              autoDelete = true,
+              durable = false)) {
+              body(as[String]) { a =>
+                consumerResult(idx).success(a)
+                ack
+              }
+            }
+          }
+        }
+      }
+
+      subscriptions foreach { s =>
+        rabbitControl ! s
+        await(s.initialized)
+      }
+
+      rabbitControl ! ConfirmedMessage(ExchangePublisher("test-fanout-exchange"), "le value", List(Header("thing", "1")))
+
+      consumerResult.map(p => await(p.future)) should be (List("le value", "le value"))
+    }
+  }
+
   describe("HeadersBinding") {
     it("properly declares the header binding with appropriate type matching") {
       import scala.concurrent.ExecutionContext.Implicits.global

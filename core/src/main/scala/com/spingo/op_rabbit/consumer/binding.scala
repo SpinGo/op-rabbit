@@ -87,7 +87,16 @@ case class QueueBindingPassive(queueName: String) extends Binding {
 }
 
 /**
-  Idempotently declare a headers exchange.
+  Idempotently declare a headers exchange, and queue. Bind queue using
+  modeled Header properties.
+
+  It's important to note that the type matters in
+  matching. Header("thing", 1) and Header("thing", "1") and seen
+  differently to RabbitMQ.
+
+  The op-rabbit Header properties class is modeled, such that the
+  compiler will not allow you to specify a type that RabbitMQ does not
+  suport. Scala maps / seqs are appropriately converted.
   */
 case class HeadersBinding(
   queueName: String,
@@ -107,5 +116,23 @@ case class HeadersBinding(
     }
     c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
     c.queueBind(queueName, exchangeName, "", bindingArgs);
+  }
+}
+
+
+/**
+  Idempotently declare a fanout exchange, and queue. Bind queue to exchange.
+  */
+case class FanoutBinding(
+  queueName: String,
+  exchangeName: String,
+  durable: Boolean = true,
+  exclusive: Boolean = false,
+  autoDelete: Boolean = false,
+  exchangeDurable: Option[Boolean] = None) extends Binding {
+  def bind(c: Channel): Unit = {
+    c.exchangeDeclare(exchangeName, "fanout", exchangeDurable.getOrElse(durable))
+    c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
+    c.queueBind(queueName, exchangeName, "", null);
   }
 }
