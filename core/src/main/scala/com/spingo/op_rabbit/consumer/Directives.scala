@@ -135,7 +135,7 @@ trait Directives {
     durable: Boolean = true,
     exclusive: Boolean = false,
     autoDelete: Boolean = false,
-    exchangeDurable: Boolean = true) = TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable)
+    exchangeDurable: Option[Boolean] = None) = TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable)
 
   /**
    * Passive topic binding

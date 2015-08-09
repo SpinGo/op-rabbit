@@ -1,6 +1,7 @@
 package com.spingo.op_rabbit.consumer
 
 import com.spingo.op_rabbit.RabbitControl
+import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
 
 /**
@@ -35,10 +36,10 @@ case class TopicBinding(
   durable: Boolean = true,
   exclusive: Boolean = false,
   autoDelete: Boolean = false,
-  exchangeDurable: Boolean = true) extends Binding {
+  exchangeDurable: Option[Boolean] = None) extends Binding {
 
   def bind(c: Channel): Unit = {
-    c.exchangeDeclare(exchangeName, "topic", exchangeDurable)
+    c.exchangeDeclare(exchangeName, "topic", exchangeDurable.getOrElse(durable))
     c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
     topics foreach { c.queueBind(queueName, exchangeName, _) }
   }
@@ -73,8 +74,38 @@ case class QueueBinding(
   }
 }
 
+/**
+  Passively connect to a queue. If the queue does not exist already,
+  then the subscription fails. (and will not retry).
+
+  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
+  */
 case class QueueBindingPassive(queueName: String) extends Binding {
   def bind(c: Channel): Unit = {
     c.queueDeclarePassive(queueName)
+  }
+}
+
+/**
+  Idempotently declare a headers exchange.
+  */
+case class HeadersBinding(
+  queueName: String,
+  exchangeName: String,
+  headers: Seq[com.spingo.op_rabbit.properties.Header],
+  matchAll: Boolean = true,
+  durable: Boolean = true,
+  exclusive: Boolean = false,
+  autoDelete: Boolean = false,
+  exchangeDurable: Option[Boolean] = None) extends Binding {
+  def bind(c: Channel): Unit = {
+    c.exchangeDeclare(exchangeName, "headers", exchangeDurable.getOrElse(durable))
+    val bindingArgs = new java.util.HashMap[String, Object]
+    bindingArgs.put("x-match", if (matchAll) "all" else "any") //any or all
+    headers.foreach { case Header(name, value) =>
+      bindingArgs.put(name, value.serializable)
+    }
+    c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
+    c.queueBind(queueName, exchangeName, "", bindingArgs);
   }
 }

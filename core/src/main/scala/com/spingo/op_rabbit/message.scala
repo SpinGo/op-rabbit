@@ -29,7 +29,7 @@ trait MessagePublisher {
 }
 
 /**
-  Publishes messages to specified topic
+  Publishes messages to specified exchange, with topic specified
 
   @param routingKey The routing key (or topic)
   @param exchange The exchange to which the strategy will publish the message
@@ -39,6 +39,19 @@ trait MessagePublisher {
 case class TopicPublisher(routingKey: String, exchange: String = RabbitControl topicExchangeName) extends MessagePublisher {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
     c.basicPublish(exchange, routingKey, properties, data)
+}
+
+/**
+  Publishes messages to specified exchange
+
+  @param routingKey The routing key (or topic)
+  @param exchange The exchange to which the strategy will publish the message
+
+  @see [[QueuePublisher]], [[MessageForPublicationLike]]
+  */
+case class ExchangePublisher(exchange: String) extends MessagePublisher {
+  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
+    c.basicPublish(exchange, "", properties, data)
 }
 
 /**

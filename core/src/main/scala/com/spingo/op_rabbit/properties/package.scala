@@ -25,7 +25,7 @@ package object properties {
     def apply(value: HeaderValue) = Header(extractorName, value)
   }
 
-  class Header protected (name: String, value: HeaderValue) extends MessageProperty {
+  class Header protected (val name: String, val value: HeaderValue) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       headers.put(name, value.serializable)
     }
@@ -38,6 +38,8 @@ package object properties {
         new Header(name, value)
     }
     def apply(headerName: String) = UnboundHeader(headerName)
+    def unapply(header: Header): Option[(String, HeaderValue)] =
+      Some((header.name, header.value))
   }
   case class ContentType(contentType: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
