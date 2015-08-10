@@ -23,6 +23,7 @@ case class ConnectionParams(
   username: String = ConnectionFactory.DEFAULT_USER,
   password: String = ConnectionFactory.DEFAULT_PASS,
   virtualHost: String = ConnectionFactory.DEFAULT_VHOST,
+  ssl: Boolean = false,
   // Replace the table of client properties that will be sent to the server during subsequent connection startups.
   clientProperties: Map[String, Object] = Map.empty[String, Object],
 
@@ -56,6 +57,7 @@ case class ConnectionParams(
     sharedExecutor foreach (factory.setSharedExecutor)
     factory.setShutdownTimeout(shutdownTimeout)
     factory.setSocketFactory(socketFactory)
+    if (ssl) factory.useSslProtocol()
   }
 }
 
@@ -69,7 +71,8 @@ object ConnectionParams {
       connectionTimeout = config.getDuration("connection-timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
       username = config.getString("username"),
       password = config.getString("password"),
-      virtualHost = config.getString("virtual-host")
+      virtualHost = config.getString("virtual-host"),
+      ssl = config.getBoolean("ssl")
     )
   }
 }
