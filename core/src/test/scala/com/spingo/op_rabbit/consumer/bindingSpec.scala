@@ -2,7 +2,7 @@ package com.spingo.op_rabbit.consumer
 
 import akka.actor._
 import akka.pattern.ask
-import com.spingo.op_rabbit.{ConfirmedMessage, ExchangePublisher}
+import com.spingo.op_rabbit.{ConfirmedMessage, ExchangePublisher, TopicPublisher}
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import com.spingo.op_rabbit.properties.Header
 import com.spingo.scoped_fixtures.ScopedFixtures
@@ -107,6 +107,37 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       await(stringReceived.future) should be ("string")
       await(intReceived.future) should be ("int")
+    }
+  }
+
+  describe("TopicBinding") {
+    it("properly declares the topic binding with appropriate") {
+      import scala.concurrent.ExecutionContext.Implicits.global
+
+      val queueName = _queueName()
+      val received = Promise[String]
+      val subscription = new Subscription {
+        def config = channel() {
+          consume(TopicBinding(
+            queueName = queueName + "int",
+            topics = List("*.*.*"),
+            autoDelete = true,
+            durable = false)) {
+            body(as[String]) { a =>
+              received.success(a)
+              ack
+            }
+          }
+        }
+      }
+
+      rabbitControl ! subscription
+
+      await(subscription.initialized)
+
+      rabbitControl ! ConfirmedMessage(TopicPublisher(".."), "string")
+
+      await(received.future) should be ("string")
     }
   }
 }
