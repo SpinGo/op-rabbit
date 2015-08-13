@@ -50,7 +50,7 @@ object RecoveryStrategy {
   /**
     Default strategy is to let the exception through; nack the message.
     */
-  implicit val default: RecoveryStrategy = new RecoveryStrategy {
+  implicit val nack: RecoveryStrategy = new RecoveryStrategy {
     def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery): Future[Boolean] = {
       Future.successful(false)
     }
