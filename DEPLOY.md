@@ -1,0 +1,6 @@
+- Edit project/version.properties
+- `make README.md`
+- `make clean`
+- `sbt +test`
+- `sbt +publishSigned`
+- `make docs`
