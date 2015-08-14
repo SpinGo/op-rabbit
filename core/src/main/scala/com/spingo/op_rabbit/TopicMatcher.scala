@@ -59,33 +59,4 @@ object TopicMatcher {
       case s => Literal(s)
     }.toList)
   }
-  // object WordMatcher {
-  //   val asteriskMatcher = "(^|\\.)(\\*)".r
-  //   def unapply(s: String): Option[(String, String)] = {
-  //     asteriskMatcher.findFirstMatchIn(s) map { m =>
-  //       val idx = m.start(2)
-  //       (s.take(idx), s.slice(idx + 1, s.length))
-  //     }
-  //   }
-  // }
-  // object RestMatcher {
-  //   def unapply(s: String): Option[(String)] = {
-  //     val i = s.indexOf("#")
-  //     if (i > 0) Some(s.take(i)) else None
-  //   }
-  // }
-  // def apply(routingKey: String): TopicMatcher = {
-  //   @tailrec def iter(remaining: String, result: String = ""): String = remaining match {
-  //     case "" =>
-  //       result
-  //     case WordMatcher(head, tail) =>
-  //       iter(tail, result + Regex.quote(head) + "([^.]*)")
-  //     case RestMatcher(head) =>
-  //       result + Regex.quote(head) + "(.*)"
-  //     case tail =>
-  //       result + Regex.quote(tail)
-  //   }
-
-  //   new TopicMatcher(("^" + iter(routingKey) + "$").r)
-  // }
 }

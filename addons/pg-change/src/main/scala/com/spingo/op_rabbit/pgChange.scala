@@ -81,8 +81,8 @@ object PgChangeMap {
 object Pg {
   case class Table(table:String) {
     def all = s"postgres.${table}.#"
-    def update = s"postgres.${table}.UPDATE"
-    def delete = s"postgres.${table}.DELETE"
-    def insert = s"postgres.${table}.INSERT"
+    def update = s"postgres.${table}.UPDATE.*"
+    def delete = s"postgres.${table}.DELETE.*"
+    def insert = s"postgres.${table}.INSERT.*"
   }
 }

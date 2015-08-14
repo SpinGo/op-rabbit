@@ -18,7 +18,7 @@ val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
   scalaVersion := "2.11.7",
-  crossScalaVersions := Seq("2.11.7", "2.10.4"),
+  crossScalaVersions := Seq("2.11.7", "2.10.5"),
   resolvers ++= Seq(
     "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases",
