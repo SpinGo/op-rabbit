@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 /**
   Instructs rabbitmq what to do when an unhandled exceptions occur; by default, simply nack the message.
 
-  By contract, RecoveryStrategy returns a Future[Boolean], which is interpretted as follows:
+  By contract, RecoveryStrategy returns a Future[Boolean], which is interpreted as follows:
 
   - Success(true) acks the message, consumer continues with it's business
   - Success(false) nacks the message, consumer continues with it's business

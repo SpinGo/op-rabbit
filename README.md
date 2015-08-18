@@ -27,14 +27,14 @@ Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for i
     - Messages published will wait for a connection to be available
 - Integration
     - Connection settings pulled from Typesafe config library
-    - Asyncronous, concurrent consumption using Scala native Futures or the new Akka Streams project.
+    - Asynchronous, concurrent consumption using Scala native Futures or the new Akka Streams project.
     - Common pattern for serialization allows easy integration with serialization libraries such play-json or json4s
     - Common pattern for exception handling to publish errors to Airbrake, Syslog, or all of the above
 - Modular
     - Composition favored over inheritance enabling flexible and high code reuse.
 - Modeled
     - Queue binding, exchange binding modeled with case classes
-    - Publishing mechansims also modeled
+    - Publishing mechanisms also modeled
 - Reliability
     - Builds on the excellent [Akka RabbitMQ client](https://github.com/thenewmotion/akka-rabbitmq) library for easy recovery.
     - Built-in consumer error recovery strategy in which messages are re-delivered to the message queue and retried (not implemented for akka-streams integration as retry mechanism affects message order)
