@@ -96,7 +96,7 @@ case class QueueBindingPassive(queueName: String) extends Binding {
 
   The op-rabbit Header properties class is modeled, such that the
   compiler will not allow you to specify a type that RabbitMQ does not
-  suport. Scala maps / seqs are appropriately converted.
+  support. Scala maps / seqs are appropriately converted.
 
   @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
   @param exchangeName The name of the fanout exchange; idempotently declared.
