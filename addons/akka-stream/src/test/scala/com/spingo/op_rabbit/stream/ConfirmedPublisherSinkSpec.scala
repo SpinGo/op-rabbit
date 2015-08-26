@@ -9,6 +9,7 @@ import com.spingo.op_rabbit.{ConfirmedMessage, QueuePublisher, RabbitControl}
 import com.spingo.op_rabbit.consumer.Directives._
 import com.spingo.op_rabbit.consumer.RabbitErrorLogging
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
+import com.timcharper.acked.AckedSource
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}

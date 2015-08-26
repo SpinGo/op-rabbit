@@ -6,6 +6,7 @@ import akka.stream.scaladsl.{Flow, Keep, Sink}
 import com.spingo.op_rabbit.{ConfirmedMessage, MessageForPublicationLike}
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
+import com.timcharper.acked.AckedSink
 
 object ConfirmedPublisherSink {
   /**

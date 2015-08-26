@@ -12,6 +12,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable.Queue
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import com.timcharper.acked.AckedSource
 import shapeless._
 
 private [op_rabbit] case class StreamException(e: Throwable)
