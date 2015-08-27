@@ -72,24 +72,25 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
     }
   }
 
-  describe("RecoveryStrategy redeliver") {
-    it("attempts every message twice when retryCount = 1") {
-      new RabbitFixtures {
-        var errors = 0
-        implicit val logging = new RabbitErrorLogging {
-          def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
-            println(s"ERROR ${bodyAsString(body, properties)}")
-            errors += 1
-          }
+  describe("RecoveryStrategy limitedRedeliver") {
+    trait RedeliveryFixtures {
+      var errors = 0
+      implicit val logging = new RabbitErrorLogging {
+        def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
+          println(s"ERROR ${bodyAsString(body, properties)}")
+          errors += 1
         }
-
-        val range = (0 to 9)
-        case class Counter(var i: Int = 0) { def ++ = { i+=1; i-1}}
-        val seen = range map { _ => Counter(0) } toList
-        val promises = range map { i => List(Promise[Int], Promise[Int]) } toList
-        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1)
-
-        val subscription = new Subscription {
+      }
+      val range = (0 to 9)
+      case class Counter(var count: Int = 0) { def ++ = { count+=1; count-1}}
+      val seen = range map { _ => Counter(0) } toList
+      lazy val promises = range map { i => Stream.continually(Promise[Int]).take(retryCount + 1).toVector } toList
+      val retryCount: Int
+      val queueName: String
+      def awaitDeliveries() = Await.result(Future.sequence(promises.flatten map (_.future)), 10 seconds)
+      import Directives._
+      def countAndRejectSubscription()(implicit recoveryStrategy: RecoveryStrategy) =
+        new Subscription {
           def config = {
             channel(qos = 3) {
               consume(queue(queueName, durable = false, exclusive = false, autoDelete = true)) {
@@ -102,15 +103,76 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
           }
         }
 
+    }
+
+    it("attempts every message twice when retryCount = 1") {
+      new RedeliveryFixtures with RabbitFixtures {
+        val retryCount = 1
+
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1)
+
+        val subscription = countAndRejectSubscription()
+
         rabbitControl ! subscription
         Await.result(subscription.initialized, 10 seconds)
         range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
-        val results = Await.result(Future.sequence(promises.flatten map (_.future)), 10 seconds)
+        awaitDeliveries()
         Thread.sleep(1000) // give it time to finish rejecting messages
-        (seen map (_.i)).distinct should be (List(2))
+        (seen map (_.count)).distinct should be (List(2))
         errors should be (20)
       }
     }
+
+    describe("onAbandon failedQueue") {
+      it("deposits messages into error queue on abandon") {
+        new RedeliveryFixtures {
+          val queueName = "redeliveryFailedQueueTest"
+          val retryCount = 0
+
+          try {
+            implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 0, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(3 seconds))
+            val subscription = countAndRejectSubscription()
+
+            rabbitControl ! subscription
+            Await.result(subscription.initialized, 10 seconds)
+            range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+            awaitDeliveries()
+            Thread.sleep(1000) // give it time to finish rejecting messages
+
+
+          } finally {
+            deleteQueue(queueName)
+            deleteQueue(queueName + ".failed")
+          }
+        }
+      }
+
+      it("sustains passively accepts the previous ttl configuration") {
+        new RedeliveryFixtures {
+          val queueName = "redeliveryFailedQueueTest"
+          val retryCount = 0
+
+          try {
+            (List(3 seconds, 4 seconds)) foreach { time =>
+              implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(time))
+              val subscription = countAndRejectSubscription()
+
+              rabbitControl ! subscription
+              Await.result(subscription.initialized, 10 seconds)
+              range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+              awaitDeliveries()
+              subscription.close()
+              await(subscription.closed)
+            }
+
+          } finally {
+            deleteQueue(queueName)
+            deleteQueue(queueName + ".failed")
+          }
+        }
+      }
+    }
+
   }
 
   describe("shutting down") {

@@ -45,6 +45,14 @@ object RabbitControl {
   case object GetConnection
 }
 
+private [op_rabbit] class Sequence extends Iterator[Int] {
+  private var n = 0
+  val hasNext = true
+  def next() = {
+    n += 1
+    n
+  }
+}
 /**
   == Overview ==
   
@@ -64,6 +72,8 @@ object RabbitControl {
   */
 class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
   def this() = this(ConnectionParams.fromConfig())
+  val sequence = new Sequence
+
   import RabbitControl._
 
   override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = -1) {
@@ -117,7 +127,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       subscriptions = subscriptions.filterNot(_.path == ref.path)
 
     case q: Subscription =>
-      val subscriptionActorRef = context.actorOf(consumer.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}")
+      val subscriptionActorRef = context.actorOf(consumer.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}-${sequence.next}")
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state
       subscriptionActorRef ! Run

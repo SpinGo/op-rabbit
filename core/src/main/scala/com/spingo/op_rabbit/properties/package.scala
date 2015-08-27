@@ -22,14 +22,17 @@ package object properties {
         v <- Option(h.get(name))
       } yield HeaderValue.from(v)
 
-    def apply(value: HeaderValue) = Header(extractorName, value)
+    def apply(value: HeaderValue) = Header(name, value)
   }
 
   class Header protected (val name: String, val value: HeaderValue) extends MessageProperty {
-    def apply(builder: Builder, headers: HeaderMap): Unit = {
+    def apply(headers: HeaderMap): Unit =
       headers.put(name, value.serializable)
-    }
+
+    def apply(builder: Builder, headers: HeaderMap): Unit =
+      this(headers)
   }
+
   object Header {
     def apply(name: String, value: HeaderValue): Header = {
       if (value == null)
@@ -169,9 +172,23 @@ package object properties {
       Option(properties.getClusterId)
   }
 
-  def builderWithProperties(properties: TraversableOnce[MessageProperty], builder: Builder = new Builder(), headers: HeaderMap = new java.util.HashMap[String, Object]): Builder = {
-    properties foreach { p => p(builder, headers) }
-    builder.headers(headers)
+  implicit class PimpedBasicProperties(original: BasicProperties) {
+    /**
+      Returns a copy of the properties with the provided properties set.
+
+      This is far more efficient to use than `+`. Use it when you are setting multiple properties.
+      */
+    def ++(others: TraversableOnce[MessageProperty]): BasicProperties =
+      builderWithProperties(others, original.builder(), Option(original.getHeaders()).map(new java.util.HashMap[String, Object](_))).build
+
+    def +(other: MessageProperty): BasicProperties =
+      this ++ Seq(other)
+  }
+
+  def builderWithProperties(properties: TraversableOnce[MessageProperty], builder: Builder = new Builder(), headers: Option[HeaderMap] = None): Builder = {
+    val h = headers getOrElse { new java.util.HashMap[String, Object] }
+    builder.headers(h)
+    properties foreach { p => p(builder, h) }
     builder
   }
 }

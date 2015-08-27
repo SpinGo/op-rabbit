@@ -155,11 +155,11 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
           Future.successful(false) // just nack the message; it was intentional. Don't recover. Don't report.
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
-          recoveryStrategy(cause, channel, queueName, delivery)
+          recoveryStrategy(cause, channel, queueName, delivery, context.system)
         case Left(r @ ExtractRejection(msg, _)) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
-          recoveryStrategy(r, channel, queueName, delivery)
+          recoveryStrategy(r, channel, queueName, delivery, context.system)
       }.
       onComplete {
         case Success(ack) =>

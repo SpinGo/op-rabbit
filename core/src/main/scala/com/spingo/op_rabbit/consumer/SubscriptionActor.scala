@@ -51,14 +51,14 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
   when(Stopping) {
     // Because you can't monitor same-state transitions (A => A) in Akka 2.3.x, we send a Nudge message to self each time an action that would potentially cause the actor to be ready to be stopped.
     case Event(Nudge, payload) =>
-      if (payload.consumerStopped && payload.channelActor.nonEmpty) {
+      if (payload.consumerStopped && payload.channelActor.nonEmpty)
         context stop self
-        goto(Stopped)
-      } else stay
+      stay
   }
 
   whenUnhandled {
     case Event(ChannelCreated(channelActor_), info) =>
+      self ! Nudge
       stay using info.copy(channelActor = Some(channelActor_))
 
     case Event(Nudge, _) =>
@@ -66,6 +66,7 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
 
     case Event(Subscription.SetQos(qos), connectionInfo) =>
       connectionInfo.channelActor foreach { _ ! ChannelMessage { _.basicQos(qos) } }
+      self ! Nudge
       stay using connectionInfo.copy(qos = qos)
 
     case Event(Terminated(actor), payload) if actor == consumer =>
