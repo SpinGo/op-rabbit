@@ -29,19 +29,19 @@ class HeaderValueSpec extends FunSpec with Matchers {
   describe("HeaderValueConverter") {
     def testNumeric[T](what: String, expectedValue: T)(implicit converter: HeaderValueConverter[T]) = {
       it(s"Converts strings or numeric values to Some(${expectedValue})") {
-        HeaderValue(LongStringHelper.asLongString("1")).as[T] should be (Some(expectedValue))
-        HeaderValue(1).as[T] should be (Some(expectedValue))
-        HeaderValue(1L).as[T] should be (Some(expectedValue))
-        HeaderValue(1.0f).as[T] should be (Some(expectedValue))
-        HeaderValue(1.0d).as[T] should be (Some(expectedValue))
-        HeaderValue(1.toByte).as[T] should be (Some(expectedValue))
-        HeaderValue(1.toShort).as[T] should be (Some(expectedValue))
+        HeaderValue(LongStringHelper.asLongString("1")).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1L).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1.0f).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1.0d).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1.toByte).asOpt[T] should be (Some(expectedValue))
+        HeaderValue(1.toShort).asOpt[T] should be (Some(expectedValue))
       }
 
       it("Returns None for Byte Arrays or collections") {
-        HeaderValue(Seq(1)).as[Int] should be (None)
-        HeaderValue(Map("a" -> 1)).as[Int] should be (None)
-        HeaderValue("1".getBytes).as[Int] should be (None)
+        HeaderValue(Seq(1)).asOpt[Int] should be (None)
+        HeaderValue(Map("a" -> 1)).asOpt[Int] should be (None)
+        HeaderValue("1".getBytes).asOpt[Int] should be (None)
       }
     }
 
@@ -49,7 +49,7 @@ class HeaderValueSpec extends FunSpec with Matchers {
       testNumeric[Int]("String", 1)
 
       it("Returns None for numbers too large") {
-        HeaderValue(0xfffffffffL).as[Int] should be (None)
+        HeaderValue(0xfffffffffL).asOpt[Int] should be (None)
       }
     }
 
@@ -67,33 +67,33 @@ class HeaderValueSpec extends FunSpec with Matchers {
 
     describe("Seq") {
       it("extracts a Seq[Int] when all members can be converted") {
-        HeaderValue(Seq("1", "2", "3")).as[Seq[Int]] should be (Some(Seq(1,2,3)))
+        HeaderValue(Seq("1", "2", "3")).asOpt[Seq[Int]] should be (Some(Seq(1,2,3)))
       }
 
       it("handles nested sequences") {
-        HeaderValue(Seq(Seq("1"), Seq("2"), Seq("3"))).as[Seq[Seq[Int]]] should be (Some(Seq(Seq(1),Seq(2),Seq(3))))
+        HeaderValue(Seq(Seq("1"), Seq("2"), Seq("3"))).asOpt[Seq[Seq[Int]]] should be (Some(Seq(Seq(1),Seq(2),Seq(3))))
       }
 
       it("returns None when any of the members can't be converted") {
-        HeaderValue(Seq("1", "A", "3")).as[Seq[Int]] should be (None)
+        HeaderValue(Seq("1", "A", "3")).asOpt[Seq[Int]] should be (None)
       }
 
       it("returns None when the container object is not a Seq") {
-        HeaderValue("1,2,3").as[Seq[Int]] should be (None)
+        HeaderValue("1,2,3").asOpt[Seq[Int]] should be (None)
       }
     }
 
     describe("Map") {
       it("extracts a Map[String, Int] when all members can be converted") {
-        HeaderValue(Map("a" -> "1", "b" -> "2", "c" -> "3")).as[Map[String, Int]] should be (Some(Map("a" -> 1, "b" -> 2, "c" -> 3)))
+        HeaderValue(Map("a" -> "1", "b" -> "2", "c" -> "3")).asOpt[Map[String, Int]] should be (Some(Map("a" -> 1, "b" -> 2, "c" -> 3)))
       }
 
       it("returns None when any of the members can't be converted") {
-        HeaderValue(Map("a" -> "1", "b" -> "a", "c" -> "3")).as[Map[String, Int]] should be (None)
+        HeaderValue(Map("a" -> "1", "b" -> "a", "c" -> "3")).asOpt[Map[String, Int]] should be (None)
       }
 
       it("returns None when the container object is not a Seq") {
-        HeaderValue("1,2,3").as[Map[String, Int]] should be (None)
+        HeaderValue("1,2,3").asOpt[Map[String, Int]] should be (None)
       }
     }
   }

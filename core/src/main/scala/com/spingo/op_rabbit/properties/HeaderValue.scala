@@ -18,7 +18,7 @@ sealed trait HeaderValue {
   def asString: String =
     asString(Charset.defaultCharset)
 
-  def as[T](implicit conversion: HeaderValueConverter[T]): Option[T] = conversion(this).right.toOption
+  def asOpt[T](implicit conversion: HeaderValueConverter[T]): Option[T] = conversion(this).right.toOption
 }
 
 case class LongStringHeaderValue(value: LongString) extends HeaderValue {
