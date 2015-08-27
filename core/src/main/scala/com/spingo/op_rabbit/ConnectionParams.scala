@@ -7,7 +7,6 @@ import com.rabbitmq.client.ExceptionHandler
 import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
 import javax.net.SocketFactory
 import scala.concurrent.ExecutionContext
 import scala.util.Try
@@ -62,7 +61,7 @@ case class ConnectionParams(
 }
 
 object ConnectionParams {
-  def fromConfig(config: Config = ConfigFactory.load.getConfig("rabbitmq")) = {
+  def fromConfig(config: Config = RabbitConfig.connectionConfig) = {
     val connectionFactory = new ClusterConnectionFactory()
     val hosts = config.getStringList("hosts").toArray(new Array[String](0))
     val port = config.getInt("port")

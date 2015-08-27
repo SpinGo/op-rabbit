@@ -147,7 +147,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         }
       }
 
-      it("sustains passively accepts the previous ttl configuration") {
+      it("passively accepts the previous ttl configuration") {
         new RedeliveryFixtures {
           val queueName = "redeliveryFailedQueueTest"
           val retryCount = 0

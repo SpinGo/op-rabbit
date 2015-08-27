@@ -84,14 +84,16 @@ A high-level overview of the available components:
 Set up RabbitMQ connection information in `application.conf`:
 
 ```conf
-rabbitmq {
+op-rabbit {
   topic-exchange-name = "op-rabbit-testeroni"
-  virtual-host = "/"
-  hosts = ["127.0.0.1"]
-  username = "guest"
-  password = "guest"
-  port = 5672
-  timeout = 3s
+  connection {
+    virtual-host = "/"
+    hosts = ["127.0.0.1"]
+    username = "guest"
+    password = "guest"
+    port = 5672
+    timeout = 3s
+  }
 }
 ```
 

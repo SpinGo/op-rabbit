@@ -15,7 +15,7 @@ object RabbitControl {
   /**
     The configured default topic exchangeName
     */
-  lazy val topicExchangeName = ConfigFactory.load.getString("rabbitmq.topic-exchange-name")
+  lazy val topicExchangeName = RabbitConfig.systemConfig.getString("topic-exchange-name")
 
   /**
     Commands used to [[Pause]] and [[Run]] / Resume all consumers; These can be useful to send if application is determined unhealthy (IE: the database connection was lost, or some other important resource)
