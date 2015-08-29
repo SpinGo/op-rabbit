@@ -128,23 +128,20 @@ object RabbitSource {
       }
     }
 
-    val subscription = new Subscription {
-      def config = {
-        channelDirective {
-          subscriptionDirective({
-            directive.happly { l =>
-              val p = Promise[Unit]
+    val subscription = Subscription.register(rabbitControl) {
+      import consumer.Directives._
+      channelDirective {
+        subscriptionDirective({
+          directive.happly { l =>
+            val p = Promise[Unit]
 
-              leActor ! MessageReceived(p, tupler(l))
+            leActor ! MessageReceived(p, tupler(l))
 
-              ack(p.future)
-            }
-          })(errorReporting, interceptingRecoveryStrategy, SameThreadExecutionContext)
-        }
+            ack(p.future)
+          }
+        })(errorReporting, interceptingRecoveryStrategy, SameThreadExecutionContext)
       }
     }
-
-    rabbitControl ! subscription
 
     abort.future.foreach({ _ => subscription.abort() })(SameThreadExecutionContext)
     consumerStopped.completeWith(subscription.closed)

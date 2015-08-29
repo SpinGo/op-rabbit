@@ -32,21 +32,20 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         var count = 0
         val promises = (0 to 2) map { i => Promise[Int] } toList
 
-        val subscription = new Subscription {
-          def config =
-            channel(qos = 5) {
-              consume(queue(queueName, durable = false, exclusive = false)) {
-                body(as[Int]) { i =>
-                  println(s"received $i")
-                  count += 1
-                  promises(i).success(i)
-                  ack()
-                }
+        val subscription = Subscription.register(rabbitControl) {
+          import consumer.Directives._
+          channel(qos = 5) {
+            consume(queue(queueName, durable = false, exclusive = false)) {
+              body(as[Int]) { i =>
+                println(s"received $i")
+                count += 1
+                promises(i).success(i)
+                ack()
               }
             }
+          }
         }
 
-        rabbitControl ! subscription
         await(subscription.initialized)
 
         rabbitControl ! QueueMessage(0, queueName)
@@ -67,8 +66,8 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         count shouldBe 3 // resubscribed, all messages processed
 
         // clean up rabbit queue
-        val connectionActor = await(rabbitControl ? GetConnectionActor).asInstanceOf[ActorRef]
-        val channel = connectionActor.createChannel(ChannelActor.props())
+        // val connectionActor = await(rabbitControl ? GetConnectionActor).asInstanceOf[ActorRef]
+        // val channel = connectionActor.createChannel(ChannelActor.props())
         deleteQueue(queueName)
       }
     }
@@ -77,15 +76,14 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
   describe("ConfirmedMessage publication") {
     it("fulfills the published promise on delivery confirmation") {
       new RabbitFixtures {
-        val subscription = new Subscription {
-          def config =
-            channel(qos = 5) {
-              consume(queue(queueName, durable = false, exclusive = false)) {
-                ack()
-              }
+        val subscription = Subscription.register(rabbitControl) {
+          import consumer.Directives._
+          channel(qos = 5) {
+            consume(queue(queueName, durable = false, exclusive = false)) {
+              ack()
             }
+          }
         }
-        rabbitControl ! subscription
         await(subscription.initialized)
 
         val msg = ConfirmedMessage(QueuePublisher(queueName), 5)
@@ -124,18 +122,17 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
           }
         }))
 
-        val subscription = new Subscription {
-          val config =
-            channel(qos = 1) {
-              consume(queue(queueName, durable = true, exclusive = false)) {
-                body(as[Int]) { i =>
-                  counter ! ('receive, i)
-                  ack()
-                }
+        val subscription = Subscription.register(rabbitControl) {
+          import consumer.Directives._
+          channel(qos = 1) {
+            consume(queue(queueName, durable = true, exclusive = false)) {
+              body(as[Int]) { i =>
+                counter ! ('receive, i)
+                ack()
               }
             }
+          }
         }
-        rabbitControl ! subscription
         await(subscription.initialized)
 
         val factory = ConfirmedMessage.factory(QueuePublisher(queueName))

@@ -23,8 +23,6 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef, initia
       handle           = subscription.handler)(subscription._executionContext)
   }
 
-  subscription._subscriptionRef.success(self)
-
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
 
   when(Disconnected) {
@@ -171,13 +169,6 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef, initia
   override def preStart: Unit = {
     import ExecutionContext.Implicits.global
     val system = context.system
-    // TODO - this code stinks, big time. Move to state machine
-    subscription._closingP.future.foreach { timeout =>
-      self ! Stop(None, timeout)
-    }
-    subscription.aborting.onComplete { _ =>
-      self ! Abort(None)
-    }
     connection ! CreateChannel(ChannelActor.props({(channel: Channel, channelActor: ActorRef) =>
       log.info(s"Channel created; ${channel}")
       self ! ChannelConnected(channel, channelActor)

@@ -9,6 +9,7 @@ import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, Channel, Connection
 import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import scala.concurrent.Future
+import scala.concurrent.Promise
 import scala.concurrent.duration._
 
 object RabbitControl {
@@ -128,8 +129,10 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       subscriptions = subscriptions.filterNot(_.path == ref.path)
 
     case q: Subscription =>
+      val initializedP = Promise[Unit]
+      val closedP = Promise[Unit]
       val subscriptionActorRef = context.actorOf(
-        Props(new consumer.SubscriptionActor(q, connectionActor, q._initializedP, q._closedP)),
+        Props(new consumer.SubscriptionActor(q, connectionActor, initializedP, closedP)),
         name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}-${sequence.next}")
 
       context watch subscriptionActorRef
@@ -137,7 +140,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       subscriptionActorRef ! running
       subscriptions = subscriptionActorRef :: subscriptions
       if (subscriptionActorRef != Actor.noSender)
-        sender ! consumer.SubscriptionRefDirect(subscriptionActorRef, q.initialized, q.closed)
+        sender ! consumer.SubscriptionRefDirect(subscriptionActorRef, initializedP.future, closedP.future)
 
     case c: SubscriptionCommand =>
       running = c

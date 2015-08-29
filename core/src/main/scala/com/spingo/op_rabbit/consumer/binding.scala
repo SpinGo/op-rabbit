@@ -23,7 +23,7 @@ trait Binding {
 
   @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
   @param topics       A list of topics to bind to the message queue. Examples: "stock.*.nyse", "stock.#"
-  @param exchangeName The name of the exchange on which we should listen for said topics. Defaults to configured exchange-name, `rabbitmq.topic-exchange-name`.
+  @param exchangeName The name of the exchange on which we should listen for said topics. Defaults to configured exchange-name, `op-rabbit.topic-exchange-name`.
   @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
   @param exclusive    Specifies whether or not other connections can see this connection; default false.
   @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
