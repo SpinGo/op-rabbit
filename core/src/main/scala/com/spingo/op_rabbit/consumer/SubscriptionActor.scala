@@ -12,7 +12,7 @@ import scala.util.{Try,Failure,Success}
 
 class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
-  startWith(Disconnected, DisconnectedPayload(Running, subscription.channelConfiguration.qos))
+  startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfiguration.qos))
 
   val props = Props {
     new impl.AsyncAckingRabbitConsumer(

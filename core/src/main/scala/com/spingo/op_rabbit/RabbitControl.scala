@@ -85,6 +85,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
   implicit val timeout = Timeout(5 seconds)
   implicit val ec = context.dispatcher
 
+  var running: SubscriptionCommand = Run
   private val connectionFactory = new ClusterConnectionFactory
   connectionParams.applyTo(connectionFactory)
 
@@ -133,10 +134,11 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
 
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state
-      subscriptionActorRef ! Run
+      subscriptionActorRef ! running
       subscriptions = subscriptionActorRef :: subscriptions
 
     case c: SubscriptionCommand =>
+      running = c
       subscriptions map (_ ! c)
   }
 }
