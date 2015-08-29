@@ -1,18 +1,19 @@
-package com.spingo.op_rabbit.stream
+package com.spingo.op_rabbit
+package stream
 
 import akka.actor._
 import akka.pattern.pipe
-import akka.stream.{Graph, Materializer}
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
 import akka.stream.scaladsl.Source
+import akka.stream.{Graph, Materializer}
 import com.spingo.op_rabbit.consumer.{ChannelDirective, Delivery, Directive, HListToValueOrTuple, RabbitErrorLogging, RecoveryStrategy, Subscription, BindingDirective}
 import com.thenewmotion.akka.rabbitmq.Channel
+import com.timcharper.acked.AckedSource
 import org.reactivestreams.Publisher
 import scala.annotation.tailrec
 import scala.collection.mutable.Queue
-import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import com.timcharper.acked.AckedSource
+import scala.concurrent.{ExecutionContext, Future, Promise}
 import shapeless._
 
 private [op_rabbit] case class StreamException(e: Throwable)

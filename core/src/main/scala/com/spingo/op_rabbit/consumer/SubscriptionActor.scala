@@ -12,7 +12,7 @@ import scala.util.{Try,Failure,Success}
 
 class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
-  startWith(Paused, SubscriptionPayload(None, subscription.channelConfiguration.qos, false, None))
+  startWith(Disconnected, DisconnectedPayload(Running, subscription.channelConfiguration.qos))
 
   val props = Props {
     new impl.AsyncAckingRabbitConsumer(
@@ -29,76 +29,121 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
 
+  when(Disconnected) {
+    case Event(ChannelConnected(channel, channelActor), p: DisconnectedPayload) =>
+      goto(p.nextState) using ConnectedPayload(channelActor, channel, p.qos, p.consumerStopped, p.shutdownCause)
+
+    case Event(Terminated(actor), p: DisconnectedPayload) if actor == consumer =>
+      stay using p.copy(nextState = Stopped, consumerStopped = true)
+
+    case Event(Pause | Run | Stop(_,_), p: DisconnectedPayload) if p.nextState.isTerminal =>
+      stay
+
+    case Event(Pause, p: DisconnectedPayload) =>
+      stay using p.copy(nextState = Paused)
+
+    case Event(Run, p: DisconnectedPayload) =>
+      stay using p.copy(nextState = Running)
+
+    case Event(Stop(cause, timeout), p: DisconnectedPayload) =>
+      stay using p.copy(nextState = Stopping, shutdownCause = cause)
+
+    case Event(Abort(cause), p: DisconnectedPayload) =>
+      stay using p.copy(nextState = Stopped, shutdownCause = p.shutdownCause orElse cause)
+
+    case Event(Subscription.SetQos(qos), p: DisconnectedPayload) =>
+      stay using p.copy(qos = qos)
+  }
+
   when(Running) {
-    case Event(ChannelConnected(_, _), info) =>
-      subscribe(info) using info
-    case Event(Pause, _) =>
-      consumer.tell(Consumer.Unsubscribe, sender)
-      goto(Paused)
+    case Event(ChannelConnected(channel, _), info: ConnectedPayload) =>
+      subscribe(info.copy(channel = channel))
     case Event(Run, _) =>
-      stay replying true
+      stay
+    case Event(Pause, _) =>
+      goto(Paused)
   }
 
   when(Paused) {
-    case Event(ChannelConnected(_, _), info) =>
-      stay
-    case Event(Run, connection) =>
-      subscribe(connection) replying true
     case Event(Pause, _) =>
-      stay replying true
+      stay
+    case Event(Run, _) =>
+      goto(Running)
   }
 
+  // Waiting for consumer actor to stop
   when(Stopping) {
-    // Because you can't monitor same-state transitions (A => A) in Akka 2.3.x, we send a Nudge message to self each time an action that would potentially cause the actor to be ready to be stopped.
-    case Event(Nudge, payload) =>
-      if (payload.consumerStopped && payload.channelActor.nonEmpty)
-        context stop self
+    case Event(Pause | Run | Stop(_, _), _) =>
       stay
+  }
+
+  when(Stopped) {
+    case _ => stay
   }
 
   whenUnhandled {
-    case Event(ChannelCreated(channelActor_), info) =>
-      self ! Nudge
-      stay using info.copy(channelActor = Some(channelActor_))
+    case Event(ChannelConnected(channel, channelActor), c: ConnectedPayload) =>
+      stay using c.copy(channel = channel, channelActor = channelActor)
 
-    case Event(Nudge, _) =>
-      stay
-
-    case Event(Subscription.SetQos(qos), connectionInfo) =>
-      connectionInfo.channelActor foreach { _ ! ChannelMessage { _.basicQos(qos) } }
-      self ! Nudge
-      stay using connectionInfo.copy(qos = qos)
+    case Event(Subscription.SetQos(qos), c: ConnectedPayload) =>
+      c.channelActor ! ChannelMessage { _.basicQos(qos) }
+      stay using c.copy(qos = qos)
 
     case Event(Terminated(actor), payload) if actor == consumer =>
-      self ! Nudge
-      goto(Stopping) using payload.copy(consumerStopped = true)
+      goto(Stopped) using payload.copyCommon(consumerStopped = true)
 
-    case Event(Stop(cause, timeout), connectionInfo) =>
-      consumer ! Consumer.Shutdown
+    case Event(Stop(cause, timeout), payload) =>
       import context.dispatcher
-      context.system.scheduler.scheduleOnce(timeout, self, Abort(cause))
-      self ! Nudge
-      goto(Stopping) using connectionInfo.copy(shutdownCause = cause)
+      context.system.scheduler.scheduleOnce(timeout, self, Abort(None))
+      goto(Stopping) using payload.copyCommon(shutdownCause = cause)
 
-    case Event(Abort(cause), connectionInfo) =>
-      consumer ! Consumer.Abort
-      self ! Nudge
-      goto(Stopping) using connectionInfo.copy(shutdownCause = cause)
+    case Event(Abort(cause), payload) =>
+      goto(Stopped) using payload.copyCommon(shutdownCause = payload.shutdownCause orElse cause)
 
     case Event(e, s) =>
       log.error("received unhandled request {} in state {}/{}", e, stateName, s)
       stay
   }
 
-  onTermination {
-    case StopEvent(_, _, connectionInfo) =>
-      connectionInfo.channelActor.foreach { a =>
-        context.system stop a
+  onTransition {
+    case _ -> Running =>
+      nextStateData match {
+        case d: ConnectedPayload =>
+          subscribe(d)
+        case _ =>
+          log.error("Invalid state: cannot be Running without a ConnectedPayload")
+          context stop self
       }
+
+    case _ -> Paused =>
+      consumer ! Consumer.Unsubscribe
+
+    case _ -> Stopping =>
+      if (nextStateData.consumerStopped)
+        self ! Abort(None)
+      else
+        consumer ! Consumer.Shutdown
+
+    case _ -> Stopped =>
+      context stop self
+  }
+
+  onTermination {
+    case StopEvent(_, _, payload) =>
+      payload match {
+        case connectionInfo: ConnectedPayload =>
+          context stop connectionInfo.channelActor
+        case _ =>
+      }
+
+      if (!payload.consumerStopped)
+        context stop consumer
+
       subscription._closedP.tryComplete(
-        connectionInfo.shutdownCause.map(Failure(_)).getOrElse(Success(Unit))
+        payload.shutdownCause.map(Failure(_)).getOrElse(Success(Unit))
       )
       stop()
+
   }
 
   initialize()
@@ -119,25 +164,22 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
     }))
   }
 
-  def subscribe(connectionInfo: SubscriptionPayload) = {
-    connectionInfo.channelActor foreach { channelActor =>
-      channelActor ! ChannelMessage { channel =>
-        channel.basicQos(connectionInfo.qos)
+  def subscribe(connectionInfo: ConnectedPayload) = {
+    val channel = connectionInfo.channel
 
-        withChannelShutdownCatching(channel) {
-          subscription.binding.bind(channel)
-        } match {
-          case Left(ex) =>
-            subscription._initializedP.tryFailure(ex)
-            subscription._closedP.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
-            context stop self
-          case Right(_) =>
-            subscription._initializedP.trySuccess(Unit)
-            consumer ! Consumer.Subscribe(channel)
-        }
-      }
+    withChannelShutdownCatching(channel) {
+      channel.basicQos(connectionInfo.qos)
+      subscription.binding.bind(channel)
+    } match {
+      case Left(ex) =>
+        subscription._initializedP.tryFailure(ex)
+        subscription._closedP.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+        goto(Stopped) using connectionInfo.copy(shutdownCause = Some(ex))
+      case Right(_) =>
+        subscription._initializedP.trySuccess(Unit)
+        consumer ! Consumer.Subscribe(channel)
+        goto(Running) using connectionInfo
     }
-    goto(Running)
   }
 
   def unsubscribe = {
@@ -145,11 +187,24 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
 }
 
 object SubscriptionActor {
-  sealed trait State
-  case object Paused extends State
-  case object Running extends State
-  case object Stopping extends State
-  case object Stopped extends State
+  sealed trait State {
+    val isTerminal: Boolean
+  }
+  case object Disconnected extends State {
+    val isTerminal = false
+  }
+  case object Paused extends State {
+    val isTerminal = false
+  }
+  case object Running extends State {
+    val isTerminal = false
+  }
+  case object Stopping extends State {
+    val isTerminal = true
+  }
+  case object Stopped extends State {
+    val isTerminal = true
+  }
 
   sealed trait Commands
   def props(subscription: Subscription, connection: ActorRef): Props =
@@ -157,6 +212,21 @@ object SubscriptionActor {
 
   case class Stop(shutdownCause: Option[ShutdownSignalException], timeout: FiniteDuration) extends Commands
   case class Abort(shutdownCause: Option[ShutdownSignalException]) extends Commands
-  case object Nudge extends Commands
-  case class SubscriptionPayload(channelActor: Option[ActorRef], qos: Int, consumerStopped: Boolean, shutdownCause: Option[ShutdownSignalException])
+
+  sealed trait SubscriptionPayload {
+    val consumerStopped: Boolean
+    val qos: Int
+    val shutdownCause: Option[ShutdownSignalException]
+    def copyCommon(consumerStopped: Boolean = consumerStopped, qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause): SubscriptionPayload
+  }
+
+  case class DisconnectedPayload(nextState: State, qos: Int, consumerStopped: Boolean = false, shutdownCause: Option[ShutdownSignalException] = None) extends SubscriptionPayload {
+    def copyCommon(consumerStopped: Boolean = consumerStopped, qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause) =
+      copy(qos = qos, consumerStopped = consumerStopped, shutdownCause = shutdownCause)
+  }
+
+  case class ConnectedPayload(channelActor: ActorRef, channel: Channel, qos: Int, consumerStopped: Boolean, shutdownCause: Option[ShutdownSignalException] = None) extends SubscriptionPayload {
+    def copyCommon(consumerStopped: Boolean = this.consumerStopped, qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause) =
+      copy(qos = qos, consumerStopped = consumerStopped, shutdownCause = shutdownCause)
+  }
 }

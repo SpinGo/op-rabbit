@@ -172,7 +172,6 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         }
       }
     }
-
   }
 
   describe("shutting down") {

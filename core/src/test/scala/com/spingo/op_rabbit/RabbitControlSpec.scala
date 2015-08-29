@@ -53,12 +53,15 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         await(promises(0).future)
         count shouldBe 1
 
-        await(rabbitControl ? Pause)
+        rabbitControl ! Pause
+        Thread.sleep(500) // how do we know that it is paused??? :/
+
         rabbitControl ! QueueMessage(1, queueName)
         Thread.sleep(500) // TODO what to use instead of sleep?
         count shouldBe 1 // unsubscribed, no new messages processed
 
-        await(rabbitControl ? Run)
+        rabbitControl ! Run
+
         rabbitControl ! QueueMessage(2, queueName)
         await(Future.sequence(Seq(promises(1).future, promises(2).future)))
         count shouldBe 3 // resubscribed, all messages processed

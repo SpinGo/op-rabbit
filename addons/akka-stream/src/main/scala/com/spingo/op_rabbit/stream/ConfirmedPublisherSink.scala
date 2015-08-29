@@ -1,9 +1,9 @@
-package com.spingo.op_rabbit.stream
+package com.spingo.op_rabbit
+package stream
 
 import akka.actor.ActorRef
 import akka.pattern.ask
 import akka.stream.scaladsl.{Flow, Keep, Sink}
-import com.spingo.op_rabbit.{ConfirmedMessage, MessageForPublicationLike}
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 import com.timcharper.acked.AckedSink

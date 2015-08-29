@@ -15,7 +15,7 @@ object RabbitConfig {
 
   lazy val systemConfig = {
     val c = ConfigFactory.load()
-    Try { c.getConfig("op-rabbit.connection") } getOrElse {
+    Try { c.getConfig("op-rabbit") } getOrElse {
       System.err.println("WARNING! System configuration 'op-rabbit' is not defined; falling back to 'rabbitmq'. See the README for the new configuration format; this backwards compatibility will be removed, eventually")
       c.getConfig("rabbitmq")
     }

@@ -4,12 +4,12 @@ import akka.actor.SupervisorStrategy._
 import akka.actor._
 import akka.pattern.{ask,pipe}
 import akka.util.Timeout
+import com.spingo.op_rabbit.consumer.Subscription
 import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, Channel, ConnectionFactory, ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
 import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
-import scala.concurrent.duration._
 import scala.concurrent.Future
-import com.spingo.op_rabbit.consumer.Subscription
+import scala.concurrent.duration._
 
 object RabbitControl {
   /**
@@ -127,14 +127,16 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       subscriptions = subscriptions.filterNot(_.path == ref.path)
 
     case q: Subscription =>
-      val subscriptionActorRef = context.actorOf(consumer.SubscriptionActor.props(q, connectionActor), name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}-${sequence.next}")
+      val subscriptionActorRef = context.actorOf(
+        consumer.SubscriptionActor.props(q, connectionActor),
+        name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}-${sequence.next}")
+
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state
       subscriptionActorRef ! Run
       subscriptions = subscriptionActorRef :: subscriptions
 
     case c: SubscriptionCommand =>
-      val futures = subscriptions map (_ ? c)
-      (Future.sequence(futures) map { a => Unit }) pipeTo sender
+      subscriptions map (_ ! c)
   }
 }

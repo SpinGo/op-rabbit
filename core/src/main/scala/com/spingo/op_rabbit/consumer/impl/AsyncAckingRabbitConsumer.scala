@@ -29,14 +29,11 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
       val consumerTag = setupSubscription(channel)
       context.become(connected(channel, Some(consumerTag)))
     case Unsubscribe =>
-      sender ! true
       ()
     case Abort =>
       context stop self
-      context.become(stopped)
     case Shutdown =>
       context stop self
-      context.become(stopped)
     case Terminated(ref) if ref == self =>
       ()
   }
@@ -50,7 +47,6 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
       context.become(connected(newChannel, Some(newConsumerTag)))
     case Unsubscribe =>
       handleUnsubscribe(channel, consumerTag)
-      sender ! true
       context.become(connected(channel, None))
     case delivery: Delivery =>
       handleDelivery(channel, delivery)
@@ -58,15 +54,13 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
       handleRejectOrAck(ack, channel, consumerTag)
     case Shutdown =>
       handleUnsubscribe(channel, consumerTag)
-      if(pendingDeliveries.isEmpty) {
+      if(pendingDeliveries.isEmpty)
         context stop self
-        context.become(stopped)
-      } else {
+      else
         context.become(stopping(channel))
-      }
+
     case Abort =>
       context stop self
-      context.become(stopped)
     case Terminated(ref) if ref == self =>
       handleUnsubscribe(channel, consumerTag)
       context.become(stopping(channel))
@@ -79,8 +73,6 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
         pendingDeliveries.clear
         context stop self
       }
-    case Unsubscribe =>
-      sender ! true
     case RejectOrAck(ack, consumerTag) =>
       handleRejectOrAck(ack, channel, consumerTag)
       if (pendingDeliveries.isEmpty)
@@ -89,18 +81,12 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
       // note! Before RabbitMQ 2.7.0 does not preserve message order when this happens!
       // https://www.rabbitmq.com/semantics.html
       channel.basicReject(envelope.getDeliveryTag, true)
-    case Shutdown =>
+    case Unsubscribe | Shutdown =>
       ()
     case Abort =>
       context stop self
-      context.become(stopped)
     case Terminated(ref) if ref == self =>
       ()
-  }
-
-  val stopped: Receive = {
-    case _ =>
-      // we're stopped, ignore all the things
   }
 
   def setupSubscription(channel: Channel): String = {
