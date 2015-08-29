@@ -39,7 +39,6 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
   var channelActor: Option[ActorRef] = None
   val pendingConfirmation = mutable.LinkedHashMap.empty[Long, (ConfirmedMessage, ActorRef)]
   val heldMessages = mutable.Queue.empty[(ConfirmedMessage, ActorRef)]
-  val deadLetters = context.system.deadLetters
 
   val waitingForChannelActor: Receive = {
     case ChannelCreated(_channelActor) =>
@@ -108,7 +107,7 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
   def handleAck(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
     deliveryTags foreach { tag =>
       val pending = pendingConfirmation(tag)
-      if (pending._2 !=  deadLetters)
+      if (pending._2 !=  Actor.noSender)
         pending._2 ! acked
       pendingConfirmation.remove(tag)
     }
