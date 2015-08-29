@@ -1,6 +1,6 @@
 package com.spingo.op_rabbit.consumer.impl
 
-import akka.actor.{Actor, ActorLogging, Terminated}
+import akka.actor.{Actor, ActorLogging, Terminated, ActorRef}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.spingo.op_rabbit.RabbitExceptionMatchers
 import com.spingo.op_rabbit.consumer._

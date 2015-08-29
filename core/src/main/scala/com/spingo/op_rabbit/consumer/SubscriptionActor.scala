@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
 import scala.util.{Try,Failure,Success}
 
-class SubscriptionActor(subscription: Subscription, connection: ActorRef) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
+class SubscriptionActor(subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit]) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
   startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfiguration.qos))
 
@@ -29,9 +29,13 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
 
   when(Disconnected) {
     case Event(ChannelConnected(channel, channelActor), p: DisconnectedPayload) =>
-      val consumer = context.actorOf(props, "consumer")
-      context.watch(consumer)
-      goto(p.nextState) using ConnectedPayload(channelActor, channel, p.qos, Some(consumer), p.shutdownCause)
+      if (p.nextState.isTerminal)
+        goto(Stopped) using ConnectedPayload(channelActor, channel, p.qos, None, p.shutdownCause)
+      else {
+        val consumer = context.actorOf(props, "consumer")
+        context watch consumer
+        goto(p.nextState) using ConnectedPayload(channelActor, channel, p.qos, Some(consumer), p.shutdownCause)
+      }
 
     case Event(Pause | Run | Stop(_,_), p: DisconnectedPayload) if p.nextState.isTerminal =>
       stay
@@ -118,13 +122,16 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
       }
 
     case _ -> Stopping =>
-      nextConnectedState { d =>
-        d.consumer match {
-          case None =>
-            self ! Abort(None)
-          case Some(consumer) =>
-            consumer ! Consumer.Shutdown
-        }
+      nextStateData match {
+        case d: ConnectedPayload =>
+          d.consumer match {
+            case None =>
+              self ! Abort(None)
+            case Some(consumer) =>
+              consumer ! Consumer.Shutdown
+          }
+        case _ =>
+          self ! Abort(None)
       }
 
     case _ -> Stopped =>
@@ -149,13 +156,14 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
           context stop connectionInfo.channelActor
           connectionInfo.consumer.foreach(context stop _)
         case _ =>
+          ()
       }
 
-      subscription._closedP.tryComplete(
+      initialized.tryFailure(new RuntimeException("Subscription stopped before it had a chance to initialize"))
+      closed.tryComplete(
         payload.shutdownCause.map(Failure(_)).getOrElse(Success(Unit))
       )
       stop()
-
   }
 
   initialize()
@@ -184,11 +192,11 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef) extend
       subscription.binding.bind(channel)
     } match {
       case Left(ex) =>
-        subscription._initializedP.tryFailure(ex)
-        subscription._closedP.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+        initialized.tryFailure(ex)
+        closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
         goto(Stopped) using connectionInfo.copy(shutdownCause = Some(ex))
       case Right(_) =>
-        subscription._initializedP.trySuccess(Unit)
+        initialized.trySuccess()
         connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
         goto(Running) using connectionInfo
     }
@@ -219,8 +227,6 @@ object SubscriptionActor {
   }
 
   sealed trait Commands
-  def props(subscription: Subscription, connection: ActorRef): Props =
-    Props(classOf[SubscriptionActor], subscription, connection)
 
   case class Stop(shutdownCause: Option[ShutdownSignalException], timeout: FiniteDuration) extends Commands
   case class Abort(shutdownCause: Option[ShutdownSignalException]) extends Commands

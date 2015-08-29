@@ -1,6 +1,9 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
+package consumer
 
 import akka.actor.ActorRef
+import akka.pattern.ask
+import akka.util.Timeout
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 
@@ -9,16 +12,11 @@ object Subscription {
   case class SetQos(qos: Int) extends SubscriptionCommands
 }
 
-trait SubscriptionControl {
+trait SubscriptionRef {
   /**
     Future is completed the moment the subscription closes.
     */
   val closed: Future[Unit]
-
-  /**
-    Future is completed once the graceful shutdown process initiates.
-    */
-  val closing: Future[Unit]
 
   /**
     Future is completed once the message queue and associated bindings are configured.
@@ -28,7 +26,7 @@ trait SubscriptionControl {
   /**
     Causes consumer to immediately stop receiving new messages; once pending messages are complete / acknowledged, shut down all associated actors, channels, etc.
 
-    If pending messages aren't complete after the provided timeout, the channel is closed and the unacknowledged messages will be scheduled for redelivery.
+    If pending messages aren't complete after the provided timeout (default 5 minutes), the channel is closed and the unacknowledged messages will be scheduled for redelivery.
     */
   def close(timeout: FiniteDuration = 5 minutes): Unit
 
@@ -43,7 +41,7 @@ trait SubscriptionControl {
 
   It features convenience methods to with Futures to help timing.
   */
-trait Subscription extends Directives with SubscriptionControl {
+trait Subscription extends Directives with SubscriptionRef {
   protected [op_rabbit] val _initializedP = Promise[Unit]
 
   protected [op_rabbit] val _closedP = Promise[Unit]
@@ -69,23 +67,28 @@ trait Subscription extends Directives with SubscriptionControl {
   lazy val _errorReporting = _config.boundSubscription.errorReporting
   lazy val _recoveryStrategy = _config.boundSubscription.recoveryStrategy
   lazy val _executionContext = _config.boundSubscription.executionContext
+
+  def register(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
+    implicit val akkaTimeout = Timeout(timeout)
+    SubscriptionRefProxy((rabbitControl ? this).mapTo[SubscriptionRef])
+  }
 }
 
-/**
-  scala
-  // stop receiving new messages from RabbitMQ immediately; shut down consumer and channel as soon as pending messages are completed. A grace period of 30 seconds is given, after which the subscription forcefully shuts down.
-  subscription.
+case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Future[Unit], closed: Future[Unit]) extends SubscriptionRef {
+  def close(timeout: FiniteDuration = 5 minutes): Unit =
+    subscriptionActor ! SubscriptionActor.Stop(None, timeout)
 
-  // Shut things down without a grace period
-  subscription.abort()
+  def abort(): Unit =
+    subscriptionActor ! SubscriptionActor.Abort(None)
+}
 
-  // Future[Unit] which completes once the provided binding has been applied (IE: queue has been created and topic bindings configured). Useful if you need to assert you don't send a message before a message queue is created in which to place it.
-  subscription.initialized
+case class SubscriptionRefProxy(subscriptionRef: Future[SubscriptionRef]) extends SubscriptionRef {
+  implicit val ec = SameThreadExecutionContext
+  val closed = subscriptionRef.flatMap(_.closed)
+  val initialized = subscriptionRef.flatMap(_.initialized)
+  def close(timeout: FiniteDuration = 5 minutes): Unit =
+    subscriptionRef.foreach(_.close(timeout))
 
-  // Future[Unit] which completes when the subscription is closed.
-  subscription.closed
-
-  // Future[Unit] which completes when the subscription begins closing.
-  subscription.closing
-  ```
-  */
+  def abort(): Unit =
+    subscriptionRef.foreach(_.abort())
+}
