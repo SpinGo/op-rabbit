@@ -8,7 +8,7 @@ import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Failure, Success, Try}
 
-protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
+private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
   queueName: String,
   recoveryStrategy: com.spingo.op_rabbit.RecoveryStrategy,

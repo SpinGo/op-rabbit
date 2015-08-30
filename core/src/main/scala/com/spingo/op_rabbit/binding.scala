@@ -77,6 +77,8 @@ case class QueueBinding(
   Passively connect to a queue. If the queue does not exist already,
   then the subscription fails. (and will not retry).
 
+  This is useful when binding to a queue defined by another process, and with pre-existing properties set, such as `x-message-ttl`.
+
   See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
   */
 case class QueueBindingPassive(queueName: String) extends Binding {

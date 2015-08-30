@@ -65,7 +65,7 @@ package object properties {
   object Header {
     def apply(name: String, value: HeaderValue): Header = {
       if (value == null)
-        new Header(name, NullHeaderValue)
+        new Header(name, HeaderValue.NullHeaderValue)
       else
         new Header(name, value)
     }
