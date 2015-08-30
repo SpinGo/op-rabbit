@@ -1,6 +1,5 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
-import com.spingo.op_rabbit.{RabbitControl, RabbitUnmarshaller}
 import com.spingo.op_rabbit.properties.PropertyExtractor
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import shapeless._
@@ -28,16 +27,16 @@ object Ackable {
   implicit def ackableFromUnit(u: Unit) = unitAck
 }
 
-class TypeHolder[T] {}
-object TypeHolder {
+protected class TypeHolder[T] {}
+protected object TypeHolder {
   def apply[T] = new TypeHolder[T]
 }
 
-trait Nackable {
+private trait Nackable {
   val handler: Handler
 }
 
-object Nackable {
+private object Nackable {
   implicit def nackableFromString(u: String) = new Nackable {
     val handler: Handler = { (p, _) => p.success(Left(NackRejection(u))) }
   }
@@ -69,12 +68,12 @@ case class ChannelDirective(config: ChannelConfiguration) {
     consume(queue("my.queue.name")) {
       (body(as[MyPayloadType]) & optionalProperty(ReplyTo) & optionalProperty(Priority)) { (myPayload, replyTo, priority) =>
         // work ...
-        ack()
+        ack
       }
     }
   }
   }}}
-  
+
   As seen, directives are composable via `&`. In the end, the directive is applied with a function whose parameters match the output values from the directive(s).
 
   One value the directives, over accessing the properties directly, is that they are type safe, and care was taken to reduce the probability of surprise. Death is swiftly issued to `null` and `Object`. Some directives, such as [[Directives.property property]], will nack the message if the value specified can't be extracted; IE it is null. If you'd prefer to use a default value instead of nacking the message, you can specify alternative values using `| provide(...)`.
@@ -84,7 +83,7 @@ case class ChannelDirective(config: ChannelConfiguration) {
     // ...
   }
   }}}
-  
+
   Note: the directives themselves don't actually do anything, except when applied / returned. IE:
 
   {{{
@@ -93,9 +92,9 @@ case class ChannelDirective(config: ChannelConfiguration) {
       property(ReplyTo) // does absolutely nothing
 
       body(as[MyPayloadType]) { (myPayload, replyTo, priority) =>
-        ack() // does absolutely nothing (not the return value)
+        ack // this ack here does absolutely nothing (not the return value)
         // work ...
-        ack() // DOES something
+        ack
       }
     }
   }
@@ -150,7 +149,7 @@ trait Directives {
   def typeOf[T] = new TypeHolder[T]
 
   /**
-    
+
     */
   def provide[T](value: T) = hprovide(value :: HNil)
   def hprovide[T <: HList](value: T) = new Directive[T] {
@@ -178,7 +177,7 @@ trait Directives {
 
   /**
     Nack the message; does NOT trigger the [[RecoveryStrategy]] in use.
-    
+
     Examples:
 
     {{{
@@ -257,6 +256,21 @@ trait Directives {
     Directive which yields the routingKey (topic) through which the message was published
     */
   def routingKey = extract(_.envelope.getRoutingKey)
+
+  implicit class EnrichedHeaderValueExtractor[T](header: properties.UnboundHeader) {
+    def as[V](implicit converter: properties.HeaderValueConverter[V]) = {
+      new PropertyExtractor[V] {
+        override def extractorName = header.extractorName
+        def unapply(properties: com.rabbitmq.client.AMQP.BasicProperties): Option[V] =
+          header.unapply(properties) map {
+            converter(_) match {
+              case Left(ex) => throw(ParseExtractRejection(s"Error occurred while converting HeaderValue", ex))
+              case Right(v) => v
+            }
+          }
+      }
+    }
+  }
 }
 
 /**

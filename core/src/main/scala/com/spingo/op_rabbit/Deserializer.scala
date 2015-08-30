@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import scala.util.control.NonFatal
 
@@ -10,7 +10,7 @@ object Deserializer extends DeserializerLowerPriorityImplicits {
       def apply(a: A) = {
         try Right(f(a))
         catch {
-          case NonFatal(ex) ⇒ Left(ExtractRejection(ex.toString, ex))
+          case NonFatal(ex) ⇒ Left(ParseExtractRejection(ex.toString, ex))
         }
       }
     }

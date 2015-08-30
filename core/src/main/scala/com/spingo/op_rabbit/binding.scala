@@ -1,6 +1,5 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
-import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
 

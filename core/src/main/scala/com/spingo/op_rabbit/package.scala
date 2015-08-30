@@ -1,11 +1,11 @@
-package com.spingo.op_rabbit
+package com.spingo
 
 import scala.concurrent.{Promise,Future}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import shapeless._
 
-package object consumer {
+package object op_rabbit {
 
   /**
     Represents a message delivery for usage in consumers / Handlers.
@@ -16,6 +16,7 @@ package object consumer {
   type Directive1[T] = Directive[::[T, HNil]]
   type Deserialized[T] = Either[ExtractRejection, T]
 
-  protected [op_rabbit] val futureUnit: Future[Unit] = Future.successful(Unit)
+  protected val futureUnit: Future[Unit] = Future.successful(Unit)
 
+  case object Nacked extends Exception(s"Message was nacked")
 }

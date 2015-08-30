@@ -1,6 +1,5 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
-import com.spingo.op_rabbit._
 import akka.actor._
 import akka.pattern.ask
 import com.rabbitmq.client.{Channel, Envelope}

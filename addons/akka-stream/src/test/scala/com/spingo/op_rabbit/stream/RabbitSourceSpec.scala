@@ -1,4 +1,5 @@
-package com.spingo.op_rabbit.stream
+package com.spingo.op_rabbit
+package stream
 
 import akka.actor._
 import akka.pattern.ask
@@ -10,10 +11,7 @@ import akka.stream.scaladsl.Keep
 import akka.stream.scaladsl.{Sink, Source}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
-import com.spingo.op_rabbit.QueueMessage
-import com.spingo.op_rabbit.consumer.Directives._
-import com.spingo.op_rabbit.consumer.RabbitErrorLogging
-import com.spingo.op_rabbit.consumer.RecoveryStrategy
+import com.spingo.op_rabbit.Directives._
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
@@ -46,7 +44,6 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     implicit val recoveryStrategy = RecoveryStrategy.none
     lazy val binding = queue(queueName(), durable = true, exclusive = false, autoDelete = false)
     lazy val source = RabbitSource(
-      "very-stream",
       rabbitControl,
       channel(qos = qos),
       consume(binding),

@@ -1,5 +1,4 @@
 package com.spingo.op_rabbit
-package consumer
 
 import akka.actor.ActorRef
 import scala.concurrent.Future
@@ -29,7 +28,7 @@ trait SubscriptionRef {
   def abort(): Unit
 }
 
-case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Future[Unit], closed: Future[Unit]) extends SubscriptionRef {
+private [op_rabbit] case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Future[Unit], closed: Future[Unit]) extends SubscriptionRef {
   def close(timeout: FiniteDuration = 5 minutes): Unit =
     subscriptionActor ! SubscriptionActor.Stop(None, timeout)
 
@@ -37,7 +36,7 @@ case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Futur
     subscriptionActor ! SubscriptionActor.Abort(None)
 }
 
-case class SubscriptionRefProxy(subscriptionRef: Future[SubscriptionRef]) extends SubscriptionRef {
+private [op_rabbit] case class SubscriptionRefProxy(subscriptionRef: Future[SubscriptionRef]) extends SubscriptionRef {
   implicit val ec = SameThreadExecutionContext
   val closed = subscriptionRef.flatMap(_.closed)
   val initialized = subscriptionRef.flatMap(_.initialized)

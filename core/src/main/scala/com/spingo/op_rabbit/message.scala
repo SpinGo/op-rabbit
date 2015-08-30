@@ -16,7 +16,7 @@ trait MessageForPublicationLike extends (Channel => Unit) {
 
 object MessageForPublicationLike {
   type Factory[T, M <: MessageForPublicationLike] = (T => M)
-  val defaultProperties = List(properties.DeliveryMode.persistent)
+  val defaultProperties = List(properties.DeliveryModePersistence(true))
 }
 
 /**
@@ -109,6 +109,29 @@ object ConfirmedMessage {
     val rabbitProperties = builder.build
 
     { (message) => new ConfirmedMessage(publisher, marshaller.marshall(message), rabbitProperties) }
+  }
+
+}
+
+final class UnconfirmedMessage(
+  val publisher: MessagePublisher,
+  val data: Array[Byte],
+  val properties: BasicProperties) extends MessageForPublicationLike {
+  val dropIfNoChannel = true
+  def apply(c: Channel) = publisher(c, data, properties)
+}
+
+object UnconfirmedMessage {
+  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]) = {
+    factory[T](publisher, properties)(marshaller)(message)
+  }
+
+  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, UnconfirmedMessage] = {
+    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
+    marshaller.properties(builder)
+    val rabbitProperties = builder.build
+
+    { (message) => new UnconfirmedMessage(publisher, marshaller.marshall(message), rabbitProperties) }
   }
 
 }

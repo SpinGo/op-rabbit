@@ -1,13 +1,12 @@
-package com.spingo.op_rabbit.stream
+package com.spingo.op_rabbit
+package stream
 
 import akka.actor._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
-import com.spingo.op_rabbit.{ConfirmedMessage, QueuePublisher, RabbitControl}
-import com.spingo.op_rabbit.consumer.Directives._
-import com.spingo.op_rabbit.consumer.RabbitErrorLogging
+import com.spingo.op_rabbit.Directives._
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import com.timcharper.acked.AckedSource
 import com.spingo.scoped_fixtures.ScopedFixtures
@@ -44,7 +43,6 @@ class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matche
       new RabbitFixtures {
 
         val (subscription, consumed) = RabbitSource(
-          "very-stream",
           rabbitControl,
           channel(qos),
           consume(queue(queueName(), durable = true, exclusive = false, autoDelete = false)),
@@ -60,7 +58,6 @@ class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matche
         await(subscription.initialized)
 
         val sink = ConfirmedPublisherSink[Int](
-          "test-sink",
           rabbitControl,
           ConfirmedMessage.factory(QueuePublisher(queueName())))
 

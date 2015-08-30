@@ -1,5 +1,3 @@
-import sbt._
-import Keys._
 import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 import java.util.Properties
@@ -13,6 +11,8 @@ val appProperties = {
   IO.load(prop, new File("project/version.properties"))
   prop
 }
+
+val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't packaged")
 
 val commonSettings = Seq(
   organization := "com.spingo",
@@ -49,10 +49,14 @@ lazy val `op-rabbit` = (project in file(".")).
   dependsOn(core).
   aggregate(core, `play-json`, `pg-change`, airbrake, `akka-stream`, json4s, `play-json-23`, `pg-change-23`)
 
+
 lazy val core = (project in file("./core")).
   settings(Boilerplate.settings: _*).
   settings(commonSettings: _*).
-  settings(name := "op-rabbit-core")
+  settings(
+    name := "op-rabbit-core"
+  )
+
 
 lazy val json4s = (project in file("./addons/json4s")).
   settings(commonSettings: _*).

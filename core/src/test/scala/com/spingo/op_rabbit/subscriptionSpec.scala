@@ -3,7 +3,6 @@ package com.spingo.op_rabbit
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
-import com.spingo.op_rabbit.consumer.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{Channel, RichConnectionActor}
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
@@ -24,7 +23,7 @@ class SubscriptionSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     it("propagates the exception via the initialized future") {
       new RabbitFixtures {
         val s = Subscription.register(rabbitControl) {
-          import consumer.Directives._
+          import Directives._
           channel(qos = 1) {
             consume(pqueue("very-queue")) {
               ack

@@ -6,7 +6,6 @@ import akka.pattern.pipe
 import akka.stream.actor.{ActorPublisher, ActorPublisherMessage}
 import akka.stream.scaladsl.Source
 import akka.stream.{Graph, Materializer}
-import com.spingo.op_rabbit.consumer.{ChannelDirective, Delivery, Directive, HListToValueOrTuple, RabbitErrorLogging, RecoveryStrategy, Subscription, BindingDirective}
 import com.thenewmotion.akka.rabbitmq.Channel
 import com.timcharper.acked.AckedSource
 import org.reactivestreams.Publisher
@@ -23,7 +22,6 @@ trait MessageExtractor[Out] {
 }
 
 class RabbitSourceActor[T](
-  name: String,
   abort: Promise[Unit],
   consumerStopped: Future[Unit],
   initialQos: Int,
@@ -94,13 +92,35 @@ class RabbitSourceActor[T](
   }
 }
 
+/**
+  Creates an op-rabbit consumer whose messages are delivered through an [[https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSource.scala AckedSource]].
+
+  Example:
+
+  {{{
+  import com.spingo.op_rabbit.Directives._
+  RabbitSource(
+    rabbitControl,
+    channel(qos = 3),
+    consume(queue("such-queue", durable = true, exclusive = false, autoDelete = false)),
+    body(as[Person])).
+    runForeach { person =>
+      greet(person)
+    } // after each successful iteration the message is acknowledged.
+  }}}
+  */
 object RabbitSource {
+  /**
+    @param rabbitControl Op-rabbit management ActorRef
+    @param channelDirective An unbound [[http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Directives@channel(qos:Int):com.spingo.op_rabbit.ChannelDirective ChannelDirective]]
+    @param bindingDirective An unbound [[http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Directives@consume(binding:com.spingo.op_rabbit.Binding):com.spingo.op_rabbit.BindingDirective BindingDirective]]; informs the stream from which queue it should pull messages.
+    @param handler A [[http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Directive Directive]], either simple or compound, describing how the elements passed into the stream are to be formed.
+    */
   def apply[L <: HList](
-    name: String,
     rabbitControl: ActorRef,
     channelDirective: ChannelDirective,
-    subscriptionDirective: BindingDirective,
-    directive: Directive[L]
+    bindingDirective: BindingDirective,
+    handler: Directive[L]
   )(implicit refFactory: ActorRefFactory, tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy) = {
     type Out = (Promise[Unit], tupler.Out)
     case class MessageReceived(promise: Promise[Unit], msg: tupler.Out)
@@ -117,7 +137,7 @@ object RabbitSource {
 
     val abort = Promise[Unit]
     val consumerStopped = Promise[Unit]
-    val leActor: ActorRef = refFactory.actorOf(Props(new RabbitSourceActor(name, abort, consumerStopped.future, channelDirective.config.qos, messageReceivedExtractor )))
+    val leActor: ActorRef = refFactory.actorOf(Props(new RabbitSourceActor(abort, consumerStopped.future, channelDirective.config.qos, messageReceivedExtractor )))
 
     def interceptingRecoveryStrategy = new RecoveryStrategy {
       def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery, as: ActorSystem): Future[Boolean] = {
@@ -129,10 +149,10 @@ object RabbitSource {
     }
 
     val subscription = Subscription.register(rabbitControl) {
-      import consumer.Directives._
+      import Directives._
       channelDirective {
-        subscriptionDirective({
-          directive.happly { l =>
+        bindingDirective({
+          handler.happly { l =>
             val p = Promise[Unit]
 
             leActor ! MessageReceived(p, tupler(l))

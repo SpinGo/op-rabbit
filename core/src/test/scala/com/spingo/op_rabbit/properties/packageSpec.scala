@@ -18,13 +18,13 @@ class PropertiesSpec extends FunSpec with Matchers {
   describe("matchers") {
     val properties = builderWithProperties(
       Seq(
-        DeliveryMode.persistent,
+        DeliveryModePersistence.persistent,
         ReplyTo("reply-destination"),
         Header("header1", "very-value1"),
         Header("header2", "very-value2"))).build
     it("lifts out property values") {
-      val DeliveryMode(mode) = properties
-      mode should be (2)
+      val DeliveryModePersistence(mode) = properties
+      mode should be (true)
 
       val ReplyTo(where) = properties
       where should be ("reply-destination")

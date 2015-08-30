@@ -17,28 +17,17 @@
  * limitations under the License.
  */
 
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import shapeless._
 import com.spingo.op_rabbit.properties.{HeaderValue, NullHeaderValue, HeaderValueConverter}
 
-trait HListDeserializer[L <: HList, T] extends Deserializer[L, T] {
+private [op_rabbit] trait HListDeserializer[L <: HList, T] extends Deserializer[L, T] {
   def apply(data: L): Either[ExtractRejection, T]
 }
-object HListDeserializer extends HListDeserializerInstances {
+private [op_rabbit] object HListDeserializer extends HListDeserializerInstances {
   protected type DS[A, AA] = Deserializer[A, AA] // alias for brevity
 
-  /**
-    Implicitly provides an HListDeserializer for HeaderValueConverters
-    */
-  implicit def forHeaderValue[T](implicit hv: HeaderValueConverter[T]): HListDeserializer[HeaderValue :: HNil, T] = new HListDeserializer[HeaderValue :: HNil, T] {
-    def apply(data: HeaderValue :: HNil) = data match {
-      case NullHeaderValue :: HNil =>
-        Left(ValueExpectedExtractRejection(s"Requested HeaderValue was null"))
-      case headerValue :: HNil =>
-        hv(headerValue).left.map { ex => ExtractRejection(s"Could not deserialize HeaderValue", ex)}
-    }
-  }
   implicit def holderToHList[L <: HList, T](holder: TypeHolder[T])(implicit hv: HListDeserializer[L, T]) = hv
 
   /////////////////////////////// CASE CLASS DESERIALIZATION ////////////////////////////////
@@ -52,7 +41,7 @@ object HListDeserializer extends HListDeserializerInstances {
         try Right(deserialize(list))
         catch {
           case e: BubbleLeftException      ⇒ e.left.asInstanceOf[Left[ExtractRejection, T]]
-          case e: IllegalArgumentException ⇒ Left(ExtractRejection(Option(e.getMessage) getOrElse "", e))
+          case e: IllegalArgumentException ⇒ Left(ParseExtractRejection(Option(e.getMessage) getOrElse "", e))
         }
     }
 

@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import akka.actor.{ActorSystem, Props}
 import com.rabbitmq.client.AMQP.BasicProperties

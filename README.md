@@ -75,7 +75,7 @@ A high-level overview of the available components:
 - `op-rabbit-json4s` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/json4s/current/index.html)
     - Easily use [Json4s](http://json4s.org) to serialization messages; automatically sets RabbitMQ message headers to indicate content type.
 - `op-rabbit-airbrake` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/airbrake/current/index.html)
-    - Report consumer exceptions to airbrake.
+    - Report consumer exceptions to airbrake, using the [Airbrake](https://github.com/airbrake/airbrake-java) Java library.
 - `op-rabbit-akka-stream` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html)
     - Process or publish messages using akka-stream.
 
@@ -99,14 +99,17 @@ op-rabbit {
 
 Note that hosts is an array; Connection attempts will be made to hosts in that order, with a default timeout of `3s`. This way you can specify addresses of your rabbitMQ cluster, and if one of the instances goes down, your application will automatically reconnect to another member of the cluster.
 
-`topic-exchange-name` is the default topic exchange to use; this can be overriden by passing `exchange = "my-topic"` to TopicBinding or TopicMessage.
+`topic-exchange-name` is the default topic exchange to use; this can be overriden by passing `exchange = "my-topic"` to [TopicBinding](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.TopicBinding) or [TopicMessage](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.TopicMessage).
 
 
 Boot up the RabbitMQ control actor:
 
 ```scala
+import com.spingo.op_rabbit.RabbitControl
+import akka.actor.{ActorSystem, Props}
+
 implicit val actorSystem = ActorSystem("such-system")
-val rabbitMq = actorSystem.actorOf(Props[RabbitControl])
+val rabbitControl = actorSystem.actorOf(Props[RabbitControl])
 ```
 
 ### Set up a consumer: (Topic subscription)
@@ -116,41 +119,57 @@ val rabbitMq = actorSystem.actorOf(Props[RabbitControl])
 ```scala
 import com.spingo.op_rabbit.PlayJsonSupport._
 import com.spingo.op_rabbit._
-import com.spingo.op_rabbit.consumer._
-import com.spingo.op_rabbit.subscription.Directives._
+import play.api.libs.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
+case class Person(name: String, age: Int)
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
-val subscription = new Subscription {
+val subscriptionRef = Subscription.register(rabbitControl) {
+  import Directives._
   // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
-  def config = channel(qos = 3) {
+  channel(qos = 3) {
     consume(topic("such-message-queue", List("some-topic.#"))) {
-      body(as[Person]) { person =>
+      (body(as[Person]) & routingKey ) { (person, key) =>
         // do work; this body is executed in a separate thread, as provided by the implicit execution context
+        println(s"A person named '${person.name}' with age ${person.age} was received over '${key}'.")
         ack()
       }
     }
   }
 }
-
-rabbitMq ! subscription
 ```
 
-Note, if your call generates an additional future, you can pass it to ack, and message will be acked based off the Future success, and nacked if the Future fails:
+Now, test the consumer by sending a message:
+
+```
+subscriptionRef.initialized.foreach { _ =>
+  rabbitControl ! TopicMessage(Person("Your name here", 33), "some-topic.cool")
+}
+```
+
+Stop the consumer:
+
+```
+subscriptionRef.close()
+```
+
+Note, if your call generates an additional future, you can pass it to ack, and message will be acked based off the Future success, and nacked with Failure (such that the configured [RecoveryStrategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.RecoveryStrategy) if the Future fails:
 
 ```scala
-      body(as[Person]) { person =>
+  // ...
+      (body(as[Person]) & routingKey) { (person, key) =>
         // do work; this body is executed in a separate thread, as provided by the implicit execution context
         val result: Future[Unit] = myApi.methodCall(person)
         ack(result)
       }
+  // ...
 
 ```
 
 #### Accessing additional headers
 
-If there are other headers you'd like to access, you can extract multiple using nested functions, or combine multiple directives to a single one. IE:
+As seen in the example above, you can extract headers in addition to the message body, using op-rabbit's [Directives](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Directives). You can use multiple declaratives via multiple nested functions, as follows:
 
 ```scala
 import com.spingo.op_rabbit.properties._
@@ -164,7 +183,11 @@ import com.spingo.op_rabbit.properties._
         }
       }
 // ...
+```
 
+Or, you can combine directives using `&` to form a compound directive, as follows:
+
+```scala
 // Compound directive
 // ...
       (body(as[Person]) & optionalProperty(ReplyTo)) { (person, replyTo) =>
@@ -174,17 +197,17 @@ import com.spingo.op_rabbit.properties._
 // ...
 ```
 
-Please see the documentation on [Directives](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.consumer.Directives) for more details.
+See the documentation on [Directives](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Directives) for more details.
 
 #### Shutting down a consumer
 
-The following methods are available on subscription which will allow control over the subscription.
+The following methods are available on a [SubscriptionRef](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.SubscriptionRef) which will allow control over the subscription.
 
 ```scala
-// stop receiving new messages from RabbitMQ immediately; shut down consumer and channel as soon as pending messages are completed. A grace period of 30 seconds is given, after which the subscription forcefully shuts down.
+// stop receiving new messages from RabbitMQ immediately; shut down consumer and channel as soon as pending messages are completed. A grace period of 30 seconds is given, after which the subscription forcefully shuts down. (Default of 5 minutes used if duration not provided)
 subscription.close(30 seconds)
 
-// Shut things down without a grace period
+// Shut down the subscription immediately; don't wait for messages to finish processing.
 subscription.abort()
 
 // Future[Unit] which completes once the provided binding has been applied (IE: queue has been created and topic bindings configured). Useful if you need to assert you don't send a message before a message queue is created in which to place it.
@@ -192,52 +215,48 @@ subscription.initialized
 
 // Future[Unit] which completes when the subscription is closed.
 subscription.closed
-
-// Future[Unit] which completes when the subscription begins closing.
-subscription.closing
 ```
 
 ### Publish a message:
 
 ```scala
-rabbitMq ! TopicMessage(Person(name = "Mike How", age = 33), routingKey = "some-topic.very-interest")
+rabbitControl ! TopicMessage(Person(name = "Mike How", age = 33), routingKey = "some-topic.very-interest")
 
-rabbitMq ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
+rabbitControl ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
 ```
 
 By default:
 
 - Messages will be queued up until a connection is available
-- Messages are monitored via publisherConfirms; if a connection is lost before RabbitMQ confirms receipt of the message, then the message is published again. This means that the message may be delivered twice, the default opinion being that `at-least-once` is better than `at-most-once`. You can use `UnconfirmedMessage` if you'd like `at-most-once` delivery instead.
-- If you would like to be notified of confirmation, use the ask pattern:
+- Messages are monitored via publisherConfirms; if a connection is lost before RabbitMQ confirms receipt of the message, then the message is published again. This means that the message may be delivered twice, the default opinion being that `at-least-once` is better than `at-most-once`. You can use [UnconfirmedMessage](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.UnconfirmedMessage) if you'd like `at-most-once` delivery, instead.
+- If you would like to be notified of confirmation, use the [ask](http://doc.akka.io/docs/akka/2.3.12/scala/actors.html#Send_messages) pattern:
 
-      ```scala
-        val received = (rabbitMq ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
-      ```
+        ```scala
+        import akka.pattern.ask
+        import akka.util.Timeout
+        import scala.concurrent.duration._
+        implicit val timeout = Timeout(5 seconds)
+        val received = (rabbitControl ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
+        ```
 
 ### Consuming using Akka streams
 
 (this example uses `op-rabbit-play-json` and `op-rabbit-akka-streams`)
 
 ```scala
-import com.spingo.op_rabbit._
-import com.spingo.op_rabbit.subscription._
-import com.spingo.op_rabbit.subscription.Directives._
-import com.spingo.op_rabbit.PlayJsonSupport._
-implicit val workFormat = Json.format[Work] // setup play-json serializer
 
+import Directives._
 RabbitSource(
-  rabbitMq,
+  rabbitControl,
   channel(qos = 3),
   consume(queue("such-queue", durable = true, exclusive = false, autoDelete = false)),
-  body(as[Work])). // marshalling is automatically hooked up using implicits
-  runForeach { work =>
-    doWork(work)
+  body(as[Person])). // marshalling is automatically hooked up using implicits
+  runForeach { person =>
+    greet(person)
   } // after each successful iteration the message is acknowledged.
-  .run
 ```
 
-Note: `RabbitSource` yields an AckedSource, which can be combined with an AckedSink (such as `ConfirmedPublisherSink`). You can convert an acked stream into a normal stream by calling `AckedStream.acked`; once messages flow passed the `acked` component, they are considered acknowledged, and acknowledgement tracking is no longer a concern (and thus, you are free to use the akka-stream library in it's entirety).
+Note: `RabbitSource` yields an [AckedSource](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSource.scala), which can be combined with an [AckedSink](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSink.scala) (such as [`ConfirmedPublisherSink`](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html#com.spingo.op_rabbit.stream.ConfirmedPublisherSink$)). You can convert an acked stream into a normal stream by calling `AckedStream.acked`; once messages flow passed the `acked` component, they are considered acknowledged, and acknowledgement tracking is no longer a concern (and thus, you are free to use the akka-stream library in it's entirety).
 
 ### Publishing using Akka streams
 
@@ -251,7 +270,7 @@ implicit val workFormat = Format[Work] // setup play-json serializer
 
 val sink = ConfirmedPublisherSink[Work](
   "my-sink-name",
-  rabbitMq,
+  rabbitControl,
   ConfirmedMessage.factory(QueuePublisher(queueName())))
 
 AckedSource(1 to 15). // Each element in source will be acknowledged after publish confirmation is received
@@ -268,8 +287,7 @@ It's important to know when your consumers fail. Out of the box, `op-rabbit` shi
 You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `logback` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
 
 ```scala
-import com.spingo.op_rabbit.consumer.LogbackLogger
-import com.spingo.op_rabbit.RabbitControl
+import com.spingo.op_rabbit.{LogbackLogger, AirbrakeLogger}
 
 implicit val rabbitErrorLogging = LogbackLogger + AirbrakeLogger.fromConfig
 ```
@@ -285,12 +303,14 @@ object LogbackLogger extends RabbitErrorLogging {
 }
 ```
 
-### Notes
+## Notes
 
-#### Shapeless dependency
+### Shapeless dependency
 
 Note, Op-Rabbit depends on [shapeless](https://github.com/milessabin/shapeless) `2.2.3`; if you are using `spray`, then you'll need to use the [version built for shapeless `2.1.0`](http://repo.spray.io/io/spray/spray-routing-shapeless2_2.11/1.3.3/); shapeless `2.2.3` is [noted to be binary compatible with `2.1.x` in most cases](https://github.com/milessabin/shapeless/blob/e78c95926550a1f9a6ca82fad07548ddaedd4901/notes/2.2.2.markdown).
 
-### Credits
+## Credits
+
+Op-Rabbit was created by [Tim Harper](http://timcharper.com)
 
 This library builds upon the excellent [Akka RabbitMQ client](https://github.com/thenewmotion/akka-rabbitmq) by Yaroslav Klymko.

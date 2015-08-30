@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Success, Try}
@@ -8,12 +8,12 @@ import shapeless.ops.hlist.Prepend
 /**
   HListable
   */
-protected trait ConjunctionMagnet[L <: HList] {
+private [op_rabbit] trait ConjunctionMagnet[L <: HList] {
   type Out
   def apply(underlying: Directive[L]): Out
 }
 
-protected object ConjunctionMagnet {
+private [op_rabbit] object ConjunctionMagnet {
   implicit def fromDirective[L <: HList, R <: HList](other: Directive[R])(implicit p: Prepend[L, R]) =
     new ConjunctionMagnet[L] {
       type Out = Directive[p.Out]

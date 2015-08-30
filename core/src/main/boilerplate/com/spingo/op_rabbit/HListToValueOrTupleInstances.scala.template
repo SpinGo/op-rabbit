@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import shapeless._
 
-abstract class ApplyConverterInstances {
-[#  implicit def hac1[[#T1#]] = new ApplyConverter[[#T1# :: ] :: HNil] {
-    type In = ([#T1#]) => Handler
-    def apply(fn: In) = {
-      case [#t1# :: ] :: HNil => fn([#t1#])
+private [op_rabbit] abstract class HListToValueOrTupleInstances {
+  type Aux[L <: HList, Out0] = HListToValueOrTuple[L] { type Out = Out0 }
+[2..22#  implicit def hlt1[[#T1#]]: Aux[[#T1# :: ] :: HNil, ([#T1#])] = new HListToValueOrTuple[[#T1# :: ] :: HNil] {
+    type Out = ([#T1#])
+    def apply(hl: [#T1# :: ] :: HNil) = hl match {
+      case [#t1# :: ] :: HNil => ([#t1#])
     }
   }#
 

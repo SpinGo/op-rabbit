@@ -1,8 +1,7 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
-import com.spingo.op_rabbit.{ConfirmedMessage, ExchangePublisher, TopicPublisher}
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import com.spingo.op_rabbit.properties.Header
 import com.spingo.scoped_fixtures.ScopedFixtures

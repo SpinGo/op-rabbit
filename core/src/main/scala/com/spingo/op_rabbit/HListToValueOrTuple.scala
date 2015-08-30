@@ -1,13 +1,13 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import shapeless._
 
-trait HListToValueOrTuple[L <: HList] {
+private [op_rabbit] trait HListToValueOrTuple[L <: HList] {
   type Out
   def apply(hl: L): Out
 }
 
-object HListToValueOrTuple extends HListToValueOrTupleInstances {
+private [op_rabbit] object HListToValueOrTuple extends HListToValueOrTupleInstances {
   implicit val hnilTupler: Aux[HNil, Unit] =
     new HListToValueOrTuple[HNil] {
       type Out = Unit

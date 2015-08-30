@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -7,25 +7,7 @@ import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import scala.util.Try
 
-object StringHelpers {
-  import scala.collection.JavaConversions
-  private val utf8 = Charset.forName("UTF-8")
-  def guessCharset(body: Array[Byte]): Option[Charset] = {
-    val firstChars: List[Byte] = (0 until Math.min(20, body.length)) map (body(_)) toList
-
-    if (firstChars.exists { b => b < 0 })
-      None
-    else
-      Some(utf8)
-  }
-
-  def byteArrayToString(body: Array[Byte], charset: Option[Charset]) = {
-    (charset orElse guessCharset(body)) match {
-      case Some(c) => Try { new String(body, c) } getOrElse { "<Malencoded-String>" }
-      case None => "<Binary-Data>"
-    }
-  }
-}
+// object RabbitErrorLogging {}
 
 /**
   Basic trait for reporting error messages; implement to build your own error reporting strategies to be used with consumers
@@ -35,7 +17,7 @@ trait RabbitErrorLogging {
     Tries to convert the body to a human-readable string; tries to use charset in contentEncoding
     */
   protected def bodyAsString(body: Array[Byte], properties: BasicProperties): String =
-    StringHelpers.byteArrayToString(body, Try { Charset.forName(properties.getContentEncoding) } toOption)
+    RabbitErrorLogging.StringHelpers.byteArrayToString(body, Try { Charset.forName(properties.getContentEncoding) } toOption)
 
   /**
     Called by consumer to report an exception processing a message
@@ -79,5 +61,25 @@ object LogbackLogger extends RabbitErrorLogging {
 }
 
 object RabbitErrorLogging {
+  object StringHelpers {
+    import scala.collection.JavaConversions
+    private val utf8 = Charset.forName("UTF-8")
+    def guessCharset(body: Array[Byte]): Option[Charset] = {
+      val firstChars: List[Byte] = (0 until Math.min(20, body.length)) map (body(_)) toList
+
+      if (firstChars.exists { b => b < 0 })
+        None
+      else
+        Some(utf8)
+    }
+
+    def byteArrayToString(body: Array[Byte], charset: Option[Charset]) = {
+      (charset orElse guessCharset(body)) match {
+        case Some(c) => Try { new String(body, c) } getOrElse { "<Malencoded-String>" }
+        case None => "<Binary-Data>"
+      }
+    }
+  }
+
   implicit val defaultLogger: RabbitErrorLogging = LogbackLogger
 }

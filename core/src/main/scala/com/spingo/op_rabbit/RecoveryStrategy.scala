@@ -1,9 +1,7 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import akka.actor.ActorSystem
 import com.rabbitmq.client.Channel
-import com.spingo.op_rabbit.RabbitHelpers
-import com.spingo.op_rabbit.PropertyHelpers
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import com.spingo.op_rabbit.properties.Header

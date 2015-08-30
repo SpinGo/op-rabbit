@@ -1,5 +1,4 @@
 package com.spingo.op_rabbit
-package consumer
 
 import akka.actor.ActorRef
 import akka.pattern.ask

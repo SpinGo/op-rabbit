@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import akka.actor._
 import com.rabbitmq.client.ShutdownSignalException
@@ -10,7 +10,7 @@ import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
 import scala.util.{Try,Failure,Success}
 
-class SubscriptionActor(subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit]) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
+private [op_rabbit] class SubscriptionActor(subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit]) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
   startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfiguration.qos))
 
@@ -98,6 +98,9 @@ class SubscriptionActor(subscription: Subscription, connection: ActorRef, initia
 
     case Event(Abort(cause), payload) =>
       goto(Stopped) using payload.copyCommon(shutdownCause = payload.shutdownCause orElse cause)
+
+    case Event(c: ChannelCreated, _) =>
+      stay
 
     case Event(e, s) =>
       log.error("received unhandled request {} in state {}/{}", e, stateName, s)

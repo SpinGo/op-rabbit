@@ -9,11 +9,14 @@ package object properties {
   type HeaderMap = java.util.HashMap[String, Object]
   trait MessageProperty extends ((Builder, HeaderMap) => Unit)
 
-  trait PropertyExtractor[T] {
+  private [op_rabbit] trait PropertyExtractor[T] {
     def extractorName: String = getClass.getSimpleName.replace("$", "")
     def unapply(properties: BasicProperties): Option[T]
   }
 
+  /**
+    See [[Header]]
+    */
   case class UnboundHeader(name: String) extends (HeaderValue => Header) with PropertyExtractor[HeaderValue] {
     override val extractorName = s"Header(${name})"
     def unapply(properties: BasicProperties) =
@@ -25,6 +28,32 @@ package object properties {
     def apply(value: HeaderValue) = Header(name, value)
   }
 
+  /**
+    Named header.
+
+    Note, you can instantiate an UnboundHeader for use in both reading and writing the header:
+
+    {{{
+    val RetryHeader = Header("x-retry")
+
+    Subscription {
+      channel() {
+        consume(queue("name")) {
+          property(RetryHeader.as[Int]) { retries =>
+            // ...
+            ack
+          }
+        }
+      }
+    }
+
+    rabbitControl ! QueueMessage("My body", "name", Seq(RetryHeader(5)))
+    }}}
+
+    Note, Headers are generally untyped and restricted to a limited set of primitives. Op-Rabbit uses Scala's type system to impede you from providing an invalid type.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   class Header protected (val name: String, val value: HeaderValue) extends MessageProperty {
     def apply(headers: HeaderMap): Unit =
       headers.put(name, value.serializable)
@@ -44,6 +73,12 @@ package object properties {
     def unapply(header: Header): Option[(String, HeaderValue)] =
       Some((header.name, header.value))
   }
+
+  /**
+    Optional contentType message-property. Op-Rabbit's serialization layer will automatically set / read this for you.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class ContentType(contentType: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
       builder.contentType(contentType)
@@ -53,6 +88,11 @@ package object properties {
       Option(properties.getContentType)
   }
 
+  /**
+    Optional contentEncoding message-property. Op-Rabbit's serialization layer will automatically set / read this for you.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class ContentEncoding(contentEncoding: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
       builder.contentEncoding(contentEncoding)
@@ -62,18 +102,28 @@ package object properties {
       Option(properties.getContentEncoding)
   }
 
-  case class DeliveryMode(mode: Int) extends MessageProperty {
+  /**
+    Property used to inform RabbitMQ of message handling; IE - should the message be persisted to disk, in case of a Broker restart?
+
+    RabbitMQ uses an integer to represent these two states, 1 for non-persistent, 2 for persistent. To reduce confusion, Op-Rabbit maps these integers to a boolean.
+
+    Note, RabbitMQ's default behavior is to '''NOT''' persist messages. Also, it is pointless to deliver persistent messages to a non-durable message queue. Further, non-persistent messages in a durable queue '''WILL NOT''' survive broker restart (unless replication has been configured using an [[https://www.rabbitmq.com/ha.html HA policy]]).
+    */
+  case class DeliveryModePersistence(persistent: Boolean = false) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
-      builder.deliveryMode(mode)
+      builder.deliveryMode(if (persistent) 2 else 1)
     }
   }
-  object DeliveryMode extends PropertyExtractor[Int]{
+  object DeliveryModePersistence extends PropertyExtractor[Boolean]{
     def unapply(properties: BasicProperties) =
-      Option(properties.getDeliveryMode)
-    val nonPersistent = DeliveryMode(1)
-    val persistent = DeliveryMode(2)
+      Option(properties.getDeliveryMode == 2)
+    val nonPersistent = DeliveryModePersistence(false)
+    val persistent = DeliveryModePersistence(true)
   }
 
+  /**
+    Property used to inform RabbitMQ of message priority. Destination queue must be configured as a priority queue. [[https://www.rabbitmq.com/priority.html Priority Queue Support]].
+    */
   case class Priority(priority: Int) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
       builder.priority(priority)
@@ -83,6 +133,11 @@ package object properties {
       Option(properties.getPriority).map(_.toInt)
   }
 
+  /**
+    Optional correlationId message-property. Useful when doing RPC over message queue. When requesting a response, set correlationId to some unique string value (a UUID?); when responding, send this same correlationId.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class CorrelationId(id: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
       builder.correlationId(id)
@@ -92,7 +147,11 @@ package object properties {
       Option(properties.getCorrelationId)
   }
 
-  //   String correlationId,
+  /**
+    Optional replyTo message-property. Useful when doing RPC over message queues.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class ReplyTo(replyTo: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit =
       builder.replyTo(replyTo)
@@ -102,6 +161,11 @@ package object properties {
       Option(properties.getReplyTo)
   }
 
+  /**
+    Optional expiration message-property.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter. If you want messages to expire, see [[https://www.rabbitmq.com/ttl.html TTL]].
+    */
   case class Expiration(expiration: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.expiration(expiration)
@@ -112,16 +176,27 @@ package object properties {
       Option(properties.getExpiration)
   }
 
+  /**
+    Optional messageId message-property.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class MessageId(messageId: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.messageId(messageId)
     }
   }
+
   object MessageId extends PropertyExtractor[String]{
     def unapply(properties: BasicProperties) =
       Option(properties.getMessageId)
   }
 
+  /**
+    Optional timestamp message-property.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class Timestamp(timestamp: Date) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.timestamp(timestamp)
@@ -132,6 +207,11 @@ package object properties {
       Option(properties.getTimestamp)
   }
 
+  /**
+    Optional Type message-property.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class Type(`type`: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.`type`(`type`)
@@ -142,6 +222,9 @@ package object properties {
       Option(properties.getType)
   }
 
+  /**
+    Optional User Id message-property. This property '''IS''' used by RabbitMQ, and should '''VERY LIKELY NOT''' be used with application User Ids. For more information, read [[http://www.rabbitmq.com/validated-user-id.html]]
+    */
   case class UserId(userId: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.userId(userId)
@@ -152,6 +235,11 @@ package object properties {
       Option(properties.getUserId)
   }
 
+  /**
+    Optional application identifier message-property. Useful to help indicate which application generated a message.
+
+    Application use only: RabbitMQ does not read, set, or use this parameter.
+    */
   case class AppId(appId: String) extends MessageProperty {
     def apply(builder: Builder, headers: HeaderMap): Unit = {
       builder.appId(appId)

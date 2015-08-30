@@ -6,12 +6,10 @@ import com.spingo.op_rabbit.RabbitHelpers.withChannelShutdownCatching
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
 import scala.collection.mutable
 
-case object Nacked extends Exception(s"Message was nacked")
-
 /**
   This actor handles confirmed message publications
   */
-class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
+private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
   case object ChannelDisconnected
   case class Ack(deliveryTag: Long, multiple: Boolean)
   case class Nack(deliveryTag: Long, multiple: Boolean)
@@ -104,10 +102,12 @@ class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
     }
   }
 
+  private val deadLetters = context.system.deadLetters
+
   def handleAck(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
     deliveryTags foreach { tag =>
       val pending = pendingConfirmation(tag)
-      if (pending._2 !=  Actor.noSender)
+      if (pending._2 != deadLetters)
         pending._2 ! acked
       pendingConfirmation.remove(tag)
     }

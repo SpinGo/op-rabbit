@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.MessageProperties
@@ -49,7 +49,7 @@ class DirectivesSpec extends FunSpec with Matchers {
     it("converts the header value to the specified type") {
       val delivery = testDelivery(properties = Seq(Header("recovery-attempts", "1")))
       resultFor(delivery) {
-        (property(Header("recovery-attempts")).as(typeOf[Int])) { (i) =>
+        property(Header("recovery-attempts").as[Int]) { (i) =>
           i should be (1)
           ack()
         }
@@ -60,7 +60,7 @@ class DirectivesSpec extends FunSpec with Matchers {
       val delivery = testDelivery(properties = Seq(Header("recovery-attempts", "a number of times")))
       an [ExtractRejection] should be thrownBy {
         resultFor(delivery) {
-          (property(Header("recovery-attempts")).as(typeOf[Int])) { (i) =>
+          (property(Header("recovery-attempts").as[Int])) { (i) =>
             ack()
           }
         }
@@ -84,7 +84,7 @@ class DirectivesSpec extends FunSpec with Matchers {
     it("Converts headers also") {
       case class VeryPerson(name: String, age: Int)
       resultFor(testDelivery(properties = Seq(Header("name", "Scratch"), Header("age", 27)))) {
-        (property(Header("name")).as(typeOf[String]) & property(Header("age")).as(typeOf[Int])).as(VeryPerson) { person =>
+        (property(Header("name").as[String]) & property(Header("age").as[Int])).as(VeryPerson) { person =>
           person should be (VeryPerson("Scratch", 27))
           ack()
         }

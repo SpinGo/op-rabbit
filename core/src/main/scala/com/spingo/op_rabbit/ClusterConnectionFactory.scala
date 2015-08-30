@@ -5,7 +5,7 @@ import com.rabbitmq.client.ConnectionFactory
 /**
   Used internally by RabbitMQ ConnectionFactory doesn't presently provide a way to configure multiple hosts; since akka-rabbitmq just uses ConnectionFactory.newConnection().
   */
-class ClusterConnectionFactory extends ConnectionFactory() {
+private [op_rabbit] class ClusterConnectionFactory extends ConnectionFactory() {
   import com.rabbitmq.client.{Address, Connection}
   var hosts = Array.empty[Address]
   /**

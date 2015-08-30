@@ -4,7 +4,6 @@ import com.rabbitmq.client.ShutdownSignalException
 import com.rabbitmq.client.{Connection,Channel}
 import java.io.IOException
 
-
 object RabbitHelpers {
   // some errors close the channel and cause the error to come through async as the shutdown cause.
   def withChannelShutdownCatching[T](channel:Channel)(fn: => T): Either[ShutdownSignalException, T] =

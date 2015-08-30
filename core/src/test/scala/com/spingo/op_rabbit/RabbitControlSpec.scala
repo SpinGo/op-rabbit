@@ -2,7 +2,6 @@ package com.spingo.op_rabbit
 
 import akka.actor._
 import akka.pattern.ask
-import com.spingo.op_rabbit.consumer.Subscription
 import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, RichConnectionActor}
 import helpers.RabbitTestHelpers
@@ -33,7 +32,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         val promises = (0 to 2) map { i => Promise[Int] } toList
 
         val subscription = Subscription.register(rabbitControl) {
-          import consumer.Directives._
+          import Directives._
           channel(qos = 5) {
             consume(queue(queueName, durable = false, exclusive = false)) {
               body(as[Int]) { i =>
@@ -77,7 +76,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
     it("fulfills the published promise on delivery confirmation") {
       new RabbitFixtures {
         val subscription = Subscription.register(rabbitControl) {
-          import consumer.Directives._
+          import Directives._
           channel(qos = 5) {
             consume(queue(queueName, durable = false, exclusive = false)) {
               ack()
@@ -123,7 +122,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         }))
 
         val subscription = Subscription.register(rabbitControl) {
-          import consumer.Directives._
+          import Directives._
           channel(qos = 1) {
             consume(queue(queueName, durable = true, exclusive = false)) {
               body(as[Int]) { i =>

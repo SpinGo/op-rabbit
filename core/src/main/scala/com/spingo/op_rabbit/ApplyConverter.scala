@@ -1,4 +1,4 @@
-package com.spingo.op_rabbit.consumer
+package com.spingo.op_rabbit
 
 /*
  * Copyright © 2011-2015 the spray project <http://spray.io>
@@ -18,12 +18,12 @@ package com.spingo.op_rabbit.consumer
 
 import shapeless._
 
-abstract class ApplyConverter[L <: HList] {
+private [op_rabbit] abstract class ApplyConverter[L <: HList] {
   type In
   def apply(f: In): L ⇒ Handler
 }
 
-object ApplyConverter extends ApplyConverterInstances {
+private [op_rabbit] object ApplyConverter extends ApplyConverterInstances {
   implicit val hac0 = new ApplyConverter[HNil] {
     type In = Handler
     def apply(fn: In) = {

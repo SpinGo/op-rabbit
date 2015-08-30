@@ -1,9 +1,8 @@
-package com.spingo.op_rabbit.consumer.impl
+package com.spingo.op_rabbit
+package impl
 
 import akka.actor.{Actor, ActorLogging, Terminated, ActorRef}
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.spingo.op_rabbit.RabbitExceptionMatchers
-import com.spingo.op_rabbit.consumer._
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
@@ -12,7 +11,7 @@ import scala.util.{Failure, Success, Try}
 protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
   queueName: String,
-  recoveryStrategy: com.spingo.op_rabbit.consumer.RecoveryStrategy,
+  recoveryStrategy: com.spingo.op_rabbit.RecoveryStrategy,
   rabbitErrorLogging: RabbitErrorLogging,
   handle: Handler)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
 
@@ -142,7 +141,7 @@ protected [op_rabbit] class AsyncAckingRabbitConsumer[T](
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
           recoveryStrategy(cause, channel, queueName, delivery, context.system)
-        case Left(r @ ExtractRejection(msg, _)) =>
+        case Left(r: ExtractRejection) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
           recoveryStrategy(r, channel, queueName, delivery, context.system)
