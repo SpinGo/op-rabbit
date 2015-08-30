@@ -109,7 +109,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
   }
 
   describe("TopicBinding") {
-    it("properly declares the topic binding with appropriate") {
+    it("properly declares the topic binding with appropriate bindings") {
       import scala.concurrent.ExecutionContext.Implicits.global
 
       val queueName = _queueName()

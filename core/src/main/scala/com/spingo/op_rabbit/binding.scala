@@ -35,10 +35,10 @@ case class TopicBinding(
   durable: Boolean = true,
   exclusive: Boolean = false,
   autoDelete: Boolean = false,
-  exchangeDurable: Option[Boolean] = None) extends Binding {
+  exchangeDurable: Boolean = true) extends Binding {
 
   def bind(c: Channel): Unit = {
-    c.exchangeDeclare(exchangeName, "topic", exchangeDurable.getOrElse(durable))
+    c.exchangeDeclare(exchangeName, "topic", exchangeDurable)
     c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
     topics foreach { c.queueBind(queueName, exchangeName, _) }
   }
