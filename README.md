@@ -79,6 +79,10 @@ A high-level overview of the available components:
 - `op-rabbit-akka-stream` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html)
     - Process or publish messages using akka-stream.
 
+## Upgrade Guide
+
+Refer to [Upgrade Guide wiki page](https://github.com/SpinGo/op-rabbit/wiki/Upgrading) for help upgrading.
+
 ## Usage
 
 Set up RabbitMQ connection information in `application.conf`:
