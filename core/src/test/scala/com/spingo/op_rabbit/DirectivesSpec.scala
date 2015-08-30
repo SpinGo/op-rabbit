@@ -116,6 +116,22 @@ class DirectivesSpec extends FunSpec with Matchers {
         }
       } should be (acked)
     }
+
+    it("combines the two types in the covariant direction") {
+
+      val delivery = testDelivery(body = "hello friend".getBytes)
+      resultFor(delivery) {
+        (body(as[String]).map(Left(_)) | body(as[Array[Byte]]).map(Right(_))) {
+          case Left(string) =>
+            string should be ("hello friend")
+            ack
+          case Right(byteArray) =>
+            throw new RuntimeException("I shouldn't be here")
+            ack
+        }
+      } should be (acked)
+
+    }
   }
 
   describe("optionalProperty") {

@@ -1,6 +1,7 @@
 package com.spingo.op_rabbit
 
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.annotation.unchecked.uncheckedVariance
 import scala.util.{Success, Try}
 import shapeless._
 import shapeless.ops.hlist.Prepend
@@ -29,9 +30,9 @@ private [op_rabbit] object ConjunctionMagnet {
     }
 }
 
-abstract class Directive[L <: HList] { self =>
-  def &(magnet: ConjunctionMagnet[L]): magnet.Out = magnet(this)
-  def as[T](deserializer: HListDeserializer[L, T]): Directive1[T] = new Directive1[T] {
+abstract class Directive[+L <: HList] { self =>
+  def &(magnet: ConjunctionMagnet[L] @uncheckedVariance): magnet.Out = magnet(this)
+  def as[T](deserializer: HListDeserializer[L, T] @uncheckedVariance): Directive1[T] = new Directive1[T] {
     def happly(f: ::[T, HNil] => Handler): Handler = {
       self.happly { l =>
         { (p, delivery) =>
