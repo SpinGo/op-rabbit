@@ -133,7 +133,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
       val closedP = Promise[Unit]
       val subscriptionActorRef = context.actorOf(
         Props(new SubscriptionActor(q, connectionActor, initializedP, closedP)),
-        name = s"subscription-${java.net.URLEncoder.encode(q.binding.queueName)}-${sequence.next}")
+        name = s"subscription-${java.net.URLEncoder.encode(q.queue.queueName)}-${sequence.next}")
 
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state

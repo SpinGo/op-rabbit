@@ -25,7 +25,7 @@ trait ExchangeDefinition[+T <: ExchangeDefinition.Value] {
 
 private class ExchangeDefinitionImpl[+T <: ExchangeDefinition.Value](val name: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends ExchangeDefinition[T] {
   def declare(c: Channel): Unit =
-    c.exchangeDeclare(name, kind.toString, durable, autoDelete, arguments.foldLeft(new java.util.HashMap[String, Object]) { (m, header) => header(m); m })
+    c.exchangeDeclare(name, kind.toString, durable, autoDelete, properties.toJavaMap(arguments))
 }
 
 /**
@@ -57,6 +57,17 @@ object ExchangeDefinition extends Enumeration {
 
   def passive(exchangeName: String): ExchangeDefinition[Nothing] = new ExchangeDefinitionPassive(exchangeName, None)
   def passive[T <: ExchangeDefinition.Value](binding: ExchangeDefinition[T]): ExchangeDefinition[T] = new ExchangeDefinitionPassive(binding.name, Some(binding))
+}
+
+object ModeledExchangeArgs {
+  import properties._
+
+  /**
+    Specify that RabbitMQ should forward to the specified alternate-exchange in the event that it is unable to route the message to any queue on this exchange.
+
+    [[http://www.rabbitmq.com/ae.html Read more]]
+    */
+  val `alternate-exchange` = TypedHeader[String]("alternate-exchange")
 }
 
 /**
@@ -100,16 +111,72 @@ private class QueueBindingPassive(val queueName: String, ifNotDefined: Option[Qu
 }
 
 object ModeledQueueArgs {
+  import properties._
+
   /**
-    This message header causes RabbitMQ to drop any messages in a queue longer after the specified time.
+    Automatically drop any messages in the queue older than specified time.
+
+    [[http://www.rabbitmq.com/ttl.html#per-queue-message-ttl Read more]]
     */
-  val `x-message-ttl` = new properties.UnboundTypedHeader[FiniteDuration] {
-    import properties._
-    val name = "x-message-ttl"
-    protected val toHeaderValue = { d: FiniteDuration => HeaderValue(d.toMillis) }
-    protected val fromHeaderValue = implicitly[FromHeaderValue[Long]].map(_ millis)
-  }
+  val `x-message-ttl`: UnboundTypedHeader[FiniteDuration] = UnboundTypedHeaderLongToFiniteDuration("x-message-ttl")
+
+  /**
+    Delete the message queue after the provided duration of unuse; think RPC response queues which, due to error, may never be consumed.
+
+    [[http://www.rabbitmq.com/ttl.html#queue-ttl Read more]]
+    */
+  val `x-expires`: UnboundTypedHeader[FiniteDuration] = UnboundTypedHeaderLongToFiniteDuration("x-expires")
+
+  /**
+    Declare a priority queue. Note: this value cannot be changed once a queue is already declared.
+
+    [[http://www.rabbitmq.com/priority.html Read more: Priority Queue Support]]
+    */
+  val `x-max-priority` = TypedHeader[Byte]("x-max-priority")
+
+
+  /**
+    On a `dead letter` event (message is expired due to x-message-ttl,
+    x-expires, or dropped due to x-max-length exceeded, etc.), route
+    the message to the specified exchange.
+
+    To specify a routing key, also, use [[`x-dead-letter-routing-key`]]
+
+    [[http://www.rabbitmq.com/dlx.html Read more: Dead Letter Exchanges]]
+    */
+  val `x-dead-letter-exchange` = TypedHeader[String]("x-dead-letter-exchange")
+
+  /**
+    Specified which routing key should be used when routing a dead-letter to the dead-letter exchange.
+
+    See [[`x-dead-letter-exchange` ]]
+
+    [[http://www.rabbitmq.com/dlx.html Read more: Dead Letter Exchanges]]
+    */
+  val `x-dead-letter-routing-key` = TypedHeader[String]("x-dead-letter-routing-key")
+
+  /**
+    Specify the maximum number of messages this queue should
+    contain. Messages will be dropped or dead-lettered from the front
+    of the queue to make room for new messages once the limit is
+    reached.
+
+    Must be a non-negative integer.
+
+    [[http://www.rabbitmq.com/maxlength.html Read more: Queue Length Limit]]
+    */
+  val `x-max-length` = TypedHeader[Int]("x-max-length")
+
+  /**
+    Specify the maximum size, in bytes, that this queue should
+    contain. Messages will be dropped or dead-lettered from the front
+    of the queue to make room for new messages once the limit is
+    reached.
+    */
+  val `x-max-length-bytes` = TypedHeader[Int]("x-max-length-bytes")
+
 }
+
 /**
   Binding which declare a message queue, without any exchange or topic bindings.
 
@@ -119,7 +186,7 @@ object ModeledQueueArgs {
   @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
   @param exclusive    Specifies whether or not other connections can see this connection; default false.
   @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
-  @param arguments    Special arguments for this queue, such as x-message-ttl
+  @param arguments    Special arguments for this queue; See [[ModeledQueueArgs$ ModeledQueueArgs]] for a list of valid arguments, and their function.
   */
 case class QueueDefinition(
   queueName: String,
@@ -134,7 +201,7 @@ case class QueueDefinition(
       if (arguments.isEmpty)
         null
       else
-        arguments.foldLeft(new java.util.HashMap[String, Object]) { (m, header) => header(m); m }
+        properties.toJavaMap(arguments)
     )
   }
 }

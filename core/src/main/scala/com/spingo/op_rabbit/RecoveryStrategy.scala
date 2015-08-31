@@ -23,6 +23,7 @@ abstract class RecoveryStrategy {
 object RecoveryStrategy {
   object LimitedRedeliver {
     type AbandonStrategy = (String, Channel, Delivery) => Future[Unit]
+    import ModeledQueueArgs.`x-message-ttl`
 
     /**
       Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.
@@ -32,7 +33,7 @@ object RecoveryStrategy {
         QueueDefinition(
           s"${queueName}.failed",
           durable = true,
-          arguments = Seq(ModeledQueueArgs.`x-message-ttl`(defaultTTL))))
+          arguments = Seq(`x-message-ttl`(defaultTTL))))
       failureQueue.declare(channel)
       channel.basicPublish("", failureQueue.queueName, delivery.properties, delivery.body)
       Future.successful(())

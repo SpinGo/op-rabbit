@@ -33,4 +33,19 @@ class PropertiesSpec extends FunSpec with Matchers {
       Header("header2").unapply(properties) should be (Some(HeaderValue("very-value2")))
     }
   }
+
+  describe("UnboundTypedHeaderLongToFiniteDuration") {
+    import scala.concurrent.duration._
+    val test = UnboundTypedHeaderLongToFiniteDuration("test")
+
+    it("outputs the provided duration to a long") {
+      toJavaMap(Seq(test(5 seconds))).get("test") should be (5000L)
+    }
+
+    it("reads the same duration back") {
+      val boundHeader = test(5 seconds)
+      val m = toJavaMap(Seq(boundHeader))
+      test.unapply(m) should be (Some(5 seconds))
+    }
+  }
 }

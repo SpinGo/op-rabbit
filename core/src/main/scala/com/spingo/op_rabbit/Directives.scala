@@ -45,17 +45,18 @@ private object Nackable {
   }
 }
 
-case class BoundSubscription(binding: QueueDefinitionLike, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext)
+// TODO - rename binding -> queue
+case class BoundConsumerDefinition(queue: QueueDefinitionLike, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
 
-case class BindingDirective(binding: QueueDefinitionLike) {
+case class BindingDirective(binding: QueueDefinitionLike, args: Seq[properties.Header]) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
-    BoundSubscription(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext)
+    BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args)
 }
 
 case class ChannelConfiguration(qos: Int)
-case class BoundChannel(configuration: ChannelConfiguration, boundSubscription: BoundSubscription)
+case class BoundChannel(channelConfig: ChannelConfiguration, boundConsumer: BoundConsumerDefinition)
 case class ChannelDirective(config: ChannelConfiguration) {
-  def apply(thunk: => BoundSubscription) = BoundChannel(config, thunk)
+  def apply(thunk: => BoundConsumerDefinition) = BoundChannel(config, thunk)
 }
 
 /**
@@ -109,7 +110,7 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(binding: QueueDefinitionLike) = BindingDirective(binding)
+  def consume(binding: QueueDefinitionLike, args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
 
   /**
     Provides values for the [[consume]] directive.

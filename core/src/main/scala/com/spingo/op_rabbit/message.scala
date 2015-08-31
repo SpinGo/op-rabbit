@@ -7,6 +7,18 @@ import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Try
 import com.spingo.op_rabbit.properties._
+
+object ModeledMessageHeaders {
+  import properties._
+
+  /**
+    This message header causes RabbitMQ to drop a message once it's reached the head of a queue, if it's older than the provided duration.
+
+    [[http://www.rabbitmq.com/ttl.html#per-message-ttl Read more]]
+    */
+  val `x-message-ttl`: UnboundTypedHeader[FiniteDuration] = UnboundTypedHeaderLongToFiniteDuration("x-expires")
+}
+
 /**
   Basic interface; send to [[RabbitControl]] actor for delivery.
   */

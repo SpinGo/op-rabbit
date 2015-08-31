@@ -17,19 +17,31 @@ object Subscription {
   }
 }
 
+object ModeledConsumerArgs {
+  import properties._
+  /**
+    Consumer priorities allow you to ensure that high priority
+    consumers receive messages while they are active, with messages
+    only going to lower priority consumers when the high priority
+    consumers block.
+
+    Normally, active consumers connected to a queue receive messages
+    from it in a round-robin fashion. When consumer priorities are in
+    use, messages are delivered round-robin if multiple active
+    consumers exist with the same high priority.
+
+    [[http://www.rabbitmq.com/consumer-priority.html Read more: Consumer Priority]]
+    */
+  val `x-priority` = TypedHeader[Int]("x-priority")
+}
+
 /**
   A Subscription combines together a [[Binding]] and a [[Consumer]], where the binding defines how the message queue is declare and if any topic bindings are involved, and the consumer declares how messages are to be consumed from the message queue specified by the [[Binding]]. This object is sent to [[RabbitControl]] to activate.
   */
 class Subscription private(config: BoundChannel) extends Directives {
-  // def config: BoundChannel
-
-  protected [op_rabbit] lazy val _config = config
-  protected [op_rabbit] lazy val channelConfiguration = _config.configuration
-  protected [op_rabbit] lazy val binding = _config.boundSubscription.binding
-  protected [op_rabbit] lazy val handler = _config.boundSubscription.handler
-  protected [op_rabbit] lazy val _errorReporting = _config.boundSubscription.errorReporting
-  protected [op_rabbit] lazy val _recoveryStrategy = _config.boundSubscription.recoveryStrategy
-  protected [op_rabbit] lazy val _executionContext = _config.boundSubscription.executionContext
+  protected [op_rabbit] lazy val channelConfig = config.channelConfig
+  protected [op_rabbit] lazy val queue = config.boundConsumer.queue
+  protected [op_rabbit] lazy val consumer = config.boundConsumer
 
   def register(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
     implicit val akkaTimeout = Timeout(timeout)

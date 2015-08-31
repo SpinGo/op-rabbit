@@ -3,6 +3,7 @@ package com.spingo.op_rabbit
 import com.rabbitmq.client.AMQP.BasicProperties.Builder
 import com.rabbitmq.client.AMQP.BasicProperties
 import java.util.Date
+import scala.concurrent.duration._
 
 package object properties {
   type ToHeaderValue[T, V <: HeaderValue] = T => V
@@ -14,42 +15,52 @@ package object properties {
     def unapply(properties: BasicProperties): Option[T]
   }
 
+  private [op_rabbit] trait HashMapExtractor[T] {
+    def unapply(properties: java.util.Map[String, Object]): Option[T]
+  }
+
   /**
     See [[Header]]
     */
-  case class UnboundHeader(name: String) extends (HeaderValue => Header) with PropertyExtractor[HeaderValue] {
+  case class UnboundHeader(name: String) extends (HeaderValue => Header) with PropertyExtractor[HeaderValue] with HashMapExtractor[HeaderValue] {
     override val extractorName = s"Header(${name})"
     def unapply(properties: BasicProperties) =
-      for {
-        h <- Option(properties.getHeaders)
-        v <- Option(h.get(name))
-      } yield HeaderValue.from(v)
+      Option(properties.getHeaders).flatMap(unapply)
+
+    def unapply(h: java.util.Map[String, Object]) =
+      Option(h.get(name)) map (HeaderValue.from(_))
 
     def apply(value: HeaderValue) = Header(name, value)
   }
 
 
-  trait UnboundTypedHeader[T] extends (T => TypedHeader[T]) with PropertyExtractor[T] {
+  trait UnboundTypedHeader[T] extends (T => TypedHeader[T]) with PropertyExtractor[T] with HashMapExtractor[T] {
     val name: String
     protected implicit val toHeaderValue: ToHeaderValue[T, HeaderValue]
     protected val fromHeaderValue: FromHeaderValue[T]
 
     override final def extractorName = s"Header($name)"
 
-    final def unapply(properties: BasicProperties): Option[T] = {
+    final def unapply(properties: BasicProperties): Option[T] =
       UnboundHeader(name).unapply(properties) flatMap { hv =>
-        fromHeaderValue(hv) match {
-          case Right(v) => Some(v)
-          case Left(ex) => None
-        }
+        fromHeaderValue(hv).right.toOption
       }
-    }
+
+    final def unapply(m: java.util.Map[String, Object]): Option[T] =
+      UnboundHeader(name).unapply(m) flatMap { hv =>
+        fromHeaderValue(hv).right.toOption
+      }
 
     final def apply(value: T) =
       TypedHeader(name, value)
 
     final def untyped: UnboundHeader =
       UnboundHeader(name)
+  }
+
+  private [op_rabbit] case class UnboundTypedHeaderLongToFiniteDuration(name: String) extends UnboundTypedHeader[FiniteDuration] {
+    protected val toHeaderValue = { d: FiniteDuration => HeaderValue(d.toMillis) }
+    protected val fromHeaderValue = implicitly[FromHeaderValue[Long]].map(_ millis)
   }
 
   protected case class UnboundTypedHeaderImpl[T](name: String)(implicit protected val fromHeaderValue: FromHeaderValue[T], protected val toHeaderValue: ToHeaderValue[T, HeaderValue]) extends UnboundTypedHeader[T]
@@ -319,10 +330,20 @@ package object properties {
       this ++ Seq(other)
   }
 
+  def toJavaMap(headers: Seq[Header], existingMap: HeaderMap = null): HeaderMap = {
+    if (headers.isEmpty)
+      null
+    else {
+      val m = if (existingMap == null) new java.util.HashMap[String, Object] else existingMap
+      headers.foreach(header => header.apply(m))
+      m
+    }
+  }
+
   def builderWithProperties(properties: TraversableOnce[MessageProperty], builder: Builder = new Builder(), headers: Option[HeaderMap] = None): Builder = {
-    val h = headers getOrElse { new java.util.HashMap[String, Object] }
-    builder.headers(h)
-    properties foreach { p => p(builder, h) }
+    val m = headers getOrElse { new java.util.HashMap[String, Object] }
+    builder.headers(m)
+    properties foreach { p => p(builder, m) }
     builder
   }
 }

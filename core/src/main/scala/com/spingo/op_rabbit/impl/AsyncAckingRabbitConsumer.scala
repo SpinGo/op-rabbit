@@ -10,10 +10,7 @@ import scala.util.{Failure, Success, Try}
 
 private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
-  queueName: String,
-  recoveryStrategy: com.spingo.op_rabbit.RecoveryStrategy,
-  rabbitErrorLogging: RabbitErrorLogging,
-  handle: Handler)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
+  subscription: BoundConsumerDefinition)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
 
   import Consumer._
 
@@ -89,7 +86,10 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   }
 
   def setupSubscription(channel: Channel): String = {
-    channel.basicConsume(queueName, false,
+    channel.basicConsume(
+      subscription.queue.queueName,
+      false,
+      properties.toJavaMap(subscription.consumerArgs),
       new DefaultConsumer(channel) {
         override def handleDelivery(consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
           self ! Delivery(consumerTag, envelope, properties, body)
@@ -119,12 +119,12 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     val Delivery(consumerTag, envelope, properties, body) = delivery
     pendingDeliveries.add(envelope.getDeliveryTag)
 
-    lazy val reportError = rabbitErrorLogging(name, _: String, _: Throwable, consumerTag, envelope, properties, body)
+    lazy val reportError = subscription.errorReporting(name, _: String, _: Throwable, consumerTag, envelope, properties, body)
 
     val handled = Promise[Result]
 
     Future {
-      try handle(handled, delivery)
+      try subscription.handler(handled, delivery)
       catch {
         case e: Throwable =>
           handled.success(Left(UnhandledExceptionRejection("Error while running handler", e)))
@@ -140,11 +140,11 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
           Future.successful(false) // just nack the message; it was intentional. Don't recover. Don't report.
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
-          recoveryStrategy(cause, channel, queueName, delivery, context.system)
+          subscription.recoveryStrategy(cause, channel, subscription.queue.queueName, delivery, context.system)
         case Left(r: ExtractRejection) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
-          recoveryStrategy(r, channel, queueName, delivery, context.system)
+          subscription.recoveryStrategy(r, channel, subscription.queue.queueName, delivery, context.system)
       }.
       onComplete {
         case Success(ack) =>

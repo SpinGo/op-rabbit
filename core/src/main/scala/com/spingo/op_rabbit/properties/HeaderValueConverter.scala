@@ -36,6 +36,20 @@ object FromHeaderValue {
     }
   }
 
+  case class ByteFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Byte] {
+    def apply(hv: HeaderValue) = NumericValueConversion[Byte](hv) {
+      case v: LongStringHeaderValue => Right(v.asString(charset).toByte)
+      case StringHeaderValue(v)     => Right(v.toByte)
+      case ByteHeaderValue(v)       => Right(v)
+      case IntHeaderValue(v)        if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+      case ShortHeaderValue(v)      if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+      case BigDecimalHeaderValue(v) if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+      case DoubleHeaderValue(v)     if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+      case FloatHeaderValue(v)      if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+      case LongHeaderValue(v)       if (v >= Byte.MinValue && v <= Byte.MaxValue) => Right(v.toByte)
+    }
+  }
+
   case class IntFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Int] {
     def apply(hv: HeaderValue) = NumericValueConversion[Int](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toInt)
@@ -141,6 +155,7 @@ object FromHeaderValue {
   }
 
   implicit val defaultStringConversion = StringFromHeaderValue()
+  implicit val defaultByteConversion = ByteFromHeaderValue()
   implicit val defaultIntConversion = IntFromHeaderValue()
   implicit val defaultDoubleConversion = DoubleFromHeaderValue()
   implicit val defaultLongConversion = LongFromHeaderValue()

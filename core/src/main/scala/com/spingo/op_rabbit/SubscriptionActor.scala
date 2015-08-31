@@ -12,15 +12,12 @@ import scala.util.{Try,Failure,Success}
 
 private [op_rabbit] class SubscriptionActor(subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit]) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
-  startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfiguration.qos))
+  startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfig.qos))
 
   val props = Props {
     new impl.AsyncAckingRabbitConsumer(
-      name             = subscription.binding.queueName,
-      queueName        = subscription.binding.queueName,
-      recoveryStrategy = subscription._recoveryStrategy,
-      rabbitErrorLogging = subscription._errorReporting,
-      handle           = subscription.handler)(subscription._executionContext)
+      name             = subscription.queue.queueName,
+      subscription     = subscription.consumer)(subscription.consumer.executionContext)
   }
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
@@ -183,7 +180,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
 
     try {
       channel.basicQos(connectionInfo.qos)
-      subscription.binding.declare(channel)
+      subscription.queue.declare(channel)
       initialized.trySuccess()
       connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
       goto(Running) using connectionInfo
