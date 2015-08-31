@@ -5,7 +5,7 @@ import com.rabbitmq.client.AMQP.BasicProperties
 import java.util.Date
 
 package object properties {
-  type Converter[T] = T => HeaderValue
+  type ToHeaderValue[T, V <: HeaderValue] = T => V
   type HeaderMap = java.util.HashMap[String, Object]
   trait MessageProperty extends ((Builder, HeaderMap) => Unit)
 
@@ -26,6 +26,52 @@ package object properties {
       } yield HeaderValue.from(v)
 
     def apply(value: HeaderValue) = Header(name, value)
+  }
+
+
+  trait UnboundTypedHeader[T] extends (T => TypedHeader[T]) with PropertyExtractor[T] {
+    val name: String
+    protected implicit val toHeaderValue: ToHeaderValue[T, HeaderValue]
+    protected val fromHeaderValue: FromHeaderValue[T]
+
+    override final def extractorName = s"Header($name)"
+
+    final def unapply(properties: BasicProperties): Option[T] = {
+      UnboundHeader(name).unapply(properties) flatMap { hv =>
+        fromHeaderValue(hv) match {
+          case Right(v) => Some(v)
+          case Left(ex) => None
+        }
+      }
+    }
+
+    final def apply(value: T) =
+      TypedHeader(name, value)
+
+    final def untyped: UnboundHeader =
+      UnboundHeader(name)
+  }
+
+  protected case class UnboundTypedHeaderImpl[T](name: String)(implicit protected val fromHeaderValue: FromHeaderValue[T], protected val toHeaderValue: ToHeaderValue[T, HeaderValue]) extends UnboundTypedHeader[T]
+
+  class TypedHeader[T] protected (val name: String, val value: T)(implicit converter: ToHeaderValue[T, HeaderValue]) extends MessageProperty {
+    def apply(headers: HeaderMap): Unit =
+      headers.put(name, converter(value).serializable)
+
+    def apply(builder: Builder, headers: HeaderMap): Unit =
+      this(headers)
+
+    def untyped: Header =
+      Header(name, converter(value))
+  }
+  object TypedHeader {
+    def apply[T](name: String, value: T)(implicit converter: ToHeaderValue[T, HeaderValue]): TypedHeader[T] =
+      new TypedHeader(name, value)
+
+    def apply[T](headerName: String)(implicit conversion: FromHeaderValue[T], converter: ToHeaderValue[T, HeaderValue]): UnboundTypedHeader[T] =
+      UnboundTypedHeaderImpl(headerName)
+
+    implicit def typedHeaderToHeader[T](h: TypedHeader[T]): Header = h.untyped
   }
 
   /**

@@ -18,7 +18,7 @@ sealed trait HeaderValue {
   def asString: String =
     asString(Charset.defaultCharset)
 
-  def asOpt[T](implicit conversion: HeaderValueConverter[T]): Option[T] = conversion(this).right.toOption
+  def asOpt[T](implicit conversion: FromHeaderValue[T]): Option[T] = conversion(this).right.toOption
 }
 object HeaderValue {
   case class LongStringHeaderValue(value: LongString) extends HeaderValue {
@@ -86,7 +86,7 @@ object HeaderValue {
     def serializable = null
     override def asString(sourceCharset: Charset) = "null"
   }
-  case class SeqHeaderValue[T](value: Seq[HeaderValue]) extends HeaderValue {
+  case class SeqHeaderValue(value: Seq[HeaderValue]) extends HeaderValue {
     def serializable = value.map(_.serializable)
     override def asString(sourceCharset: Charset) = {
       val b = new StringBuilder()
@@ -101,31 +101,31 @@ object HeaderValue {
     }
   }
 
-  implicit val convertFromLongString: Converter[LongString]                                           = LongStringHeaderValue(_)
-  implicit val convertFromString: Converter[String]                                                   = StringHeaderValue(_)
-  implicit val convertFromInt: Converter[Int]                                                         = { i => IntHeaderValue(i) }
-  implicit val convertFromInteger: Converter[Integer]                                                 = { i => IntHeaderValue(i) }
-  implicit val convertFromBigDecimal: Converter[BigDecimal]                                           = BigDecimalHeaderValue(_)
-  implicit val convertFromJavaBigDecimal: Converter[java.math.BigDecimal]                             = { bd => BigDecimalHeaderValue(BigDecimal(bd)) }
-  implicit val convertFromDate: Converter[Date]                                                       = DateHeaderValue(_)
-  implicit def convertFromMap[T](implicit converter: Converter[T]): Converter[Map[String, T]]         = { m => MapHeaderValue(m.mapValues(converter)) }
-  implicit val convertFromByte: Converter[Byte]                                                       = ByteHeaderValue(_)
-  implicit val convertFromJavaByte: Converter[java.lang.Byte]                                         = ByteHeaderValue(_)
-  implicit val convertFromDouble: Converter[Double]                                                   = DoubleHeaderValue(_)
-  implicit val convertFromJavaDouble: Converter[java.lang.Double]                                     = DoubleHeaderValue(_)
-  implicit val convertFromFloat: Converter[Float]                                                     = FloatHeaderValue(_)
-  implicit val convertFromJavaFloat: Converter[java.lang.Float]                                       = FloatHeaderValue(_)
-  implicit val convertFromLong: Converter[Long]                                                       = LongHeaderValue(_)
-  implicit val convertFromJavaLong: Converter[java.lang.Long]                                         = LongHeaderValue(_)
-  implicit val convertFromShort: Converter[Short]                                                     = ShortHeaderValue(_)
-  implicit val convertFromJavaShort: Converter[java.lang.Short]                                       = ShortHeaderValue(_)
-  implicit val convertFromBoolean: Converter[Boolean]                                                 = BooleanHeaderValue(_)
-  implicit val convertFromJavaBoolean: Converter[java.lang.Boolean]                                   = BooleanHeaderValue(_)
-  implicit val convertFromByteArray: Converter[Array[Byte]]                                           = ByteArrayHeaderValue(_)
-  implicit def convertFromSeq[T](implicit converter: Converter[T]): Converter[Seq[T]]                 = { s => SeqHeaderValue(s.map(converter)) }
-  implicit def convertFromJavaList[T](implicit converter: Converter[T]): Converter[java.util.List[T]] = { list => SeqHeaderValue(list.map(converter)) }
+  implicit val convertFromLongString     : ToHeaderValue[LongString           , LongStringHeaderValue] = LongStringHeaderValue(_)
+  implicit val convertFromString         : ToHeaderValue[String               , StringHeaderValue]     = StringHeaderValue(_)
+  implicit val convertFromInt            : ToHeaderValue[Int                  , IntHeaderValue]        = { i => IntHeaderValue(i) }
+  implicit val convertFromInteger        : ToHeaderValue[Integer              , IntHeaderValue]        = { i => IntHeaderValue(i) }
+  implicit val convertFromBigDecimal     : ToHeaderValue[BigDecimal           , BigDecimalHeaderValue] = BigDecimalHeaderValue(_)
+  implicit val convertFromJavaBigDecimal : ToHeaderValue[java.math.BigDecimal , BigDecimalHeaderValue] = { bd => BigDecimalHeaderValue(BigDecimal(bd)) }
+  implicit val convertFromDate           : ToHeaderValue[Date                 , DateHeaderValue]       = DateHeaderValue(_)
+  implicit val convertFromByte           : ToHeaderValue[Byte                 , ByteHeaderValue]       = ByteHeaderValue(_)
+  implicit val convertFromJavaByte       : ToHeaderValue[java.lang.Byte       , ByteHeaderValue]       = ByteHeaderValue(_)
+  implicit val convertFromDouble         : ToHeaderValue[Double               , DoubleHeaderValue]     = DoubleHeaderValue(_)
+  implicit val convertFromJavaDouble     : ToHeaderValue[java.lang.Double     , DoubleHeaderValue]     = DoubleHeaderValue(_)
+  implicit val convertFromFloat          : ToHeaderValue[Float                , FloatHeaderValue]      = FloatHeaderValue(_)
+  implicit val convertFromJavaFloat      : ToHeaderValue[java.lang.Float      , FloatHeaderValue]      = FloatHeaderValue(_)
+  implicit val convertFromLong           : ToHeaderValue[Long                 , LongHeaderValue]       = LongHeaderValue(_)
+  implicit val convertFromJavaLong       : ToHeaderValue[java.lang.Long       , LongHeaderValue]       = LongHeaderValue(_)
+  implicit val convertFromShort          : ToHeaderValue[Short                , ShortHeaderValue]      = ShortHeaderValue(_)
+  implicit val convertFromJavaShort      : ToHeaderValue[java.lang.Short      , ShortHeaderValue]      = ShortHeaderValue(_)
+  implicit val convertFromBoolean        : ToHeaderValue[Boolean              , BooleanHeaderValue]    = BooleanHeaderValue(_)
+  implicit val convertFromJavaBoolean    : ToHeaderValue[java.lang.Boolean    , BooleanHeaderValue]    = BooleanHeaderValue(_)
+  implicit val convertFromByteArray      : ToHeaderValue[Array[Byte]          , ByteArrayHeaderValue]  = ByteArrayHeaderValue(_)
+  implicit def convertFromMap[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Map[String, T], MapHeaderValue]         = { m => MapHeaderValue(m.mapValues(converter)) }
+  implicit def convertFromSeq[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Seq[T], SeqHeaderValue]                 = { s => SeqHeaderValue(s.map(converter)) }
+  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.map(converter)) }
 
-  def apply[T](value: T)(implicit converter: Converter[T]): HeaderValue =
+  def apply[T](value: T)(implicit converter: ToHeaderValue[T, HeaderValue]): HeaderValue =
     if (value == null) NullHeaderValue else converter(value)
 
   def from(value: Object): HeaderValue = value match {

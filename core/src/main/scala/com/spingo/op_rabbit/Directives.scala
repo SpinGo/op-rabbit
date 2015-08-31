@@ -45,9 +45,9 @@ private object Nackable {
   }
 }
 
-case class BoundSubscription(binding: Binding, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext)
+case class BoundSubscription(binding: QueueDefinitionLike, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext)
 
-case class BindingDirective(binding: Binding) {
+case class BindingDirective(binding: QueueDefinitionLike) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
     BoundSubscription(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext)
 }
@@ -109,7 +109,7 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(binding: Binding) = BindingDirective(binding)
+  def consume(binding: QueueDefinitionLike) = BindingDirective(binding)
 
   /**
     Provides values for the [[consume]] directive.
@@ -118,28 +118,28 @@ trait Directives {
     queue: String,
     durable: Boolean = true,
     exclusive: Boolean = false,
-    autoDelete: Boolean = false) = QueueBinding(queue, durable, exclusive, autoDelete)
+    autoDelete: Boolean = false) = QueueDefinition(queue, durable, exclusive, autoDelete)
 
   /**
    * Passive queue binding
    */
   def pqueue(queue: String) =
-    QueueBinding.passive(queue)
+    QueueDefinition.passive(queue)
 
 
   def topic(
-    queue: QueueBinding,
+    queue: QueueDefinition,
     topics: List[String],
-    exchange: ExchangeBinding[ExchangeBinding.Topic.type] = ExchangeBinding.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
+    exchange: ExchangeDefinition[ExchangeDefinition.Topic.type] = ExchangeDefinition.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
 
   /**
    * Passive topic binding
    */
-  def passive(queue: QueueBinding): Binding =
-    QueueBinding.passive(queue)
+  def passive(queue: QueueDefinition): QueueDefinitionLike =
+    QueueDefinition.passive(queue)
 
-  def passive[T <: ExchangeBinding.Value](exchange: ExchangeBinding[T]): ExchangeBinding[T] =
-    ExchangeBinding.passive(exchange)
+  def passive[T <: ExchangeDefinition.Value](exchange: ExchangeDefinition[T]): ExchangeDefinition[T] =
+    ExchangeDefinition.passive(exchange)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
   def typeOf[T] = new TypeHolder[T]
@@ -254,7 +254,7 @@ trait Directives {
   def routingKey = extract(_.envelope.getRoutingKey)
 
   implicit class EnrichedHeaderValueExtractor[T](header: properties.UnboundHeader) {
-    def as[V](implicit converter: properties.HeaderValueConverter[V]) = {
+    def as[V](implicit converter: properties.FromHeaderValue[V]) = {
       new PropertyExtractor[V] {
         override def extractorName = header.extractorName
         def unapply(properties: com.rabbitmq.client.AMQP.BasicProperties): Option[V] =

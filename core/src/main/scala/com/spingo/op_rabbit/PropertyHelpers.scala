@@ -1,18 +1,18 @@
 package com.spingo.op_rabbit
 
 import com.rabbitmq.client.AMQP.BasicProperties
-import com.spingo.op_rabbit.properties.Header
+import com.spingo.op_rabbit.properties.{Header,TypedHeader}
 /**
   Helper functions used internally to manipulate getting and setting custom headers
   */
 object PropertyHelpers {
-  val RetryHeader = Header("x-retry")
-  val ExceptionHeader = Header("x-exception")
+  val RetryHeader = TypedHeader[Int]("x-retry")
+  val ExceptionHeader = TypedHeader[String]("x-exception")
 
   def getRetryCount(properties: BasicProperties): Int =
     properties match {
       case RetryHeader(v) =>
-        v.asOpt[Int].get
+        v
       case _ =>
         0
     }

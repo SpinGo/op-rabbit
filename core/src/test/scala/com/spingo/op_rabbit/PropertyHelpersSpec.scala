@@ -12,7 +12,7 @@ class PropertyHelpersSpec extends FunSpec with Matchers {
     }
 
     it("returns the value if it's a string") {
-      PropertyHelpers.getRetryCount(emptyProperties + PropertyHelpers.RetryHeader("5")) should be (5)
+      PropertyHelpers.getRetryCount(emptyProperties + PropertyHelpers.RetryHeader.untyped("5")) should be (5)
     }
 
     it("returns the value if it's an int") {

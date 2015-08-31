@@ -20,7 +20,6 @@
 package com.spingo.op_rabbit
 
 import shapeless._
-import com.spingo.op_rabbit.properties.{HeaderValue, HeaderValueConverter}
 
 private [op_rabbit] trait HListDeserializer[L <: HList, T] extends Deserializer[L, T] {
   def apply(data: L): Either[ExtractRejection, T]

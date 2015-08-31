@@ -32,10 +32,8 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
           import Directives._
           channel() {
             consume(FanoutBinding(
-              queueName = queueName,
-              "test-fanout-exchange",
-              autoDelete = true,
-              durable = false)) {
+              QueueDefinition(queueName, autoDelete = true, durable = false),
+              ExchangeDefinition.fanout("test-fanout-exchange"))) {
               body(as[String]) { a =>
                 consumerResult(idx).success(a)
                 ack
@@ -66,11 +64,11 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            QueueBinding(
+            QueueDefinition(
               queueName = queueName + "int",
               autoDelete = true,
               durable = false),
-            ExchangeBinding.headers("test-headers-exchange"),
+            ExchangeDefinition.headers("test-headers-exchange"),
             headers = List(Header("thing", 1))
           )) {
             body(as[String]) { a =>
@@ -85,11 +83,11 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            QueueBinding(
+            QueueDefinition(
               queueName = queueName + "string",
               autoDelete = true,
               durable = false),
-            ExchangeBinding.headers("test-headers-exchange"),
+            ExchangeDefinition.headers("test-headers-exchange"),
             headers = List(Header("thing", "1"))
           )) {
             body(as[String]) { a =>
@@ -122,7 +120,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(TopicBinding(
-            QueueBinding(
+            QueueDefinition(
               queueName = queueName + "int",
               autoDelete = true,
               durable = false),

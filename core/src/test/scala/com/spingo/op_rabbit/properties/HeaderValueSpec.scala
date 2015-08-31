@@ -27,7 +27,7 @@ class HeaderValueSpec extends FunSpec with Matchers {
   }
 
   describe("HeaderValueConverter") {
-    def testNumeric[T](what: String, expectedValue: T)(implicit converter: HeaderValueConverter[T]) = {
+    def testNumeric[T](what: String, expectedValue: T)(implicit converter: FromHeaderValue[T]) = {
       it(s"Converts strings or numeric values to Some(${expectedValue})") {
         HeaderValue(LongStringHelper.asLongString("1")).asOpt[T] should be (Some(expectedValue))
         HeaderValue(1).asOpt[T] should be (Some(expectedValue))

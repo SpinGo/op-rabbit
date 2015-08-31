@@ -8,13 +8,20 @@ import scala.collection.JavaConversions._
 /**
   Trait which describes converters that convert a [[HeaderValue]] from one type to another.
   */
-trait HeaderValueConverter[T] { def apply(hv: HeaderValue): Either[HeaderValueConverter.HeaderValueConversionException, T] }
+trait FromHeaderValue[T] { self =>
+  def apply(hv: HeaderValue): Either[FromHeaderValue.HeaderValueConversionException, T]
 
-object HeaderValueConverter {
+  def map[U](fn: T => U) = new FromHeaderValue[U] {
+    def apply(hv: HeaderValue): Either[FromHeaderValue.HeaderValueConversionException, U] =
+      self(hv).right.map(fn)
+  }
+}
+
+object FromHeaderValue {
   import HeaderValue._
   case class HeaderValueConversionException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
-  case class StringHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[String] {
+  case class StringFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[String] {
     def apply(hv: HeaderValue) = {
       Right(hv.asString(charset))
     }
@@ -27,10 +34,9 @@ object HeaderValueConverter {
     } catch {
       case ex: java.lang.NumberFormatException => Left(HeaderValueConversionException(s"Could not convert ${hv} to ${mf.getClass}", ex))
     }
-
   }
 
-  case class IntHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[Int] {
+  case class IntFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Int] {
     def apply(hv: HeaderValue) = NumericValueConversion[Int](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toInt)
       case StringHeaderValue(v)     => Right(v.toInt)
@@ -44,7 +50,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class FloatHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[Float] {
+  case class FloatFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Float] {
     def apply(hv: HeaderValue) =  NumericValueConversion[Float](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toFloat)
       case StringHeaderValue(v)     => Right(v.toFloat)
@@ -58,7 +64,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class DoubleHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[Double] {
+  case class DoubleFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Double] {
     def apply(hv: HeaderValue) = NumericValueConversion[Double](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toDouble)
       case StringHeaderValue(v)     => Right(v.toDouble)
@@ -72,7 +78,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class BigDecimalHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[BigDecimal] {
+  case class BigDecimalFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[BigDecimal] {
     def apply(hv: HeaderValue) = NumericValueConversion[BigDecimal](hv) {
       case v: LongStringHeaderValue => Right(BigDecimal(v.asString(charset)))
       case StringHeaderValue(v)     => Right(BigDecimal(v))
@@ -86,7 +92,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class LongHeaderValueConverter(charset: Charset = Charset.defaultCharset) extends HeaderValueConverter[Long] {
+  case class LongFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Long] {
     def apply(hv: HeaderValue) = NumericValueConversion[Long](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toLong)
       case StringHeaderValue(v)     => Right(v.toLong)
@@ -100,7 +106,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class SeqHeaderValueConverter[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: HeaderValueConverter[T]) extends HeaderValueConverter[Seq[T]] {
+  case class SeqFromHeaderValue[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: FromHeaderValue[T]) extends FromHeaderValue[Seq[T]] {
     def apply(hv: HeaderValue): Either[HeaderValueConversionException, Seq[T]] = hv match {
       case SeqHeaderValue(seq) => {
         val builder = Seq.newBuilder[T]
@@ -117,7 +123,7 @@ object HeaderValueConverter {
     }
   }
 
-  case class MapHeaderValueConverter[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: HeaderValueConverter[T]) extends HeaderValueConverter[Map[String, T]] {
+  case class MapFromHeaderValue[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: FromHeaderValue[T]) extends FromHeaderValue[Map[String, T]] {
     def apply(hv: HeaderValue): Either[HeaderValueConversionException, Map[String, T]] = hv match {
       case MapHeaderValue(map) => {
         val builder = Map.newBuilder[String, T]
@@ -134,12 +140,12 @@ object HeaderValueConverter {
     }
   }
 
-  implicit val defaultStringConversion = StringHeaderValueConverter()
-  implicit val defaultIntConversion = IntHeaderValueConverter()
-  implicit val defaultDoubleConversion = DoubleHeaderValueConverter()
-  implicit val defaultLongConversion = LongHeaderValueConverter()
-  implicit val defaultFloatConversion = FloatHeaderValueConverter()
-  implicit val defaultBigDecimalConversion = BigDecimalHeaderValueConverter()
-  implicit def defaultSeqHeaderValueConverter[T](implicit subConverter: HeaderValueConverter[T]) = SeqHeaderValueConverter[T]()
-  implicit def defaultMapHeaderValueConverter[T](implicit subConverter: HeaderValueConverter[T]) = MapHeaderValueConverter[T]()
+  implicit val defaultStringConversion = StringFromHeaderValue()
+  implicit val defaultIntConversion = IntFromHeaderValue()
+  implicit val defaultDoubleConversion = DoubleFromHeaderValue()
+  implicit val defaultLongConversion = LongFromHeaderValue()
+  implicit val defaultFloatConversion = FloatFromHeaderValue()
+  implicit val defaultBigDecimalConversion = BigDecimalFromHeaderValue()
+  implicit def defaultSeqFromHeaderValue[T](implicit subConverter: FromHeaderValue[T]) = SeqFromHeaderValue[T]()
+  implicit def defaultMapFromHeaderValue[T](implicit subConverter: FromHeaderValue[T]) = MapFromHeaderValue[T]()
 }

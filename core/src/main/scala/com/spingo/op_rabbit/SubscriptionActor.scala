@@ -183,7 +183,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
 
     try {
       channel.basicQos(connectionInfo.qos)
-      subscription.binding.bind(channel)
+      subscription.binding.declare(channel)
       initialized.trySuccess()
       connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
       goto(Running) using connectionInfo
