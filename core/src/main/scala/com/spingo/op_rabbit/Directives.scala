@@ -166,7 +166,7 @@ trait Directives {
   /**
     Nack the message; does NOT trigger the [[RecoveryStrategy]] in use.
     */
-  def nack(requeue: Boolean): Handler = if (requeue) Ackable.nackRequeueHandler else Ackable.nackNoRequeueHandler
+  def nack(requeue: Boolean = false): Handler = if (requeue) Ackable.nackRequeueHandler else Ackable.nackNoRequeueHandler
 
   /**
     Extract the message body. Uses a [[com.spingo.op_rabbit.RabbitUnmarshaller RabbitUnmarshaller]] to deserialize.

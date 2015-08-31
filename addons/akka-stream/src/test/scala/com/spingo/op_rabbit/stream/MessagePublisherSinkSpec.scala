@@ -57,7 +57,7 @@ class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matche
 
         await(subscription.initialized)
 
-        val sink = ConfirmedPublisherSink[Int](
+        val sink = MessagePublisherSink[Int](
           rabbitControl,
           Message.factory(Publisher.queue(queueName())))
 

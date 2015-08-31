@@ -29,9 +29,9 @@ object RecoveryStrategy {
     import Queue.ModeledArgs._
 
     /**
-      Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.
+      Places messages into a queue with "op-rabbit.abandoned" prepended; after ttl (default of 1 day), these messages are dropped.
       */
-    def failedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
+    def abandonedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
       val failureQueue = Queue.passive(
         Queue(
           s"op-rabbit.abandoned.${queueName}",

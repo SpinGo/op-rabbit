@@ -147,7 +147,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
       }
     }
 
-    describe("onAbandon failedQueue") {
+    describe("onAbandon abandonedQueue") {
       it("deposits messages into error queue on abandon") {
         new RedeliveryFixtures {
           val queueName = "redeliveryFailedQueueTest"
@@ -156,7 +156,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
           val retryCount = 0
 
           try {
-            val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 0, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(3 seconds))
+            val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 0, onAbandon = RecoveryStrategy.LimitedRedeliver.abandonedQueue(3 seconds))
             val subscription = countAndRejectSubscription()(recoveryStrategy).run(rabbitControl)
             await(subscription.initialized)
 
@@ -193,7 +193,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
           try {
             (List(3 seconds, 4 seconds)) foreach { time =>
-              implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(time))
+              implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1, onAbandon = RecoveryStrategy.LimitedRedeliver.abandonedQueue(time))
               val subscription = countAndRejectSubscription()
 
               val subscriptionRef = subscription.run(rabbitControl)
