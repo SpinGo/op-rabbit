@@ -151,7 +151,8 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
       it("deposits messages into error queue on abandon") {
         new RedeliveryFixtures {
           val queueName = "redeliveryFailedQueueTest"
-          val failedQueueName = s"${queueName}.failed"
+          val abandonedQueueName = s"op-rabbit.abandoned.${queueName}"
+          val retryQueueName = s"op-rabbit.retry.${queueName}"
           val retryCount = 0
 
           try {
@@ -169,7 +170,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
             val errorSubscription = Subscription.run(rabbitControl) {
               import Directives._
               channel(1) {
-                consume(pqueue(queueName + ".failed")) {
+                consume(pqueue(abandonedQueueName)) {
                   body(as[Int]) { i =>
                     if (i == 9) nineReceived.success()
                     ack
@@ -181,7 +182,6 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
             await(nineReceived.future)
           } finally {
             deleteQueue(queueName)
-            deleteQueue(failedQueueName)
           }
         }
       }
@@ -206,7 +206,6 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
           } finally {
             deleteQueue(queueName)
-            deleteQueue(queueName + ".failed")
           }
         }
       }

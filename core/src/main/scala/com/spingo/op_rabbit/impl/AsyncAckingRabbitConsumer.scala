@@ -144,11 +144,11 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
           Future.successful(r)
         case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
           reportError(msg, cause)
-          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(cause, channel, subscription.queue.queueName, context.system))
+          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(cause, channel, subscription.queue.queueName))
         case Left(r: ExtractRejection) =>
           // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
           reportError(s"Could not extract required data", r)
-          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(r, channel, subscription.queue.queueName, context.system))
+          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(r, channel, subscription.queue.queueName))
       }.
       foreach {
         case Right(ackOrNack) =>
