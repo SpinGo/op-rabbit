@@ -32,7 +32,7 @@ class Json4sSupportSpec extends FunSpec with Matchers {
     }
 
     it("provides the appropriate content headers") {
-      val properties = m.properties().build
+      val properties = m.setProperties().build
       properties.getContentType should be ("application/json")
       properties.getContentEncoding should be ("UTF-8")
     }

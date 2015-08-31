@@ -47,20 +47,20 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
 
         await(subscription.initialized)
 
-        rabbitControl ! QueueMessage(0, queueName)
+        rabbitControl ! Message.queue(0, queueName)
         await(promises(0).future)
         count shouldBe 1
 
         rabbitControl ! Pause
         Thread.sleep(500) // how do we know that it is paused??? :/
 
-        rabbitControl ! QueueMessage(1, queueName)
+        rabbitControl ! Message.queue(1, queueName)
         Thread.sleep(500) // TODO what to use instead of sleep?
         count shouldBe 1 // unsubscribed, no new messages processed
 
         rabbitControl ! Run
 
-        rabbitControl ! QueueMessage(2, queueName)
+        rabbitControl ! Message.queue(2, queueName)
         await(Future.sequence(Seq(promises(1).future, promises(2).future)))
         count shouldBe 3 // resubscribed, all messages processed
 
@@ -85,7 +85,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         }
         await(subscription.initialized)
 
-        val msg = ConfirmedMessage(QueuePublisher(queueName), 5)
+        val msg = Message(Publisher.queue(queueName), 5)
         await(rabbitControl ? msg)
         deleteQueue(queueName)
       }
@@ -134,7 +134,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         }
         await(subscription.initialized)
 
-        val factory = ConfirmedMessage.factory(QueuePublisher(queueName))
+        val factory = Message.factory(Publisher.queue(queueName))
 
         var keepSending = true
         val lastSentF = Future {
@@ -169,7 +169,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
 
     it("fails delivery to non-existent queues when using VerifiedQueuePublisher") {
       new RabbitFixtures {
-        val Failure(ex: com.rabbitmq.client.ShutdownSignalException) = Try(await((rabbitControl ? ConfirmedMessage(VerifiedQueuePublisher("non-existent-queue"), 1)).mapTo[Boolean]))
+        val Failure(ex: com.rabbitmq.client.ShutdownSignalException) = Try(await((rabbitControl ? Message(VerifiedQueuePublisher("non-existent-queue"), 1)).mapTo[Boolean]))
 
         ex.getMessage() should include ("no queue 'non-existent-queue'")
       }

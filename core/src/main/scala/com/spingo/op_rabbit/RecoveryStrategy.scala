@@ -29,8 +29,8 @@ object RecoveryStrategy {
       Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.
       */
     def failedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, delivery) =>
-      val failureQueue = QueueDefinition.passive(
-        QueueDefinition(
+      val failureQueue = Queue.passive(
+        Queue(
           s"${queueName}.failed",
           durable = true,
           arguments = Seq(`x-message-ttl`(defaultTTL))))

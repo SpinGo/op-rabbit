@@ -32,48 +32,22 @@ object MessageForPublicationLike {
 }
 
 /**
-  Common interface for publication strategies
+  Publishes messages to specified exchange, with the specified routingKey
 
-  @see [[TopicPublisher]], [[QueuePublisher]]
-  */
-trait MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit
-}
-
-/**
-  Publishes messages to specified exchange, with topic specified
-
-  @param routingKey The routing key (or topic)
   @param exchange The exchange to which the strategy will publish the message
+  @param routingKey The routing key (or topic)
 
   @see [[QueuePublisher]], [[MessageForPublicationLike]]
   */
-case class TopicPublisher(routingKey: String, exchange: String = RabbitControl topicExchangeName) extends MessagePublisher {
+class Publisher(val exchangeName: String, val routingKey: String) {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
-    c.basicPublish(exchange, routingKey, properties, data)
+    c.basicPublish(exchangeName, routingKey, properties, data)
 }
 
-/**
-  Publishes messages to specified exchange
-
-  @param routingKey The routing key (or topic)
-  @param exchange The exchange to which the strategy will publish the message
-
-  @see [[QueuePublisher]], [[MessageForPublicationLike]]
-  */
-case class ExchangePublisher(exchange: String) extends MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
-    c.basicPublish(exchange, "", properties, data)
-}
-
-/**
-  Publishes messages directly to the specified message-queue
-
-  @see [[TopicPublisher]], [[MessageForPublicationLike]]
-  */
-case class QueuePublisher(queue: String) extends MessagePublisher {
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
-    c.basicPublish("", queue, properties, data)
+object Publisher {
+  def queue(queueName: String) = new Publisher("", queueName)
+  def topic(routingKey: String, exchangeName: String = RabbitControl.topicExchangeName) = new Publisher(exchangeName, routingKey)
+  def exchange(exchangeName: String, routingKey: String = "") = new Publisher(exchangeName, routingKey)
 }
 
 /**
@@ -81,9 +55,9 @@ case class QueuePublisher(queue: String) extends MessagePublisher {
 
   This is useful if you want to prevent publishing to a non-existent queue
   */
-case class VerifiedQueuePublisher(queue: String) extends MessagePublisher {
+case class VerifiedQueuePublisher(queue: String) extends Publisher("", queue) {
   private var verified = false
-  def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit = {
+  override def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit = {
     if (!verified) {
       RabbitHelpers.tempChannel(c.getConnection) { _.queueDeclarePassive(queue) } match {
         case Left(ex) => throw ex
@@ -91,61 +65,82 @@ case class VerifiedQueuePublisher(queue: String) extends MessagePublisher {
       }
       verified = true
     }
-    c.basicPublish("", queue, properties, data)
+    super.apply(c,data,properties)
   }
 }
 
 /**
   Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, [[RabbitControl]] will respond to the sender with `true`.
 
-  Use the factory method [[ConfirmedMessage$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
+  Use the factory method [[Message$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
 
-  @see [[ConfirmedMessage$]], [[TopicMessage$]], [[QueueMessage$]]
+  @see [[Message$.exchange]], [[Message$.topic]], [[Message$.queue]]
   */
-final class ConfirmedMessage(
-  val publisher: MessagePublisher,
+final class Message(
+  val publisher: Publisher,
   val data: Array[Byte],
   val properties: BasicProperties) extends MessageForPublicationLike {
   val dropIfNoChannel = false
   def apply(c: Channel) = publisher(c, data, properties)
 }
 
-object ConfirmedMessage {
-  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]) = {
-    factory[T](publisher, properties)(marshaller)(message)
+private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
+  @inline
+  def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): M
+
+  def apply[T](publisher: Publisher, body: T, properties: Seq[MessageProperty] = Seq())(implicit marshaller: RabbitMarshaller[T]) = {
+    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
+    marshaller.setProperties(builder)
+    newInstance(publisher, marshaller.marshall(body), builder.build)
   }
 
-  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, ConfirmedMessage] = {
+  def factory[T](publisher: Publisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, M] = {
     val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
-    marshaller.properties(builder)
+    marshaller.setProperties(builder)
     val rabbitProperties = builder.build
 
-    { (message) => new ConfirmedMessage(publisher, marshaller.marshall(message), rabbitProperties) }
+    { (body) => newInstance(publisher, marshaller.marshall(body), rabbitProperties) }
   }
 
+  /**
+    Shorthand for [[.apply ConfirmedMessage]](Publisher.exchange(...), ...)
+    */
+  def exchange[T](message: T, exchange: String, routingKey: String = "", properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
+    apply(Publisher.exchange(exchange, routingKey), message, properties)
+
+  /**
+    Shorthand for [[.apply ConfirmedMessage]](Publisher.topic(...), ...)
+    */
+  def topic[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
+    apply(Publisher.exchange(exchange, routingKey), message, properties)
+
+  /**
+    Shorthand for [[.apply ConfirmedMessage]](Publisher.queue(...), ...)
+    */
+  def queue[T](
+    message: T,
+    queue: String,
+    properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M  =
+    apply(Publisher.queue(queue), message, properties)
+}
+
+object Message extends MessageFactory[Message] {
+  @inline
+  def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): Message =
+    new Message(publisher, body, properties)
 }
 
 final class UnconfirmedMessage(
-  val publisher: MessagePublisher,
+  val publisher: Publisher,
   val data: Array[Byte],
   val properties: BasicProperties) extends MessageForPublicationLike {
   val dropIfNoChannel = true
   def apply(c: Channel) = publisher(c, data, properties)
 }
 
-object UnconfirmedMessage {
-  def apply[T](publisher: MessagePublisher, message: T, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]) = {
-    factory[T](publisher, properties)(marshaller)(message)
-  }
-
-  def factory[T](publisher: MessagePublisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, UnconfirmedMessage] = {
-    val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
-    marshaller.properties(builder)
-    val rabbitProperties = builder.build
-
-    { (message) => new UnconfirmedMessage(publisher, marshaller.marshall(message), rabbitProperties) }
-  }
-
+object UnconfirmedMessage extends MessageFactory[UnconfirmedMessage] {
+  @inline
+  def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties) = new UnconfirmedMessage(publisher, body, properties)
 }
 
 object StatusCheckMessage {
@@ -176,23 +171,4 @@ class StatusCheckMessage(timeout: Duration = 5 seconds)(implicit actorSystem: Ac
       assert(c.isOpen(), new StatusCheckMessage.CheckException("RabbitMQ outbound channel is not open"))
     })
   }
-}
-
-/**
-  Shorthand for [[ConfirmedMessage$.apply ConfirmedMessage]](TopicPublisher(...), ...)
-  */
-object TopicMessage {
-  def apply[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): ConfirmedMessage =
-    ConfirmedMessage(TopicPublisher(routingKey, exchange), message, properties)
-}
-
-/**
-  Shorthand for [[ConfirmedMessage$.apply ConfirmedMessage]](QueuePublisher(...), ...)
-  */
-object QueueMessage {
-  def apply[T](
-    message: T,
-    queue: String,
-    properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): ConfirmedMessage =
-    ConfirmedMessage(QueuePublisher(queue), message, properties)
 }

@@ -9,14 +9,15 @@ class MessageSpec extends FunSpec with Matchers {
   // these are stupid tests...
   describe("QueueMessage") {
     it("creates a message for delivery, serializes the data, and applies the provided properties, and defaults to persistent") {
-      val msg = QueueMessage(
+      val msg = Message.queue(
         "very payload",
         queue = "destination.queue",
         properties = List(ReplyTo("respond.here.please")))
 
       println(msg.properties)
       msg.data should be ("very payload".getBytes)
-      msg.publisher.isInstanceOf[QueuePublisher] should be (true)
+      msg.publisher.exchangeName should be ("")
+      msg.publisher.routingKey should be ("destination.queue")
       msg.properties.getDeliveryMode should be (2)
       msg.properties.getReplyTo should be ("respond.here.please")
     }
@@ -24,7 +25,7 @@ class MessageSpec extends FunSpec with Matchers {
 
   describe("TopicMessage") {
     it("creates a message for delivery, and applies the provided properties, and defaults to persistent") {
-      val msg = TopicMessage(
+      val msg = Message.topic(
         "very payload",
         routingKey = "destination.topic",
         properties = List(ReplyTo("respond.here.please")))
@@ -32,13 +33,14 @@ class MessageSpec extends FunSpec with Matchers {
       println(msg.properties)
       msg.properties.getDeliveryMode should be (2)
       msg.properties.getReplyTo should be ("respond.here.please")
-      msg.publisher.isInstanceOf[TopicPublisher] should be (true)
+      msg.publisher.routingKey should be ("destination.topic")
+      msg.publisher.exchangeName should be (RabbitControl.topicExchangeName)
       msg.properties.getReplyTo should be ("respond.here.please")
     }
   }
 
   describe("ConfirmedMessage") {
-    val msg = ConfirmedMessage(TopicPublisher("very.route"), "hi", List(ReplyTo("respond.here.please")))
+    val msg = Message(Publisher.topic("very.route"), "hi", List(ReplyTo("respond.here.please")))
     msg.properties.getDeliveryMode should be (2)
     msg.properties.getReplyTo should be ("respond.here.please")
   }

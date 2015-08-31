@@ -18,7 +18,7 @@ object ConfirmedPublisherSink {
     @param rabbitControl An actor
     @param timeoutAfter The duration for which we'll wait for a message to be acked; note, timeouts and non-acknowledged messages will cause the Sink to throw an exception.
     */
-  def apply[T](rabbitControl: ActorRef, messageFactory: MessageForPublicationLike.Factory[T, ConfirmedMessage], timeoutAfter: FiniteDuration = 30 seconds, qos: Int = 8): AckedSink[T, Future[Unit]] = AckedSink {
+  def apply[T](rabbitControl: ActorRef, messageFactory: MessageForPublicationLike.Factory[T, Message], timeoutAfter: FiniteDuration = 30 seconds, qos: Int = 8): AckedSink[T, Future[Unit]] = AckedSink {
     implicit val akkaTimeout = akka.util.Timeout(timeoutAfter)
     Flow[(Promise[Unit], T)].
       map { case (p, payload) =>

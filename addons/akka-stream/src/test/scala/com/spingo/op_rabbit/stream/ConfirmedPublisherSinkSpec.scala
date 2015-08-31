@@ -59,7 +59,7 @@ class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matche
 
         val sink = ConfirmedPublisherSink[Int](
           rabbitControl,
-          ConfirmedMessage.factory(QueuePublisher(queueName())))
+          Message.factory(Publisher.queue(queueName())))
 
         val data = range map { i => (Promise[Unit], i) }
 

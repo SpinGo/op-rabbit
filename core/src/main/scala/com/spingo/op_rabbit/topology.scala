@@ -18,12 +18,12 @@ trait QueueDefinitionLike {
   def declare(channel: Channel): Unit
 }
 
-trait ExchangeDefinition[+T <: ExchangeDefinition.Value] {
+trait Exchange[+T <: Exchange.Value] {
   val name: String
   def declare(channel: Channel): Unit
 }
 
-private class ExchangeDefinitionImpl[+T <: ExchangeDefinition.Value](val name: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends ExchangeDefinition[T] {
+private class ExchangeImpl[+T <: Exchange.Value](val name: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends Exchange[T] {
   def declare(c: Channel): Unit =
     c.exchangeDeclare(name, kind.toString, durable, autoDelete, properties.toJavaMap(arguments))
 }
@@ -34,7 +34,7 @@ private class ExchangeDefinitionImpl[+T <: ExchangeDefinition.Value](val name: S
 
   See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#exchangeDeclarePassive(java.lang.String) Channel.exchangeDeclarePassive]].
   */
-private class ExchangeDefinitionPassive[T <: ExchangeDefinition.Value](val name: String, ifNotDefined: Option[ExchangeDefinition[T]] = None) extends ExchangeDefinition[T] {
+private class ExchangePassive[T <: Exchange.Value](val name: String, ifNotDefined: Option[Exchange[T]] = None) extends Exchange[T] {
   def declare(channel: Channel): Unit = {
     RabbitHelpers.tempChannel(channel.getConnection) { t =>
       t.exchangeDeclarePassive(name)
@@ -44,19 +44,19 @@ private class ExchangeDefinitionPassive[T <: ExchangeDefinition.Value](val name:
   }
 }
 
-object ExchangeDefinition extends Enumeration {
+object Exchange extends Enumeration {
   val Topic = Value("topic")
   val Headers = Value("headers")
   val Fanout = Value("fanout")
   val Direct = Value("direct")
 
-  def topic(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): ExchangeDefinition[ExchangeDefinition.Topic.type] = new ExchangeDefinitionImpl(name: String, ExchangeDefinition.Topic, durable, autoDelete, arguments)
-  def headers(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): ExchangeDefinition[ExchangeDefinition.Headers.type] = new ExchangeDefinitionImpl(name: String, ExchangeDefinition.Headers, durable, autoDelete, arguments)
-  def fanout(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): ExchangeDefinition[ExchangeDefinition.Fanout.type] = new ExchangeDefinitionImpl(name: String, ExchangeDefinition.Fanout, durable, autoDelete, arguments)
-  def direct(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): ExchangeDefinition[ExchangeDefinition.Direct.type] = new ExchangeDefinitionImpl(name: String, ExchangeDefinition.Direct, durable, autoDelete, arguments)
+  def topic(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Topic.type] = new ExchangeImpl(name: String, Exchange.Topic, durable, autoDelete, arguments)
+  def headers(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Headers.type] = new ExchangeImpl(name: String, Exchange.Headers, durable, autoDelete, arguments)
+  def fanout(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Fanout.type] = new ExchangeImpl(name: String, Exchange.Fanout, durable, autoDelete, arguments)
+  def direct(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Direct.type] = new ExchangeImpl(name: String, Exchange.Direct, durable, autoDelete, arguments)
 
-  def passive(exchangeName: String): ExchangeDefinition[Nothing] = new ExchangeDefinitionPassive(exchangeName, None)
-  def passive[T <: ExchangeDefinition.Value](binding: ExchangeDefinition[T]): ExchangeDefinition[T] = new ExchangeDefinitionPassive(binding.name, Some(binding))
+  def passive(exchangeName: String): Exchange[Nothing] = new ExchangePassive(exchangeName, None)
+  def passive[T <: Exchange.Value](binding: Exchange[T]): Exchange[T] = new ExchangePassive(binding.name, Some(binding))
 }
 
 object ModeledExchangeArgs {
@@ -80,9 +80,9 @@ object ModeledExchangeArgs {
   @param exchange     The topic exchange over which to listen for said topics. Defaults to durable, configured topic exchange, as named by configuration `op-rabbit.topic-exchange-name`.
   */
 case class TopicBinding(
-  queue: QueueDefinition,
+  queue: Queue,
   topics: List[String],
-  exchange: ExchangeDefinition[ExchangeDefinition.Topic.type] = ExchangeDefinition.topic(RabbitControl topicExchangeName)
+  exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl topicExchangeName)
 ) extends QueueDefinitionLike {
   val queueName = queue.queueName
   def declare(c: Channel): Unit = {
@@ -188,7 +188,7 @@ object ModeledQueueArgs {
   @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
   @param arguments    Special arguments for this queue; See [[ModeledQueueArgs$ ModeledQueueArgs]] for a list of valid arguments, and their function.
   */
-case class QueueDefinition(
+case class Queue(
   queueName: String,
   durable: Boolean = true,
   exclusive: Boolean = false,
@@ -206,7 +206,7 @@ case class QueueDefinition(
   }
 }
 
-object QueueDefinition {
+object Queue {
   def passive(queueName: String): QueueDefinitionLike = new QueueBindingPassive(queueName, None)
   def passive(binding: QueueDefinitionLike): QueueDefinitionLike = new QueueBindingPassive(binding.queueName, Some(binding))
 }
@@ -233,8 +233,8 @@ object QueueDefinition {
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class HeadersBinding(
-  queue: QueueDefinition,
-  exchange: ExchangeDefinition[ExchangeDefinition.Headers.type],
+  queue: Queue,
+  exchange: Exchange[Exchange.Headers.type],
   headers: Seq[com.spingo.op_rabbit.properties.Header],
   matchAll: Boolean = true,
   exchangeDurable: Boolean = true) extends QueueDefinitionLike {
@@ -263,8 +263,8 @@ case class HeadersBinding(
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class FanoutBinding(
-  queue: QueueDefinition,
-  exchange: ExchangeDefinition[ExchangeDefinition.Fanout.type]) extends QueueDefinitionLike {
+  queue: Queue,
+  exchange: Exchange[Exchange.Fanout.type]) extends QueueDefinitionLike {
   val queueName = queue.queueName
   def declare(c: Channel): Unit = {
     exchange.declare(c)

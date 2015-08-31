@@ -62,7 +62,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
         Await.result(subscription.initialized, 10 seconds)
         range foreach { i =>
-          rabbitControl ! QueueMessage(i, queueName)
+          rabbitControl ! Message.queue(i, queueName)
         }
         val results = Await.result(Future.sequence(promises map (_.future)), 5 minutes)
         results should be(range toList)
@@ -112,7 +112,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
         val subscription = subscriptionDef.register(rabbitControl)
         Await.result(subscription.initialized, 10 seconds)
-        range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+        range foreach { i => rabbitControl ! Message.queue(i, queueName) }
         awaitDeliveries()
         Thread.sleep(1000) // give it time to finish rejecting messages
         (seen map (_.count)).distinct should be (List(2))
@@ -132,7 +132,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
             val subscription = countAndRejectSubscription()(recoveryStrategy).register(rabbitControl)
             await(subscription.initialized)
 
-            range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+            range foreach { i => rabbitControl ! Message.queue(i, queueName) }
             awaitDeliveries()
 
             subscription.close()
@@ -171,7 +171,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
               val subscriptionRef = subscription.register(rabbitControl)
               Await.result(subscriptionRef.initialized, 10 seconds)
-              range foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+              range foreach { i => rabbitControl ! Message.queue(i, queueName) }
               awaitDeliveries()
               subscriptionRef.close()
               await(subscriptionRef.closed)
@@ -213,7 +213,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
         val subscription1 = getSubscription(1)
         await(subscription1.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+        (range) foreach { i => rabbitControl ! Message.queue(i, queueName) }
         ackThem.future.foreach(_ => subscription1.close())
         await(Future.sequence(firstEight.map(_.future)))
         println("Round 1 complete")
@@ -272,7 +272,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         }
 
         await(subscription.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName) }
+        (range) foreach { i => rabbitControl ! Message.queue(i, queueName) }
         await(Future.sequence(firstEight.map(_.future)))
         println("Round 1 complete")
         println(s"receivedCounts = ${receivedCounts}")

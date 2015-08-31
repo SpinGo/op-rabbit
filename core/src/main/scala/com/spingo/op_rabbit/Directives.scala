@@ -119,28 +119,28 @@ trait Directives {
     queue: String,
     durable: Boolean = true,
     exclusive: Boolean = false,
-    autoDelete: Boolean = false) = QueueDefinition(queue, durable, exclusive, autoDelete)
+    autoDelete: Boolean = false) = Queue(queue, durable, exclusive, autoDelete)
 
   /**
    * Passive queue binding
    */
   def pqueue(queue: String) =
-    QueueDefinition.passive(queue)
+    Queue.passive(queue)
 
 
   def topic(
-    queue: QueueDefinition,
+    queue: Queue,
     topics: List[String],
-    exchange: ExchangeDefinition[ExchangeDefinition.Topic.type] = ExchangeDefinition.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
+    exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
 
   /**
    * Passive topic binding
    */
-  def passive(queue: QueueDefinition): QueueDefinitionLike =
-    QueueDefinition.passive(queue)
+  def passive(queue: Queue): QueueDefinitionLike =
+    Queue.passive(queue)
 
-  def passive[T <: ExchangeDefinition.Value](exchange: ExchangeDefinition[T]): ExchangeDefinition[T] =
-    ExchangeDefinition.passive(exchange)
+  def passive[T <: Exchange.Value](exchange: Exchange[T]): Exchange[T] =
+    Exchange.passive(exchange)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
   def typeOf[T] = new TypeHolder[T]

@@ -35,8 +35,8 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
     channelActor foreach (context stop _)
 
   var channelActor: Option[ActorRef] = None
-  val pendingConfirmation = mutable.LinkedHashMap.empty[Long, (ConfirmedMessage, ActorRef)]
-  val heldMessages = mutable.Queue.empty[(ConfirmedMessage, ActorRef)]
+  val pendingConfirmation = mutable.LinkedHashMap.empty[Long, (Message, ActorRef)]
+  val heldMessages = mutable.Queue.empty[(Message, ActorRef)]
 
   val waitingForChannelActor: Receive = {
     case ChannelCreated(_channelActor) =>
@@ -57,7 +57,7 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
         handleDelivery(channel, m._1, m._2)
       }
       heldMessages.clear()
-    case message: ConfirmedMessage =>
+    case message: Message =>
       heldMessages.enqueue((message, sender))
     case ChannelDisconnected =>
       ()
@@ -77,7 +77,7 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
       context.become(waitingForChannel)
     case Terminated(actorRef) if Some(actorRef) == channelActor =>
       context stop self
-    case message: ConfirmedMessage =>
+    case message: Message =>
       handleDelivery(channel, message, sender)
     case Ack(deliveryTag, multiple) =>
       handleAck(resolveTags(deliveryTag, multiple))(true)
@@ -85,7 +85,7 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
       handleAck(resolveTags(deliveryTag, multiple))(false)
   }
 
-  def handleDelivery(channel: Channel, message: ConfirmedMessage, replyTo: ActorRef): Unit = {
+  def handleDelivery(channel: Channel, message: Message, replyTo: ActorRef): Unit = {
     val nextDeliveryTag = channel.getNextPublishSeqNo()
     try {
       withChannelShutdownCatching(channel) {

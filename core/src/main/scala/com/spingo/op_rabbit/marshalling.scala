@@ -42,7 +42,7 @@ trait RabbitMarshaller[T] {
     Note, that if a property builder is provided, it is mutated by
     this method.
     */
-  def properties(builder: BasicProperties.Builder = new BasicProperties.Builder()): BasicProperties.Builder = {
+  def setProperties(builder: BasicProperties.Builder = new BasicProperties.Builder()): BasicProperties.Builder = {
     builder.contentType(contentType)
     contentEncoding.foreach(builder.contentEncoding(_))
     builder

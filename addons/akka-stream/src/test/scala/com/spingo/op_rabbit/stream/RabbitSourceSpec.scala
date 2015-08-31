@@ -60,7 +60,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           toMat(Sink.fold(0)(_ + _))(Keep.both).run
 
         await(subscription.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+        (range) foreach { i => rabbitControl ! Message.queue(i, queueName()) }
         await(Future.sequence(promises.map(_.future)))
         // test is done; let's stop the stream
         subscription.close()
@@ -76,7 +76,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         val (subscription, result) = source.runAckMat(Keep.both)
 
         await(subscription.initialized)
-        (range) foreach { i => rabbitControl ! QueueMessage("a", queueName()) }
+        (range) foreach { i => rabbitControl ! Message.queue("a", queueName()) }
         // test is done; let's stop the stream
 
         a [java.lang.NumberFormatException] should be thrownBy {
@@ -102,7 +102,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
             runAckMat(Keep.both)
 
           await(subscription.initialized)
-          (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+          (range) foreach { i => rabbitControl ! Message.queue(i, queueName()) }
           delivered.take(8).foreach(p => await(p.future))
           await(Future.sequence( delivered.take(8).map(_.future)))
           // we should get up to 8 delivered
@@ -139,7 +139,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
             map(promises(_).success(())).
             runAckMat(Keep.both)
           await(subscription.initialized)
-          (range) foreach { i => rabbitControl ! QueueMessage(i, queueName()) }
+          (range) foreach { i => rabbitControl ! Message.queue(i, queueName()) }
           promises.foreach(p => await(p.future))
           subscription.close()
           await(result)

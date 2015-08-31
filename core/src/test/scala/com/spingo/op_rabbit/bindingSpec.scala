@@ -32,8 +32,8 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
           import Directives._
           channel() {
             consume(FanoutBinding(
-              QueueDefinition(queueName, autoDelete = true, durable = false),
-              ExchangeDefinition.fanout("test-fanout-exchange"))) {
+              Queue(queueName, autoDelete = true),
+              Exchange.fanout("test-fanout-exchange", autoDelete = true))) {
               body(as[String]) { a =>
                 consumerResult(idx).success(a)
                 ack
@@ -47,7 +47,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         await(s.initialized)
       }
 
-      rabbitControl ! ConfirmedMessage(ExchangePublisher("test-fanout-exchange"), "le value", List(Header("thing", "1")))
+      rabbitControl ! Message(Publisher.exchange("test-fanout-exchange"), "le value", List(Header("thing", "1")))
 
       consumerResult.map(p => await(p.future)) should be (List("le value", "le value"))
     }
@@ -64,11 +64,11 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            QueueDefinition(
+            Queue(
               queueName = queueName + "int",
               autoDelete = true,
               durable = false),
-            ExchangeDefinition.headers("test-headers-exchange"),
+            Exchange.headers("test-headers-exchange", autoDelete = true),
             headers = List(Header("thing", 1))
           )) {
             body(as[String]) { a =>
@@ -83,11 +83,11 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            QueueDefinition(
+            Queue(
               queueName = queueName + "string",
               autoDelete = true,
               durable = false),
-            ExchangeDefinition.headers("test-headers-exchange"),
+            Exchange.headers("test-headers-exchange", autoDelete = true),
             headers = List(Header("thing", "1"))
           )) {
             body(as[String]) { a =>
@@ -102,8 +102,8 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       await(subscriptionInt.initialized)
       await(subscriptionString.initialized)
 
-      rabbitControl ! ConfirmedMessage(ExchangePublisher("test-headers-exchange"), "string", List(Header("thing", "1")))
-      rabbitControl ! ConfirmedMessage(ExchangePublisher("test-headers-exchange"), "int", List(Header("thing", 1)))
+      rabbitControl ! Message(Publisher.exchange("test-headers-exchange"), "string", List(Header("thing", "1")))
+      rabbitControl ! Message(Publisher.exchange("test-headers-exchange"), "int", List(Header("thing", 1)))
 
       await(stringReceived.future) should be ("string")
       await(intReceived.future) should be ("int")
@@ -120,10 +120,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(TopicBinding(
-            QueueDefinition(
-              queueName = queueName + "int",
-              autoDelete = true,
-              durable = false),
+            Queue(queueName + "int", autoDelete = true),
             topics = List("*.*.*")
           )) {
             body(as[String]) { a =>
@@ -136,7 +133,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       await(subscription.initialized)
 
-      rabbitControl ! ConfirmedMessage(TopicPublisher(".."), "string")
+      rabbitControl ! Message(Publisher.topic(".."), "string")
 
       await(received.future) should be ("string")
     }
