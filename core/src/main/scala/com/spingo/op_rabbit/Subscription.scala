@@ -12,8 +12,8 @@ object Subscription {
   def apply(boundConfig: BoundChannel): Subscription =
     new Subscription(boundConfig)
 
-  def register(rabbitControl: ActorRef)(boundConfig: BoundChannel): SubscriptionRef = {
-    new Subscription(boundConfig).register(rabbitControl)
+  def run(rabbitControl: ActorRef)(boundConfig: BoundChannel): SubscriptionRef = {
+    new Subscription(boundConfig).run(rabbitControl)
   }
 }
 
@@ -36,14 +36,33 @@ object ModeledConsumerArgs {
 }
 
 /**
-  A Subscription combines together a [[Binding]] and a [[Consumer]], where the binding defines how the message queue is declare and if any topic bindings are involved, and the consumer declares how messages are to be consumed from the message queue specified by the [[Binding]]. This object is sent to [[RabbitControl]] to activate.
+  A Subscription contains a full definition for a consumer (channel,
+  binding, handling, error recovery, reportings, etc.)
+  subscription
+
+  This object is sent to [[RabbitControl]] to boot.
+
+  Example instantiation:
+
+  Subscription {
+    import Directives._
+
+    channel(qos = 1) {
+      consume(queue("such-queue")) {
+        body(as[String]) { payload =>
+          // do work...
+          ack
+        }
+      }
+    }
+  }
   */
 class Subscription private(config: BoundChannel) extends Directives {
   protected [op_rabbit] lazy val channelConfig = config.channelConfig
   protected [op_rabbit] lazy val queue = config.boundConsumer.queue
   protected [op_rabbit] lazy val consumer = config.boundConsumer
 
-  def register(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
+  def run(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
     implicit val akkaTimeout = Timeout(timeout)
     SubscriptionRefProxy((rabbitControl ? this).mapTo[SubscriptionRef])
   }

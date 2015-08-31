@@ -28,7 +28,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       val subscriptions = (0 to 1) map { case idx =>
         val queueName = _queueName() + idx
-        Subscription.register(rabbitControl) {
+        Subscription.run(rabbitControl) {
           import Directives._
           channel() {
             consume(FanoutBinding(
@@ -60,7 +60,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       val queueName = _queueName()
       val stringReceived = Promise[String]
       val intReceived = Promise[String]
-      val subscriptionInt = Subscription.register(rabbitControl) {
+      val subscriptionInt = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
           consume(HeadersBinding(
@@ -79,7 +79,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         }
       }
 
-      val subscriptionString = Subscription.register(rabbitControl) {
+      val subscriptionString = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
           consume(HeadersBinding(
@@ -116,7 +116,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       val queueName = _queueName()
       val received = Promise[String]
-      val subscription = Subscription.register(rabbitControl) {
+      val subscription = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
           consume(TopicBinding(

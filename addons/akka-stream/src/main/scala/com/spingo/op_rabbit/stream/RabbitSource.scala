@@ -148,7 +148,7 @@ object RabbitSource {
       }
     }
 
-    val subscription = Subscription.register(rabbitControl) {
+    val subscription = Subscription.run(rabbitControl) {
       import Directives._
       channelDirective {
         bindingDirective({

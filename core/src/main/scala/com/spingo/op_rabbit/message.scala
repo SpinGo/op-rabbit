@@ -36,8 +36,6 @@ object MessageForPublicationLike {
 
   @param exchange The exchange to which the strategy will publish the message
   @param routingKey The routing key (or topic)
-
-  @see [[QueuePublisher]], [[MessageForPublicationLike]]
   */
 class Publisher(val exchangeName: String, val routingKey: String) {
   def apply(c: Channel, data: Array[Byte], properties: BasicProperties): Unit =
@@ -70,7 +68,7 @@ case class VerifiedQueuePublisher(queue: String) extends Publisher("", queue) {
 }
 
 /**
-  Contains the message's data, along with publication strategy; send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, [[RabbitControl]] will respond to the sender with `true`.
+  '''Confirmed''' Message container. Send to [[RabbitControl]] actor for delivery. Upon delivery confirmation, [[RabbitControl]] will respond to the sender with `true`.
 
   Use the factory method [[Message$.apply]] to instantiate one of these using an implicit [[RabbitMarshaller]] for serialization.
 
@@ -124,6 +122,9 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
     apply(Publisher.queue(queue), message, properties)
 }
 
+/**
+  '''Confirmed''' message generator. See [[Message$]]
+  */
 object Message extends MessageFactory[Message] {
   @inline
   def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): Message =

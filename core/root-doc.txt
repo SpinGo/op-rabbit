@@ -43,7 +43,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 case class Person(name: String, age: Int)
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
-val subscriptionRef = Subscription.register(rabbitControl) {
+val subscriptionRef = Subscription.run(rabbitControl) {
   import Directives._
   // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
   channel(qos = 3) {

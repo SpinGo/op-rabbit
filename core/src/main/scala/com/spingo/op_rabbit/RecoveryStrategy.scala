@@ -23,7 +23,7 @@ abstract class RecoveryStrategy {
 object RecoveryStrategy {
   object LimitedRedeliver {
     type AbandonStrategy = (String, Channel, Delivery) => Future[Unit]
-    import ModeledQueueArgs.`x-message-ttl`
+    import Queue.ModeledArgs.`x-message-ttl`
 
     /**
       Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.

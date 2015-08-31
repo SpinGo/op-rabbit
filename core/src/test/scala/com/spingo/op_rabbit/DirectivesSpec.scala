@@ -31,7 +31,7 @@ class DirectivesSpec extends FunSpec with Matchers {
     it("rejects when the property is not defined") {
       resultFor(testDelivery()) {
         property(ReplyTo) { replyTo =>
-          ack()
+          ack
         }
       } should be (Left(ValueExpectedExtractRejection("Property ReplyTo was not provided")))
     }
@@ -41,7 +41,7 @@ class DirectivesSpec extends FunSpec with Matchers {
       resultFor(delivery) {
         property(ReplyTo) { replyTo =>
           replyTo should be ("place")
-          ack()
+          ack
         }
       } should be (acked)
     }
@@ -49,9 +49,9 @@ class DirectivesSpec extends FunSpec with Matchers {
     it("converts the header value to the specified type") {
       val delivery = testDelivery(properties = Seq(Header("recovery-attempts", "1")))
       resultFor(delivery) {
-        property(Header("recovery-attempts").as[Int]) { (i) =>
+        property(TypedHeader[Int]("recovery-attempts")) { (i) =>
           i should be (1)
-          ack()
+          ack
         }
       } should be (acked)
     }
@@ -60,12 +60,23 @@ class DirectivesSpec extends FunSpec with Matchers {
       val delivery = testDelivery(properties = Seq(Header("recovery-attempts", "a number of times")))
       an [ExtractRejection] should be thrownBy {
         resultFor(delivery) {
-          (property(Header("recovery-attempts").as[Int])) { (i) =>
-            ack()
+          (property(TypedHeader[Int]("recovery-attempts"))) { (i) =>
+            ack
           }
         }
       }
     }
+
+    it("extracts typed headers") {
+      case class VeryPerson(name: String, age: Int)
+      resultFor(testDelivery(properties = Seq(Header("name", "Scratch"), Header("age", 27)))) {
+        (property(TypedHeader[String]("name")) & property(TypedHeader[Int]("age"))).as(VeryPerson) { person =>
+          person should be (VeryPerson("Scratch", 27))
+          ack
+        }
+      } should be (acked)
+    }
+
   }
 
   describe("as") {
@@ -76,17 +87,7 @@ class DirectivesSpec extends FunSpec with Matchers {
         (provide(1) & provide("name") & provide(2)).as(LosContainer) { container =>
           container should be (LosContainer(1, "name", Some(2)))
           println(container)
-          ack()
-        }
-      } should be (acked)
-    }
-
-    it("Converts headers also") {
-      case class VeryPerson(name: String, age: Int)
-      resultFor(testDelivery(properties = Seq(Header("name", "Scratch"), Header("age", 27)))) {
-        (property(Header("name").as[String]) & property(Header("age").as[Int])).as(VeryPerson) { person =>
-          person should be (VeryPerson("Scratch", 27))
-          ack()
+          ack
         }
       } should be (acked)
     }
@@ -99,7 +100,7 @@ class DirectivesSpec extends FunSpec with Matchers {
         (body(as[String]) & property(ReplyTo)) { (body, replyTo) =>
           replyTo should be ("place")
           body should be ("hi")
-          ack()
+          ack
         }
       } should be (acked)
     }
@@ -112,7 +113,7 @@ class DirectivesSpec extends FunSpec with Matchers {
         ((property(ReplyTo) & property(AppId)) | (provide("default-reply-to") & provide("default-app"))) { (replyTo, appId) =>
           replyTo should be ("default-reply-to")
           appId should be ("default-app")
-          ack()
+          ack
         }
       } should be (acked)
     }
@@ -140,7 +141,7 @@ class DirectivesSpec extends FunSpec with Matchers {
       resultFor(delivery) {
         optionalProperty(ReplyTo) { replyTo =>
           replyTo should be (None)
-          ack()
+          ack
         }
       } should be (acked)
     }

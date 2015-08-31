@@ -42,7 +42,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         val range = (0 to 100)
         val promises = range map { i => Promise[Int] } toList
         val generator = new Random(123);
-        val subscription = Subscription.register(rabbitControl) {
+        val subscription = Subscription.run(rabbitControl) {
           import Directives._
           channel() {
             consume(queue(
@@ -110,7 +110,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
         val subscriptionDef = countAndRejectSubscription()
 
-        val subscription = subscriptionDef.register(rabbitControl)
+        val subscription = subscriptionDef.run(rabbitControl)
         Await.result(subscription.initialized, 10 seconds)
         range foreach { i => rabbitControl ! Message.queue(i, queueName) }
         awaitDeliveries()
@@ -129,7 +129,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
           try {
             val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 0, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(3 seconds))
-            val subscription = countAndRejectSubscription()(recoveryStrategy).register(rabbitControl)
+            val subscription = countAndRejectSubscription()(recoveryStrategy).run(rabbitControl)
             await(subscription.initialized)
 
             range foreach { i => rabbitControl ! Message.queue(i, queueName) }
@@ -139,7 +139,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
             await(subscription.closed)
 
             val nineReceived = Promise[Unit]
-            val errorSubscription = Subscription.register(rabbitControl) {
+            val errorSubscription = Subscription.run(rabbitControl) {
               import Directives._
               channel(1) {
                 consume(pqueue(queueName + ".failed")) {
@@ -169,7 +169,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
               implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(redeliverDelay = 100 millis, retryCount = 1, onAbandon = RecoveryStrategy.LimitedRedeliver.failedQueue(time))
               val subscription = countAndRejectSubscription()
 
-              val subscriptionRef = subscription.register(rabbitControl)
+              val subscriptionRef = subscription.run(rabbitControl)
               Await.result(subscriptionRef.initialized, 10 seconds)
               range foreach { i => rabbitControl ! Message.queue(i, queueName) }
               awaitDeliveries()
@@ -196,7 +196,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         val received = range map { i => Promise[Unit] }
         val firstEight = received.take(8)
 
-        def getSubscription(n: Int) = Subscription.register(rabbitControl) {
+        def getSubscription(n: Int) = Subscription.run(rabbitControl) {
           import Directives._
           channel(qos = 8) {
             consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)) {
@@ -256,7 +256,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         val received = range map { i => Promise[Unit] }
         val firstEight = received.take(8)
 
-        val subscription = Subscription.register(rabbitControl) {
+        val subscription = Subscription.run(rabbitControl) {
           import Directives._
           channel(qos = 8) {
             consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)) {

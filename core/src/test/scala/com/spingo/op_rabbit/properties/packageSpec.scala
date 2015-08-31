@@ -23,14 +23,12 @@ class PropertiesSpec extends FunSpec with Matchers {
         Header("header1", "very-value1"),
         Header("header2", "very-value2"))).build
     it("lifts out property values") {
-      val DeliveryModePersistence(mode) = properties
-      mode should be (true)
+      DeliveryModePersistence.extract(properties) should be (Some(true))
 
-      val ReplyTo(where) = properties
-      where should be ("reply-destination")
+      ReplyTo.extract(properties) should be (Some("reply-destination"))
 
-      Header("header1").unapply(properties) should be (Some(HeaderValue("very-value1")))
-      Header("header2").unapply(properties) should be (Some(HeaderValue("very-value2")))
+      Header("header1").extract(properties) should be (Some(HeaderValue("very-value1")))
+      Header("header2").extract(properties) should be (Some(HeaderValue("very-value2")))
     }
   }
 
@@ -45,7 +43,7 @@ class PropertiesSpec extends FunSpec with Matchers {
     it("reads the same duration back") {
       val boundHeader = test(5 seconds)
       val m = toJavaMap(Seq(boundHeader))
-      test.unapply(m) should be (Some(5 seconds))
+      test.extract(m) should be (Some(5 seconds))
     }
   }
 }

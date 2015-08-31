@@ -37,13 +37,13 @@ trait RabbitErrorLogging {
   /**
     Compose this RabbitErrorLogging with another, such that both error logging strategies are used on exception
     */
-  final def +(other: RabbitErrorLogging) = new CombinedLogger(this, other)
+  final def +(other: RabbitErrorLogging): RabbitErrorLogging = new CombinedLogger(this, other)
 }
 
 /**
   Composes two [[RabbitErrorLogging]] strategies, such that both are used when reporting an exception.
   */
-class CombinedLogger(a: RabbitErrorLogging, b: RabbitErrorLogging) extends RabbitErrorLogging {
+private class CombinedLogger(a: RabbitErrorLogging, b: RabbitErrorLogging) extends RabbitErrorLogging {
   def apply(name: String, context: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
     a(name, context, exception, consumerTag, envelope, properties, body)
     b(name, context, exception, consumerTag, envelope, properties, body)

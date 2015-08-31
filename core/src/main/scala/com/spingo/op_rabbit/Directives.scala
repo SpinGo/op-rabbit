@@ -45,17 +45,14 @@ private object Nackable {
   }
 }
 
-// TODO - rename binding -> queue
-case class BoundConsumerDefinition(queue: QueueDefinitionLike, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
-
-case class BindingDirective(binding: QueueDefinitionLike, args: Seq[properties.Header]) {
+private [op_rabbit] case class BoundConsumerDefinition(queue: QueueDefinition, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
+private [op_rabbit] case class BindingDirective(binding: QueueDefinition, args: Seq[properties.Header]) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
     BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args)
 }
-
-case class ChannelConfiguration(qos: Int)
-case class BoundChannel(channelConfig: ChannelConfiguration, boundConsumer: BoundConsumerDefinition)
-case class ChannelDirective(config: ChannelConfiguration) {
+private [op_rabbit] case class ChannelConfiguration(qos: Int)
+private [op_rabbit] case class BoundChannel(channelConfig: ChannelConfiguration, boundConsumer: BoundConsumerDefinition)
+private [op_rabbit] case class ChannelDirective(config: ChannelConfiguration) {
   def apply(thunk: => BoundConsumerDefinition) = BoundChannel(config, thunk)
 }
 
@@ -110,7 +107,7 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(binding: QueueDefinitionLike, args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
+  def consume(binding: QueueDefinition, args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
 
   /**
     Provides values for the [[consume]] directive.
@@ -136,7 +133,7 @@ trait Directives {
   /**
    * Passive topic binding
    */
-  def passive(queue: Queue): QueueDefinitionLike =
+  def passive(queue: Queue): QueueDefinition =
     Queue.passive(queue)
 
   def passive[T <: Exchange.Value](exchange: Exchange[T]): Exchange[T] =
@@ -226,14 +223,14 @@ trait Directives {
     Given a [[com.spingo.op_rabbit.properties property]], yields Some(value). If the underlying value does not exist (is null), then it yields None.
     */
   def optionalProperty[T](extractor: PropertyExtractor[T]) = extract { delivery =>
-    extractor.unapply(delivery.properties)
+    extractor.extract(delivery.properties)
   }
 
   /**
     Given a [[com.spingo.op_rabbit.properties property]], yields it's value. If the underlying value does not exist (is null), then it nacks.
     */
   def property[T](extractor: PropertyExtractor[T]) = extractEither { delivery =>
-    extractor.unapply(delivery.properties) match {
+    extractor.extract(delivery.properties) match {
       case Some(v) => Right(v)
       case None => Left(ValueExpectedExtractRejection(s"Property ${extractor.extractorName} was not provided"))
     }
@@ -253,21 +250,6 @@ trait Directives {
     Directive which yields the routingKey (topic) through which the message was published
     */
   def routingKey = extract(_.envelope.getRoutingKey)
-
-  implicit class EnrichedHeaderValueExtractor[T](header: properties.UnboundHeader) {
-    def as[V](implicit converter: properties.FromHeaderValue[V]) = {
-      new PropertyExtractor[V] {
-        override def extractorName = header.extractorName
-        def unapply(properties: com.rabbitmq.client.AMQP.BasicProperties): Option[V] =
-          header.unapply(properties) map {
-            converter(_) match {
-              case Left(ex) => throw(ParseExtractRejection(s"Error occurred while converting HeaderValue", ex))
-              case Right(v) => v
-            }
-          }
-      }
-    }
-  }
 }
 
 /**

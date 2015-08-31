@@ -59,7 +59,7 @@ private [op_rabbit] class Sequence extends Iterator[Int] {
   RabbitControl is the top-level actor which handles the following:
 
   - Pull configuration from the rabbitmq config block, and establish connection to RabbitMQ
-  - Manage [[consumer.Subscription subscriptions]]
+  - Manage [[Subscription subscriptions]]
   
   == Messages received ==
   
@@ -68,7 +68,7 @@ private [op_rabbit] class Sequence extends Iterator[Int] {
   - [[MessageForPublicationLike]] - Publish the given message
   - [[RabbitControl$.SubscriptionCommand RabbitControl.SubscriptionCommand]] - [[RabbitControl$.Pause Pause]] / [[RabbitControl$.Run Resume]] all register subscriptions (consumers)
   - [[RabbitControl$.GetConnectionActor RabbitControl.GetConnectionActor]] - Return the akka.actor.ActorRef for the `akka-rabbitmq` ConnectionActor
-  - [[consumer.Subscription]] - Activate the given subscription
+  - [[Subscription]] - Activate the given subscription; responds with a [[SubscriptionRef]]
   */
 class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
   def this() = this(ConnectionParams.fromConfig())

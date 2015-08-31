@@ -103,8 +103,7 @@ op-rabbit {
 
 Note that hosts is an array; Connection attempts will be made to hosts in that order, with a default timeout of `3s`. This way you can specify addresses of your rabbitMQ cluster, and if one of the instances goes down, your application will automatically reconnect to another member of the cluster.
 
-`topic-exchange-name` is the default topic exchange to use; this can be overriden by passing `exchange = "my-topic"` to [TopicBinding](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.TopicBinding) or [TopicMessage](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.TopicMessage).
-
+`topic-exchange-name` is the default topic exchange to use; this can be overriden by passing `exchange = "my-topic"` to [TopicBinding](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.TopicBinding) or [Message.topic](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.Message$).
 
 Boot up the RabbitMQ control actor:
 
@@ -129,7 +128,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 case class Person(name: String, age: Int)
 implicit val personFormat = Json.format[Person] // setup play-json serializer
 
-val subscriptionRef = Subscription.register(rabbitControl) {
+val subscriptionRef = Subscription.run(rabbitControl) {
   import Directives._
   // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
   channel(qos = 3) {
@@ -148,7 +147,7 @@ Now, test the consumer by sending a message:
 
 ```
 subscriptionRef.initialized.foreach { _ =>
-  rabbitControl ! TopicMessage(Person("Your name here", 33), "some-topic.cool")
+  rabbitControl ! Message.topic(Person("Your name here", 33), "some-topic.cool")
 }
 ```
 
@@ -224,9 +223,9 @@ subscription.closed
 ### Publish a message:
 
 ```scala
-rabbitControl ! TopicMessage(Person(name = "Mike How", age = 33), routingKey = "some-topic.very-interest")
+rabbitControl ! Message.topic(Person(name = "Mike How", age = 33), routingKey = "some-topic.very-interest")
 
-rabbitControl ! QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
+rabbitControl ! Message.queue(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")
 ```
 
 By default:
@@ -240,7 +239,7 @@ By default:
         import akka.util.Timeout
         import scala.concurrent.duration._
         implicit val timeout = Timeout(5 seconds)
-        val received = (rabbitControl ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
+        val received = (rabbitControl ? Message.queue(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
         ```
 
 ### Consuming using Akka streams
@@ -275,7 +274,7 @@ implicit val workFormat = Format[Work] // setup play-json serializer
 val sink = ConfirmedPublisherSink[Work](
   "my-sink-name",
   rabbitControl,
-  ConfirmedMessage.factory(QueuePublisher(queueName())))
+  Message.factory(Publisher.queue(queueName())))
 
 AckedSource(1 to 15). // Each element in source will be acknowledged after publish confirmation is received
   to(sink)
