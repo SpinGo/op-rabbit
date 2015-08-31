@@ -181,22 +181,22 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
   def subscribe(connectionInfo: ConnectedPayload) = {
     val channel = connectionInfo.channel
 
-    withChannelShutdownCatching(channel) {
+    try {
       channel.basicQos(connectionInfo.qos)
       subscription.binding.bind(channel)
-    } match {
-      case Left(ex) =>
+      initialized.trySuccess()
+      connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
+      goto(Running) using connectionInfo
+    } catch {
+      case ex: ShutdownSignalException =>
         initialized.tryFailure(ex)
         closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
         goto(Stopped) using connectionInfo.copy(shutdownCause = Some(ex))
-      case Right(_) =>
-        initialized.trySuccess()
-        connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
-        goto(Running) using connectionInfo
+      case ex: Throwable =>
+        initialized.tryFailure(ex)
+        closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+        goto(Stopped)
     }
-  }
-
-  def unsubscribe = {
   }
 }
 

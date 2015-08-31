@@ -66,11 +66,13 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            queueName = queueName + "int",
-            "test-headers-exchange",
-            headers = List(Header("thing", 1)),
-            autoDelete = true,
-            durable = false)) {
+            QueueBinding(
+              queueName = queueName + "int",
+              autoDelete = true,
+              durable = false),
+            ExchangeBinding.headers("test-headers-exchange"),
+            headers = List(Header("thing", 1))
+          )) {
             body(as[String]) { a =>
               intReceived.success(a)
               ack
@@ -83,11 +85,13 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(HeadersBinding(
-            queueName = queueName + "string",
-            "test-headers-exchange",
-            headers = List(Header("thing", "1")),
-            autoDelete = true,
-            durable = false)) {
+            QueueBinding(
+              queueName = queueName + "string",
+              autoDelete = true,
+              durable = false),
+            ExchangeBinding.headers("test-headers-exchange"),
+            headers = List(Header("thing", "1"))
+          )) {
             body(as[String]) { a =>
               println(s"String consumer has string $a")
               stringReceived.success(a)
@@ -118,10 +122,12 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         import Directives._
         channel() {
           consume(TopicBinding(
-            queueName = queueName + "int",
-            topics = List("*.*.*"),
-            autoDelete = true,
-            durable = false)) {
+            QueueBinding(
+              queueName = queueName + "int",
+              autoDelete = true,
+              durable = false),
+            topics = List("*.*.*")
+          )) {
             body(as[String]) { a =>
               received.success(a)
               ack

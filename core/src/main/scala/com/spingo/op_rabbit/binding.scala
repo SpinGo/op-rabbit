@@ -6,6 +6,8 @@ import com.thenewmotion.akka.rabbitmq.Channel
 /**
   Implementors of this trait describe how a channel is defined, and
   how bindings are associated.
+
+  TODO - rename to QueueDefinitionLike
   */
 trait Binding {
   /**
@@ -15,12 +17,35 @@ trait Binding {
   protected [op_rabbit] def bind(channel: Channel): Unit
 }
 
+trait ExchangeBinding[+T <: ExchangeBinding.Value] {
+  val exchangeName: String
+  protected [op_rabbit] def bind(channel: Channel): Unit
+}
+
+object ExchangeBinding extends Enumeration {
+  val Topic = Value("topic")
+  val Headers = Value("headers")
+  val Fanout = Value("fanout")
+  def apply(name: String, kind: ExchangeBinding.Value, durable: Boolean = true) = new ExchangeBinding[kind.type] {
+    val exchangeName = name
+    def bind(c: Channel): Unit =
+      c.exchangeDeclare(exchangeName, kind.toString, durable)
+  }
+
+  def topic(exchangeName: String, durable: Boolean = true) = apply(exchangeName, Topic, durable)
+  def headers(exchangeName: String, durable: Boolean = true) = apply(exchangeName, Headers, durable)
+  def fanout(exchangeName: String, durable: Boolean = true) = apply(exchangeName, Fanout, durable)
+
+  def passive(exchangeName: String): ExchangeBinding[Nothing] = new ExchangeBindingPassive(exchangeName, None)
+  def passive[T <: ExchangeBinding.Value](binding: ExchangeBinding[T]): ExchangeBinding[T] = new ExchangeBindingPassive(binding.exchangeName, Some(binding))
+}
+
 /**
   Binding which declares a message queue, and then binds various topics to it. Note that bindings are idempotent.
 
   @see [[QueueBinding]], [[Subscription]]
 
-  @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
+  @param queue        The queue to which we will  of the message queue to declare; the consumer paired with this binding will pull from this.
   @param topics       A list of topics to bind to the message queue. Examples: "stock.*.nyse", "stock.#"
   @param exchangeName The name of the exchange on which we should listen for said topics. Defaults to configured exchange-name, `op-rabbit.topic-exchange-name`.
   @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
@@ -29,26 +54,49 @@ trait Binding {
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class TopicBinding(
-  queueName: String,
+  queue: QueueBinding,
   topics: List[String],
-  exchangeName: String = RabbitControl topicExchangeName,
-  durable: Boolean = true,
-  exclusive: Boolean = false,
-  autoDelete: Boolean = false,
-  exchangeDurable: Boolean = true) extends Binding {
-
+  exchange: ExchangeBinding[ExchangeBinding.Topic.type] = ExchangeBinding.topic(RabbitControl topicExchangeName)
+) extends Binding {
+  val queueName = queue.queueName
   def bind(c: Channel): Unit = {
-    c.exchangeDeclare(exchangeName, "topic", exchangeDurable)
-    c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
-    topics foreach { c.queueBind(queueName, exchangeName, _) }
+    exchange.bind(c)
+    queue.bind(c)
+    topics foreach { c.queueBind(queueName, exchange.exchangeName, _) }
   }
 }
 
-case class TopicBindingPassive(queueName: String, topics: List[String], exchangeName: String = RabbitControl topicExchangeName) extends Binding {
-  def bind(c: Channel): Unit = {
-    c.exchangeDeclarePassive(exchangeName)
-    c.queueDeclarePassive(queueName)
-    topics foreach { c.queueBind(queueName, exchangeName, _)}
+/**
+  Passively connect to a queue. If the queue does not exist already,
+  then either try the fallback binding, or fail.
+
+  This is useful when binding to a queue defined by another process, and with pre-existing properties set, such as `x-message-ttl`.
+
+  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
+  */
+private class QueueBindingPassive(val queueName: String, ifNotDefined: Option[Binding] = None) extends Binding {
+  def bind(channel: Channel): Unit = {
+    RabbitHelpers.tempChannel(channel.getConnection) { t =>
+      t.queueDeclarePassive(queueName)
+    }.left.foreach { ex =>
+      ifNotDefined.map(_.bind(channel)) getOrElse { throw ex }
+    }
+  }
+}
+
+/**
+  Passively declare an exchange. If the queue does not exist already,
+  then either try the fallback binding, or fail.
+
+  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#exchangeDeclarePassive(java.lang.String) Channel.exchangeDeclarePassive]].
+  */
+private class ExchangeBindingPassive[T <: ExchangeBinding.Value](val exchangeName: String, ifNotDefined: Option[ExchangeBinding[T]] = None) extends ExchangeBinding[T] {
+  def bind(channel: Channel): Unit = {
+    RabbitHelpers.tempChannel(channel.getConnection) { t =>
+      t.exchangeDeclarePassive(exchangeName)
+    }.left.foreach { ex =>
+      ifNotDefined.map(_.bind(channel)) getOrElse { throw ex }
+    }
   }
 }
 
@@ -66,25 +114,23 @@ case class QueueBinding(
   queueName: String,
   durable: Boolean = true,
   exclusive: Boolean = false,
-  autoDelete: Boolean = false) extends Binding {
+  autoDelete: Boolean = false,
+  arguments: Seq[Header] = Seq()
+) extends Binding {
 
   def bind(c: Channel): Unit = {
-    c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
+    c.queueDeclare(queueName, durable, exclusive, autoDelete,
+      if (arguments.isEmpty)
+        null
+      else
+        arguments.foldLeft(new java.util.HashMap[String, Object]) { (m, header) => header(m); m }
+    )
   }
 }
 
-/**
-  Passively connect to a queue. If the queue does not exist already,
-  then the subscription fails. (and will not retry).
-
-  This is useful when binding to a queue defined by another process, and with pre-existing properties set, such as `x-message-ttl`.
-
-  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
-  */
-case class QueueBindingPassive(queueName: String) extends Binding {
-  def bind(c: Channel): Unit = {
-    c.queueDeclarePassive(queueName)
-  }
+object QueueBinding {
+  def passive(queueName: String): Binding = new QueueBindingPassive(queueName, None)
+  def passive(binding: Binding): Binding = new QueueBindingPassive(binding.queueName, Some(binding))
 }
 
 /**
@@ -100,7 +146,7 @@ case class QueueBindingPassive(queueName: String) extends Binding {
   support. Scala maps / seqs are appropriately converted.
 
   @param queueName    The name of the message queue to declare; the consumer paired with this binding will pull from this.
-  @param exchangeName The name of the fanout exchange; idempotently declared.
+  @param exchangeName The name of the headers exchange; idempotently declared. Note: using the same name for a headersExchange as a topic exchange will result in errors.
   @param headers      List of modeled Header values used for matching.
   @param matchAll     Should all headers match in order to route the message to this queue? Default true. If false, then any if any of the match headers are matched, route the message. Pointless if only one match header defined.
   @param durable      Specifies whether or not the message queue contents should survive a broker restart; default false.
@@ -109,23 +155,21 @@ case class QueueBindingPassive(queueName: String) extends Binding {
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class HeadersBinding(
-  queueName: String,
-  exchangeName: String,
+  queue: QueueBinding,
+  exchange: ExchangeBinding[ExchangeBinding.Headers.type],
   headers: Seq[com.spingo.op_rabbit.properties.Header],
   matchAll: Boolean = true,
-  durable: Boolean = true,
-  exclusive: Boolean = false,
-  autoDelete: Boolean = false,
-  exchangeDurable: Option[Boolean] = None) extends Binding {
+  exchangeDurable: Boolean = true) extends Binding {
+  val queueName = queue.queueName
   def bind(c: Channel): Unit = {
-    c.exchangeDeclare(exchangeName, "headers", exchangeDurable.getOrElse(durable))
+    exchange.bind(c)
+    queue.bind(c)
     val bindingArgs = new java.util.HashMap[String, Object]
     bindingArgs.put("x-match", if (matchAll) "all" else "any") //any or all
     headers.foreach { case Header(name, value) =>
       bindingArgs.put(name, value.serializable)
     }
-    c.queueDeclare(queueName, durable, exclusive, autoDelete, null)
-    c.queueBind(queueName, exchangeName, "", bindingArgs);
+    c.queueBind(queueName, exchange.exchangeName, "", bindingArgs);
   }
 }
 

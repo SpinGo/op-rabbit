@@ -19,19 +19,17 @@ object Subscription {
 
 /**
   A Subscription combines together a [[Binding]] and a [[Consumer]], where the binding defines how the message queue is declare and if any topic bindings are involved, and the consumer declares how messages are to be consumed from the message queue specified by the [[Binding]]. This object is sent to [[RabbitControl]] to activate.
-
-  It features convenience methods to with Futures to help timing.
   */
 class Subscription private(config: BoundChannel) extends Directives {
   // def config: BoundChannel
 
-  lazy val _config = config
-  lazy val channelConfiguration = _config.configuration
-  lazy val binding = _config.boundSubscription.binding
-  lazy val handler = _config.boundSubscription.handler
-  lazy val _errorReporting = _config.boundSubscription.errorReporting
-  lazy val _recoveryStrategy = _config.boundSubscription.recoveryStrategy
-  lazy val _executionContext = _config.boundSubscription.executionContext
+  protected [op_rabbit] lazy val _config = config
+  protected [op_rabbit] lazy val channelConfiguration = _config.configuration
+  protected [op_rabbit] lazy val binding = _config.boundSubscription.binding
+  protected [op_rabbit] lazy val handler = _config.boundSubscription.handler
+  protected [op_rabbit] lazy val _errorReporting = _config.boundSubscription.errorReporting
+  protected [op_rabbit] lazy val _recoveryStrategy = _config.boundSubscription.recoveryStrategy
+  protected [op_rabbit] lazy val _executionContext = _config.boundSubscription.executionContext
 
   def register(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
     implicit val akkaTimeout = Timeout(timeout)

@@ -137,7 +137,7 @@ val subscriptionRef = Subscription.register(rabbitControl) {
       (body(as[Person]) & routingKey ) { (person, key) =>
         // do work; this body is executed in a separate thread, as provided by the implicit execution context
         println(s"A person named '${person.name}' with age ${person.age} was received over '${key}'.")
-        ack()
+        ack
       }
     }
   }
@@ -183,7 +183,7 @@ import com.spingo.op_rabbit.properties._
       body(as[Person]) { person =>
         optionalProperty(ReplyTo) { replyTo =>
           // do work
-          ack()
+          ack
         }
       }
 // ...
@@ -196,7 +196,7 @@ Or, you can combine directives using `&` to form a compound directive, as follow
 // ...
       (body(as[Person]) & optionalProperty(ReplyTo)) { (person, replyTo) =>
         // do work
-        ack()
+        ack
       }
 // ...
 ```

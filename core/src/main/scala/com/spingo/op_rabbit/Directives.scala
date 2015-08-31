@@ -76,7 +76,7 @@ case class ChannelDirective(config: ChannelConfiguration) {
 
   As seen, directives are composable via `&`. In the end, the directive is applied with a function whose parameters match the output values from the directive(s).
 
-  One value the directives, over accessing the properties directly, is that they are type safe, and care was taken to reduce the probability of surprise. Death is swiftly issued to `null` and `Object`. Some directives, such as [[Directives.property property]], will nack the message if the value specified can't be extracted; IE it is null. If you'd prefer to use a default value instead of nacking the message, you can specify alternative values using `| provide(...)`.
+  One value of the directives, as opposed to accessing the AMQP properties directly, is that they are type safe, and care was taken to reduce the probability of surprise. Death is swiftly issued to `null` and `Object`. Some directives, such as [[Directives.property property]], will nack the message if the value specified can't be extracted; IE it is null. If you'd prefer to use a default value instead of nacking the message, you can specify alternative values using `| provide(...)`.
 
   {{{
   (property(ReplyTo) | provide("default-reply-to") { replyTo =>
@@ -124,26 +124,22 @@ trait Directives {
    * Passive queue binding
    */
   def pqueue(queue: String) =
-    QueueBindingPassive(queue)
+    QueueBinding.passive(queue)
 
 
   def topic(
-    queue: String,
+    queue: QueueBinding,
     topics: List[String],
-    exchange: String = RabbitControl topicExchangeName,
-    durable: Boolean = true,
-    exclusive: Boolean = false,
-    autoDelete: Boolean = false,
-    exchangeDurable: Boolean = true) = TopicBinding(queue, topics, exchange, durable, exclusive, autoDelete, exchangeDurable)
+    exchange: ExchangeBinding[ExchangeBinding.Topic.type] = ExchangeBinding.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
 
   /**
    * Passive topic binding
    */
-  def ptopic(
-    queue: String,
-    topics: List[String],
-    exchange: String = RabbitControl topicExchangeName) =
-    TopicBindingPassive(queue, topics, exchange)
+  def passive(queue: QueueBinding): Binding =
+    QueueBinding.passive(queue)
+
+  def passive[T <: ExchangeBinding.Value](exchange: ExchangeBinding[T]): ExchangeBinding[T] =
+    ExchangeBinding.passive(exchange)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
   def typeOf[T] = new TypeHolder[T]

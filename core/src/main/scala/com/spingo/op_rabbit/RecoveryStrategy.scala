@@ -28,16 +28,13 @@ object RecoveryStrategy {
       Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.
       */
     def failedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, delivery) =>
-      val recoveryQueueName = s"${queueName}.failed"
-      RabbitHelpers.tempChannel(channel.getConnection) { t =>
-        t.queueDeclarePassive(recoveryQueueName)
-      }.left.foreach { _ =>
-        // it doesn't exist yet.
-        val bindingArgs = new java.util.HashMap[String, Object]
-        Header("x-message-ttl", defaultTTL.toMillis.toInt).apply(bindingArgs)
-        channel.queueDeclare(recoveryQueueName, true, false, false, bindingArgs)
-      }
-      channel.basicPublish("", recoveryQueueName, delivery.properties, delivery.body)
+      val failureQueue = QueueBinding.passive(
+        QueueBinding(
+          s"${queueName}.failed",
+          durable = true,
+          arguments = Seq(Header("x-message-ttl", defaultTTL.toMillis.toInt))))
+      failureQueue.bind(channel)
+      channel.basicPublish("", failureQueue.queueName, delivery.properties, delivery.body)
       Future.successful(())
     }
 
