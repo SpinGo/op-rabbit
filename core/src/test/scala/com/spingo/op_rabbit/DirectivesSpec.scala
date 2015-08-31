@@ -9,7 +9,7 @@ import scala.concurrent.duration._
 class DirectivesSpec extends FunSpec with Matchers {
   val dummyEnvelope = new Envelope(1L, false, "kthx", "bai")
 
-  val acked: Result = Right()
+  val acked: Result = Right(Ack(1L))
 
   def await[T](f: Future[T], duration: Duration = 5 seconds) =
     Await.result(f, duration)

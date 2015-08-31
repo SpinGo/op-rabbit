@@ -9,9 +9,11 @@ import scala.collection.JavaConversions._
   Trait which describes converters that convert a [[HeaderValue]] from one type to another.
   */
 trait FromHeaderValue[T] { self =>
+  val manifest: Manifest[T]
   def apply(hv: HeaderValue): Either[FromHeaderValue.HeaderValueConversionException, T]
 
-  def map[U](fn: T => U) = new FromHeaderValue[U] {
+  def map[U : Manifest](fn: T => U) = new FromHeaderValue[U] {
+    val manifest = implicitly[Manifest[U]]
     def apply(hv: HeaderValue): Either[FromHeaderValue.HeaderValueConversionException, U] =
       self(hv).right.map(fn)
   }
@@ -22,6 +24,7 @@ object FromHeaderValue {
   case class HeaderValueConversionException(msg: String, cause: Throwable = null) extends Exception(msg, cause)
 
   case class StringFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[String] {
+    val manifest = implicitly[Manifest[String]]
     def apply(hv: HeaderValue) = {
       Right(hv.asString(charset))
     }
@@ -37,6 +40,7 @@ object FromHeaderValue {
   }
 
   case class ByteFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Byte] {
+    val manifest = implicitly[Manifest[Byte]]
     def apply(hv: HeaderValue) = NumericValueConversion[Byte](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toByte)
       case StringHeaderValue(v)     => Right(v.toByte)
@@ -51,6 +55,7 @@ object FromHeaderValue {
   }
 
   case class IntFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Int] {
+    val manifest = implicitly[Manifest[Int]]
     def apply(hv: HeaderValue) = NumericValueConversion[Int](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toInt)
       case StringHeaderValue(v)     => Right(v.toInt)
@@ -65,6 +70,7 @@ object FromHeaderValue {
   }
 
   case class FloatFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Float] {
+    val manifest = implicitly[Manifest[Float]]
     def apply(hv: HeaderValue) =  NumericValueConversion[Float](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toFloat)
       case StringHeaderValue(v)     => Right(v.toFloat)
@@ -79,6 +85,7 @@ object FromHeaderValue {
   }
 
   case class DoubleFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Double] {
+    val manifest = implicitly[Manifest[Double]]
     def apply(hv: HeaderValue) = NumericValueConversion[Double](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toDouble)
       case StringHeaderValue(v)     => Right(v.toDouble)
@@ -93,6 +100,7 @@ object FromHeaderValue {
   }
 
   case class BigDecimalFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[BigDecimal] {
+    val manifest = implicitly[Manifest[BigDecimal]]
     def apply(hv: HeaderValue) = NumericValueConversion[BigDecimal](hv) {
       case v: LongStringHeaderValue => Right(BigDecimal(v.asString(charset)))
       case StringHeaderValue(v)     => Right(BigDecimal(v))
@@ -107,6 +115,7 @@ object FromHeaderValue {
   }
 
   case class LongFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Long] {
+    val manifest = implicitly[Manifest[Long]]
     def apply(hv: HeaderValue) = NumericValueConversion[Long](hv) {
       case v: LongStringHeaderValue => Right(v.asString(charset).toLong)
       case StringHeaderValue(v)     => Right(v.toLong)
@@ -121,6 +130,8 @@ object FromHeaderValue {
   }
 
   case class SeqFromHeaderValue[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: FromHeaderValue[T]) extends FromHeaderValue[Seq[T]] {
+    implicit val subManifest = subConverter.manifest
+    val manifest = implicitly[Manifest[Seq[T]]]
     def apply(hv: HeaderValue): Either[HeaderValueConversionException, Seq[T]] = hv match {
       case SeqHeaderValue(seq) => {
         val builder = Seq.newBuilder[T]
@@ -138,6 +149,8 @@ object FromHeaderValue {
   }
 
   case class MapFromHeaderValue[T](charset: Charset = Charset.defaultCharset)(implicit subConverter: FromHeaderValue[T]) extends FromHeaderValue[Map[String, T]] {
+    implicit val subManifest = subConverter.manifest
+    val manifest = implicitly[Manifest[Map[String, T]]]
     def apply(hv: HeaderValue): Either[HeaderValueConversionException, Map[String, T]] = hv match {
       case MapHeaderValue(map) => {
         val builder = Map.newBuilder[String, T]

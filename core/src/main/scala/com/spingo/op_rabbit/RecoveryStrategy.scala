@@ -1,6 +1,7 @@
 package com.spingo.op_rabbit
 
 import akka.actor.ActorSystem
+import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Channel
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -17,30 +18,32 @@ import com.spingo.op_rabbit.properties.PimpedBasicProperties
   - Failure(ex) nacks the message, and causes the consumer to stop.
   */
 abstract class RecoveryStrategy {
-  def apply(exception: Throwable, channel: Channel, queueName: String, delivery: Delivery, actorSystem: ActorSystem): Future[Boolean]
+  def apply(exception: Throwable, channel: Channel, queueName: String, actorSystem: ActorSystem): Handler
 }
 
 object RecoveryStrategy {
   object LimitedRedeliver {
-    type AbandonStrategy = (String, Channel, Delivery) => Future[Unit]
+    import Directives._
+
+    type AbandonStrategy = (String, Channel, BasicProperties, Array[Byte]) => Handler
     import Queue.ModeledArgs.`x-message-ttl`
 
     /**
       Places messages into a queue with ".failed" appended; after ttl (default of 1 day), these messages are dropped.
       */
-    def failedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, delivery) =>
+    def failedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
       val failureQueue = Queue.passive(
         Queue(
           s"${queueName}.failed",
           durable = true,
           arguments = Seq(`x-message-ttl`(defaultTTL))))
       failureQueue.declare(channel)
-      channel.basicPublish("", failureQueue.queueName, delivery.properties, delivery.body)
-      Future.successful(())
+      channel.basicPublish("", failureQueue.queueName, amqpProperties, body)
+      ack
     }
 
-    val drop: AbandonStrategy = { (queueName, channel, delivery) =>
-      Future.successful(())
+    val drop: AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
+      Directives.nack(false)
     }
   }
 
@@ -52,44 +55,53 @@ object RecoveryStrategy {
            (setting since nothing consumes the direct exchange, it will go back to retry queue)
    */
   def limitedRedeliver(redeliverDelay: FiniteDuration = 10 seconds, retryCount: Int = 3, onAbandon: LimitedRedeliver.AbandonStrategy = LimitedRedeliver.drop) = new RecoveryStrategy {
+    import Directives._
+    val `x-retry` = properties.TypedHeader[Int]("x-retry")
 
-    def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery, actorSystem: ActorSystem): Future[Boolean] = {
+    private val getRetryCount = (property(`x-retry`) | provide(0))
+    def apply(ex: Throwable, channel: Channel, queueName: String, actorSystem: ActorSystem): Handler = {
       import actorSystem.dispatcher
-      val thisRetryCount = PropertyHelpers.getRetryCount(delivery.properties)
-      val exceptionHeader = PropertyHelpers.makeExceptionHeader(ex)
-      if (thisRetryCount < retryCount)
-        // NOTE !!! errors are swallowed here!!
-        akka.pattern.after(redeliverDelay, actorSystem.scheduler) {
-          channel.basicPublish("",
-            queueName,
-            delivery.properties ++ Seq(PropertyHelpers.RetryHeader(thisRetryCount + 1), exceptionHeader),
-            delivery.body)
-          // By returning a successful future, we cause the consumer to ack the original message; this is desired since we have delivered a new copy
-          // This is safe because if the redeliver fails because of a lost connection, then so will the ack.
-          Future.successful(true)
-        } else {
 
+
+      (getRetryCount & extract(_.properties) & body(as[Array[Byte]])) { (thisRetryCount, amqpProperties, body) =>
+        val exceptionHeader = PropertyHelpers.makeExceptionHeader(ex)
+        if (thisRetryCount < retryCount) {
+          ack {
+            akka.pattern.after(redeliverDelay, actorSystem.scheduler) {
+              channel.basicPublish("",
+                queueName,
+                amqpProperties ++ Seq(`x-retry`(thisRetryCount + 1), exceptionHeader),
+                body)
+              // By returning a successful future, we cause the consumer to ack the original message; this is desired since we have delivered a new copy
+              // This is safe because if the redeliver fails because of a lost connection, then so will the ack.
+              Future.successful(true)
+            }
+          }
+        } else {
           onAbandon(queueName,
             channel,
-            delivery.copy(properties = delivery.properties + exceptionHeader))
-          // Give up; ack original message, don't redeliver
-          Future.successful(true)
+            amqpProperties + exceptionHeader,
+            body)
         }
+      }
     }
   }
 
   implicit def default = limitedRedeliver()
 
   /**
-    Nack the message. Note, this will cause RabbitMQ to redeliver the message forever; in most cases, this is undesirable.
+    Nack the message. Note, when requeue = true, RabbitMQ will potentially redeliver the message forever; in most cases, this is undesirable.
     */
-  val nack: RecoveryStrategy = new RecoveryStrategy {
-    def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery, actorSystem: ActorSystem): Future[Boolean] =
-      Future.successful(false)
+  def nack(requeue: Boolean = false): RecoveryStrategy = new RecoveryStrategy {
+    def apply(ex: Throwable, channel: Channel, queueName: String, actorSystem: ActorSystem): Handler =
+      Directives.nack(requeue)
   }
 
+  /**
+    No recovery strategy; cause the consumer to shutdown on exception.
+    */
   val none: RecoveryStrategy = new RecoveryStrategy {
-    def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery, actorSystem: ActorSystem): Future[Boolean] =
-      Future.failed(ex)
+    def apply(ex: Throwable, channel: Channel, queueName: String, actorSystem: ActorSystem): Handler =
+      Directives.ack(Future.failed(ex))
   }
 }

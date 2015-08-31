@@ -6,6 +6,9 @@ import java.util.Date
 import scala.concurrent.duration._
 
 package object properties {
+
+  import com.spingo.op_rabbit.ParseExtractRejection
+
   type ToHeaderValue[T, V <: HeaderValue] = T => V
   type HeaderMap = java.util.HashMap[String, Object]
   trait MessageProperty {
@@ -44,13 +47,14 @@ package object properties {
     override final def extractorName = s"Header($name)"
 
     final def extract(properties: BasicProperties): Option[T] =
-      UnboundHeader(name).extract(properties) flatMap { hv =>
-        fromHeaderValue(hv).right.toOption
-      }
+      Option(properties.getHeaders).flatMap(extract)
 
     final def extract(m: java.util.Map[String, Object]): Option[T] =
       UnboundHeader(name).extract(m) flatMap { hv =>
-        fromHeaderValue(hv).right.toOption
+        fromHeaderValue(hv) match {
+          case Left(ex) => throw new ParseExtractRejection("Header ${name} exists, but value could not be converted to ${fromHeaderValue.manifest}", ex)
+          case Right(v) => Some(v)
+        }
       }
 
     final def apply(value: T) =

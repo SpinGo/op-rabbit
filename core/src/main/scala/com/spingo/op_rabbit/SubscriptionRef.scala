@@ -20,7 +20,7 @@ trait SubscriptionRef {
 
     If pending messages aren't complete after the provided timeout (default 5 minutes), the channel is closed and the unacknowledged messages will be scheduled for redelivery.
     */
-  def close(timeout: FiniteDuration = 5 minutes): Unit
+  def close(timeout: FiniteDuration = SubscriptionActor.Stop.defaultTimeout): Unit
 
   /**
     Like close, but don't wait for pending messages to finish processing.
@@ -29,7 +29,7 @@ trait SubscriptionRef {
 }
 
 private [op_rabbit] case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Future[Unit], closed: Future[Unit]) extends SubscriptionRef {
-  def close(timeout: FiniteDuration = 5 minutes): Unit =
+  def close(timeout: FiniteDuration = SubscriptionActor.Stop.defaultTimeout): Unit =
     subscriptionActor ! SubscriptionActor.Stop(None, timeout)
 
   def abort(): Unit =

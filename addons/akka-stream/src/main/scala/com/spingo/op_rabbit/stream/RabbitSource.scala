@@ -140,11 +140,10 @@ object RabbitSource {
     val leActor: ActorRef = refFactory.actorOf(Props(new RabbitSourceActor(abort, consumerStopped.future, channelDirective.config.qos, messageReceivedExtractor )))
 
     def interceptingRecoveryStrategy = new RecoveryStrategy {
-      def apply(ex: Throwable, channel: Channel, queueName: String, delivery: Delivery, as: ActorSystem): Future[Boolean] = {
-        val downstream = recoveryStrategy(ex, channel, queueName, delivery, as)
+      def apply(ex: Throwable, channel: Channel, queueName: String, as: ActorSystem): Handler = { (p, delivery) =>
+        recoveryStrategy(ex, channel, queueName, as)(p, delivery)
         // if recovery strategy fails, then yield the exception through the stream
-        downstream.onFailure({ case ex => leActor ! StreamException(ex) })(SameThreadExecutionContext)
-        downstream
+        p.future.onFailure({ case ex => leActor ! StreamException(ex) })(SameThreadExecutionContext)
       }
     }
 

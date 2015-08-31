@@ -9,7 +9,7 @@ import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import scala.util.Random
+import scala.util.{Random,Try,Failure}
 
 class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
@@ -66,6 +66,33 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         }
         val results = Await.result(Future.sequence(promises map (_.future)), 5 minutes)
         results should be(range toList)
+      }
+    }
+  }
+
+  describe("RecoveryStrategy none") {
+    it("shuts down the subscription and passes the exception through subscriptionRef.closed") {
+      new RabbitFixtures {
+        implicit val recoveryStrategy = RecoveryStrategy.none
+        case object LeError extends Exception("le error")
+
+        val subscription = Subscription.run(rabbitControl) {
+          import Directives._
+
+          channel(1) {
+            consume(queue(queueName)) {
+              body(as[Int]) { b =>
+                throw LeError
+                ack
+              }
+            }
+          }
+        }
+
+        Await.result(subscription.initialized, 10 seconds)
+        rabbitControl ! Message.queue(1, queueName)
+
+        Try(Await.result(subscription.closed, 10 seconds)) should be (Failure(LeError))
       }
     }
   }
@@ -201,7 +228,6 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
           channel(qos = 8) {
             consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)) {
               body(as[Int]) { i =>
-                println(s"${i} received")
                 receivedCounts(i) = receivedCounts(i) + 1
                 received(i).success(())
                 ackThem.future.map { _ => Thread.sleep(50 * i) }

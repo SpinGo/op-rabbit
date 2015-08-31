@@ -37,8 +37,12 @@ object RabbitExceptionMatchers {
   object NonFatalRabbitException {
     def unapply[T <: Throwable](e: T): Option[T] =
       e match {
-        case _: IOException             => Some(e)
-        case _: ShutdownSignalException => Some(e)
+        case (_: ShutdownSignalException)
+           | UnknownConsumerTagException(_)
+           | ShuttingDownException(_)
+           | AlreadyClosedException(_)
+            => Some(e)
+        case _ => None
       }
   }
 }

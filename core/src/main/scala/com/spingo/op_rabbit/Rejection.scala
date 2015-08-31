@@ -9,4 +9,3 @@ sealed trait ExtractRejection extends Rejection
 case class ParseExtractRejection(val reason: String, cause: Throwable = null) extends Exception(reason, cause) with ExtractRejection
 
 case class ValueExpectedExtractRejection(reason: String, cause: Throwable = null) extends Exception(reason, cause) with ExtractRejection
-case class NackRejection(reason: String) extends Exception(reason) with Rejection

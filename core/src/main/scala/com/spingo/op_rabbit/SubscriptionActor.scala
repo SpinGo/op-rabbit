@@ -116,7 +116,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
 
     case _ -> Paused =>
       nextConnectedState { d =>
-        d.consumer.foreach(_ ! Consumer.Unsubscribe)
+        d.consumer.foreach(_ ! impl.Consumer.Unsubscribe)
       }
 
     case _ -> Stopping =>
@@ -126,7 +126,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
             case None =>
               self ! Abort(None)
             case Some(consumer) =>
-              consumer ! Consumer.Shutdown
+              consumer ! impl.Consumer.Shutdown(None)
           }
         case _ =>
           self ! Abort(None)
@@ -182,7 +182,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
       channel.basicQos(connectionInfo.qos)
       subscription.queue.declare(channel)
       initialized.trySuccess()
-      connectionInfo.consumer.foreach(_ ! Consumer.Subscribe(channel))
+      connectionInfo.consumer.foreach(_ ! impl.Consumer.Subscribe(channel))
       goto(Running) using connectionInfo
     } catch {
       case ex: ShutdownSignalException =>
@@ -219,22 +219,25 @@ object SubscriptionActor {
 
   sealed trait Commands
 
-  case class Stop(shutdownCause: Option[ShutdownSignalException], timeout: FiniteDuration) extends Commands
-  case class Abort(shutdownCause: Option[ShutdownSignalException]) extends Commands
+  case class Stop(shutdownCause: Option[Throwable], timeout: FiniteDuration = Stop.defaultTimeout) extends Commands
+  object Stop {
+    val defaultTimeout = 5 minutes
+  }
+  case class Abort(shutdownCause: Option[Throwable]) extends Commands
 
   sealed trait SubscriptionPayload {
     val qos: Int
-    val shutdownCause: Option[ShutdownSignalException]
-    def copyCommon(qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause): SubscriptionPayload
+    val shutdownCause: Option[Throwable]
+    def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause): SubscriptionPayload
   }
 
-  case class DisconnectedPayload(nextState: State, qos: Int, shutdownCause: Option[ShutdownSignalException] = None) extends SubscriptionPayload {
-    def copyCommon(qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause) =
+  case class DisconnectedPayload(nextState: State, qos: Int, shutdownCause: Option[Throwable] = None) extends SubscriptionPayload {
+    def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause) =
       copy(qos = qos, shutdownCause = shutdownCause)
   }
 
-  case class ConnectedPayload(channelActor: ActorRef, channel: Channel, qos: Int, consumer: Option[ActorRef], shutdownCause: Option[ShutdownSignalException] = None) extends SubscriptionPayload {
-    def copyCommon(qos: Int = qos, shutdownCause: Option[ShutdownSignalException] = shutdownCause) =
+  case class ConnectedPayload(channelActor: ActorRef, channel: Channel, qos: Int, consumer: Option[ActorRef], shutdownCause: Option[Throwable] = None) extends SubscriptionPayload {
+    def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause) =
       copy(qos = qos, shutdownCause = shutdownCause)
   }
 }

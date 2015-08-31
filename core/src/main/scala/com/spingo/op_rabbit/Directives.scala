@@ -12,16 +12,23 @@ object Ackable {
     val handler: Handler = { (p, delivery) =>
       // TODO - reuse thread
       import scala.concurrent.ExecutionContext.Implicits.global
-      p.completeWith(f.map(_ => Right(Unit)))
+      p.completeWith(f.map(_ => Right(Ack(delivery.envelope.getDeliveryTag))))
     }
   }
 
-  val ackUnitHandler: Handler = { (p, delivery) =>
-    p.success(Right(Unit))
+  val ackHandler: Handler = { (p, delivery) =>
+    p.success(Right(Ack(delivery.envelope.getDeliveryTag)))
+  }
+
+  private [op_rabbit] val nackNoRequeueHandler: Handler = { (p, delivery) =>
+    p.success(Right(Nack(false, delivery.envelope.getDeliveryTag)))
+  }
+  private [op_rabbit] val nackRequeueHandler: Handler = { (p, delivery) =>
+    p.success(Right(Nack(true, delivery.envelope.getDeliveryTag)))
   }
 
   val unitAck = new Ackable {
-    val handler: Handler = ackUnitHandler
+    val handler: Handler = ackHandler
   }
 
   implicit def ackableFromUnit(u: Unit) = unitAck
@@ -30,19 +37,6 @@ object Ackable {
 protected class TypeHolder[T] {}
 protected object TypeHolder {
   def apply[T] = new TypeHolder[T]
-}
-
-private trait Nackable {
-  val handler: Handler
-}
-
-private object Nackable {
-  implicit def nackableFromString(u: String) = new Nackable {
-    val handler: Handler = { (p, _) => p.success(Left(NackRejection(u))) }
-  }
-  implicit def nackableFromUnit(u: Unit) = new Nackable {
-    val handler: Handler = { (p, _) => p.success(Left(NackRejection("General Handler Rejection"))) }
-  }
 }
 
 private [op_rabbit] case class BoundConsumerDefinition(queue: QueueDefinition, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
@@ -167,20 +161,12 @@ trait Directives {
     Note that in the case of acking with a Future, if the Future fails, then the message is counted as erroneous, and the [[RecoveryStrategy]] is use is applied.
     */
   def ack(f: Ackable): Handler = f.handler
-  def ack: Handler = Ackable.ackUnitHandler
+  def ack: Handler = Ackable.ackHandler
 
   /**
     Nack the message; does NOT trigger the [[RecoveryStrategy]] in use.
-
-    Examples:
-
-    {{{
-    nack()
-
-    nack(Rejection("I can't handle this message right now")
-    }}}
     */
-  def nack(f: Nackable): Handler = f.handler
+  def nack(requeue: Boolean): Handler = if (requeue) Ackable.nackRequeueHandler else Ackable.nackNoRequeueHandler
 
   /**
     Extract the message body. Uses a [[com.spingo.op_rabbit.RabbitUnmarshaller RabbitUnmarshaller]] to deserialize.

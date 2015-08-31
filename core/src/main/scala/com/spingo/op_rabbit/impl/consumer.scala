@@ -1,11 +1,11 @@
-package com.spingo.op_rabbit
+package com.spingo.op_rabbit.impl
 
 import akka.actor.{ActorSystem, Props}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.thenewmotion.akka.rabbitmq.Channel
 
-object Consumer {
+private [op_rabbit] object Consumer {
   sealed trait ConsumerCommand
 
   /**
@@ -25,11 +25,11 @@ object Consumer {
    wait for any pending messages to be acknowledged, and then stops the
    actor
    */
-  case object Shutdown extends ConsumerCommand
+  case class Shutdown(cause: Option[Throwable]) extends ConsumerCommand
 
   /**
    Like shutdown, but does not wait for pending messages to be
    acknowledged before stopping the actor
    */
-  case object Abort extends ConsumerCommand
+  case class Abort(cause: Option[Throwable]) extends ConsumerCommand
 }
