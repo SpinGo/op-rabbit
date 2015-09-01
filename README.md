@@ -132,8 +132,8 @@ val subscriptionRef = Subscription.run(rabbitControl) {
   import Directives._
   // A qos of 3 will cause up to 3 concurrent messages to be processed at any given time.
   channel(qos = 3) {
-    consume(topic("such-message-queue", List("some-topic.#"))) {
-      (body(as[Person]) & routingKey ) { (person, key) =>
+    consume(topic(queue("such-message-queue"), List("some-topic.#"))) {
+      (body(as[Person]) & routingKey) { (person, key) =>
         // do work; this body is executed in a separate thread, as provided by the implicit execution context
         println(s"A person named '${person.name}' with age ${person.age} was received over '${key}'.")
         ack
@@ -272,7 +272,6 @@ import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Format[Work] // setup play-json serializer
 
 val sink = ConfirmedPublisherSink[Work](
-  "my-sink-name",
   rabbitControl,
   Message.factory(Publisher.queue(queueName())))
 
