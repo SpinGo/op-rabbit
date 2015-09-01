@@ -89,7 +89,7 @@ Set up RabbitMQ connection information in `application.conf`:
 
 ```conf
 op-rabbit {
-  topic-exchange-name = "op-rabbit-testeroni"
+  topic-exchange-name = "amq.topic"
   connection {
     virtual-host = "/"
     hosts = ["127.0.0.1"]
