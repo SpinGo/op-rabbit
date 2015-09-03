@@ -1,0 +1,10 @@
+op-rabbit {
+  topic-exchange-name = "op-rabbit-testeroni"
+  connection {
+    hosts = ["127.0.0.1"]
+    username = "guest"
+    password = "guest"
+    connection-timeout = 1s
+    port = 5672
+  }
+}
