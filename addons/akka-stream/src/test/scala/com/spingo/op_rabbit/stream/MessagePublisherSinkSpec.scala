@@ -12,12 +12,13 @@ import com.timcharper.acked.AckedSource
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Try,Failure}
 import shapeless._
 
-class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
+class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   implicit val executionContext = ExecutionContext.global
 
-  val queueName = ScopedFixture[String] { setter =>
+  val _queueName = ScopedFixture[String] { setter =>
     val name = s"test-queue-rabbit-control-${Math.random()}"
     deleteQueue(name)
     val r = setter(name)
@@ -33,43 +34,59 @@ class ConfirmedPublisherSinkSpec extends FunSpec with ScopedFixtures with Matche
         exceptionReported.success(true)
       }
     }
+    val queueName = _queueName()
     val rabbitControl = actorSystem.actorOf(Props(new RabbitControl))
     val range = (0 to 16)
     val qos = 8
   }
 
-  describe("confirmedPublisher") {
+  describe("PublisherSink") {
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
 
         val (subscription, consumed) = RabbitSource(
           rabbitControl,
           channel(qos),
-          consume(queue(queueName(), durable = true, exclusive = false, autoDelete = false)),
+          consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)),
           body(as[Int])).
           acked.
           take(range.length).
           toMat(Sink.fold(List.empty[Int]) {
             case (acc, v) =>
-              println(s"${v == range.max} ${v} == ${range.max}")
               acc ++ List(v)
           })(Keep.both).run
 
         await(subscription.initialized)
 
-        val sink = MessagePublisherSink[Int](
-          rabbitControl,
-          Message.factory(Publisher.queue(queueName())))
-
         val data = range map { i => (Promise[Unit], i) }
 
         val published = AckedSource(data).
-          runWith(sink)
+          map(Message.queue(_, queueName)).
+          runWith(MessagePublisherSink(rabbitControl))
 
         await(published)
         await(Future.sequence(data.map(_._1.future))) // this asserts that all of the promises were fulfilled
         await(consumed) should be (range)
       }
     }
+
+    it("propagates publish exceptions to promise") {
+      new RabbitFixtures {
+        val factory = Message.factory(VerifiedQueuePublisher("no-existe"))
+        val sink = MessagePublisherSink(rabbitControl)
+
+        val data = range map { i => (Promise[Unit], i) }
+
+        val published = AckedSource(data).
+          map(Message(_, VerifiedQueuePublisher("no-existe"))).
+          runWith(sink)
+
+        await(published)
+        val Failure(ex) = Try(await(data.head._1.future))
+        ex.getMessage should include ("no queue 'no-existe'")
+      }
+    }
   }
+
+
 }

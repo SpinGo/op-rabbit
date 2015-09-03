@@ -72,8 +72,8 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
     }
   }
 
-  describe("ConfirmedMessage publication") {
-    it("fulfills the published promise on delivery confirmation") {
+  describe("Message publication") {
+    it("responds with Ack(msg.id) on delivery confirmation") {
       new RabbitFixtures {
         val subscription = Subscription.run(rabbitControl) {
           import Directives._
@@ -86,7 +86,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         await(subscription.initialized)
 
         val msg = Message(Publisher.queue(queueName), 5)
-        await(rabbitControl ? msg)
+        await(rabbitControl ? msg) should be (Message.Ack(msg.id))
         deleteQueue(queueName)
       }
     }
@@ -156,7 +156,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         keepSending = false
         val lastSent = await(lastSentF)
         val confirmMsg = factory(-1)
-        (rabbitControl ? confirmMsg) foreach { _ =>
+        (rabbitControl ? confirmMsg) foreach { case m: Message.Ack =>
           counter ! ('confirm, -1)
         }
         await(doneReceive.future)

@@ -79,6 +79,7 @@ final class Message(
   val data: Array[Byte],
   val properties: BasicProperties) extends MessageForPublicationLike {
   val dropIfNoChannel = false
+  val id: Long = Message.nextMessageId
   def apply(c: Channel) = publisher(c, data, properties)
 }
 
@@ -101,19 +102,19 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
   }
 
   /**
-    Shorthand for [[.apply ConfirmedMessage]](Publisher.exchange(...), ...)
+    Shorthand for [[.apply Message]](Publisher.exchange(...), ...)
     */
   def exchange[T](message: T, exchange: String, routingKey: String = "", properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
     apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
-    Shorthand for [[.apply ConfirmedMessage]](Publisher.topic(...), ...)
+    Shorthand for [[.apply Message]](Publisher.topic(...), ...)
     */
   def topic[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
     apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
-    Shorthand for [[.apply ConfirmedMessage]](Publisher.queue(...), ...)
+    Shorthand for [[.apply Message]](Publisher.queue(...), ...)
     */
   def queue[T](
     message: T,
@@ -129,6 +130,14 @@ object Message extends MessageFactory[Message] {
   @inline
   def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): Message =
     new Message(publisher, body, properties)
+
+  private var messageSequence = new java.util.concurrent.atomic.AtomicLong()
+  def nextMessageId = messageSequence.getAndIncrement
+
+  sealed trait ConfirmResponse { val id: Long }
+  case class Ack(id: Long) extends ConfirmResponse
+  case class Nack(id: Long) extends ConfirmResponse
+  case class Fail(id: Long, exception: Throwable) extends ConfirmResponse
 }
 
 final class UnconfirmedMessage(

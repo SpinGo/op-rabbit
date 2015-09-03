@@ -13,9 +13,8 @@ package object stream {
 
   import scala.concurrent.{Promise, ExecutionContext}
 
-  type AckTup[T] = (Promise[Unit], T)
-  case object MessageNacked extends Exception(s"A published message was nacked by the broker.")
-
-  @deprecated("ConfirmedPublisherSink has been renamed to MessagePublisherSink", "v1.0.0-RC3")
-  val ConfirmedPublisherSink = MessagePublisherSink
+  /**
+    Used by [[MessagePublisherSink]] to fail elements in the case the [[https://www.rabbitmq.com/confirms.html RabbitMQ broker "negatively acknowledges" a published message]].
+    */
+  class MessageNacked(id: Long) extends Exception(s"Published message with id ${id} was nacked by the broker.")
 }

@@ -6,8 +6,7 @@ import com.spingo.op_rabbit.properties._
 class MessageSpec extends FunSpec with Matchers {
   case class Data(name: String, age: Int)
 
-  // these are stupid tests...
-  describe("QueueMessage") {
+  describe("Message.queue") {
     it("creates a message for delivery, serializes the data, and applies the provided properties, and defaults to persistent") {
       val msg = Message.queue(
         "very payload",
@@ -23,7 +22,7 @@ class MessageSpec extends FunSpec with Matchers {
     }
   }
 
-  describe("TopicMessage") {
+  describe("Message.topic") {
     it("creates a message for delivery, and applies the provided properties, and defaults to persistent") {
       val msg = Message.topic(
         "very payload",
@@ -39,9 +38,11 @@ class MessageSpec extends FunSpec with Matchers {
     }
   }
 
-  describe("ConfirmedMessage") {
-    val msg = Message(Publisher.topic("very.route"), "hi", List(ReplyTo("respond.here.please")))
-    msg.properties.getDeliveryMode should be (2)
-    msg.properties.getReplyTo should be ("respond.here.please")
+  describe("Standard Message") {
+    it("defaults to persistent") {
+      val msg = Message(Publisher.topic("very.route"), "hi", List(ReplyTo("respond.here.please")))
+      msg.properties.getDeliveryMode should be (2)
+      msg.properties.getReplyTo should be ("respond.here.please")
+    }
   }
 }

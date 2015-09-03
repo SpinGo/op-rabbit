@@ -17,7 +17,7 @@ import shapeless._
 
 private [op_rabbit] case class StreamException(e: Throwable)
 
-trait MessageExtractor[Out] {
+private [op_rabbit] trait MessageExtractor[Out] {
   def unapply(m: Any): Option[(Promise[Unit], Out)]
 }
 

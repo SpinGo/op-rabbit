@@ -11,8 +11,9 @@ import scala.collection.mutable
   */
 private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends Actor with Stash {
   case object ChannelDisconnected
-  case class Ack(deliveryTag: Long, multiple: Boolean)
-  case class Nack(deliveryTag: Long, multiple: Boolean)
+  private sealed trait InternalAckOrNack
+  private case class Ack(deliveryTag: Long, multiple: Boolean) extends InternalAckOrNack
+  private case class Nack(deliveryTag: Long, multiple: Boolean) extends InternalAckOrNack
 
   override def preStart =
     connection ! CreateChannel(ChannelActor.props({ (channel, actor) =>
@@ -92,13 +93,13 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
         message(channel)
       } match {
         case Left(ex) =>
-          replyTo ! Status.Failure(ex)
+          replyTo ! Message.Fail(message.id, ex)
         case _ =>
           pendingConfirmation(nextDeliveryTag) = (message, replyTo)
       }
     } catch {
       case ex: Throwable =>
-        replyTo ! Status.Failure(ex)
+        replyTo ! Message.Fail(message.id, ex)
     }
   }
 
@@ -106,9 +107,9 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
 
   def handleAck(deliveryTags: Iterable[Long])(acked: Boolean): Unit = {
     deliveryTags foreach { tag =>
-      val pending = pendingConfirmation(tag)
-      if (pending._2 != deadLetters)
-        pending._2 ! acked
+      val (pendingMessage, pendingSender) = pendingConfirmation(tag)
+      if (pendingSender != deadLetters)
+        pendingSender ! (if (acked) Message.Ack(pendingMessage.id) else Message.Nack(pendingMessage.id))
       pendingConfirmation.remove(tag)
     }
   }
