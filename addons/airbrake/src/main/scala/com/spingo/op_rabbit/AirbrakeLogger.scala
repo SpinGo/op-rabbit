@@ -8,16 +8,19 @@ import com.typesafe.config.ConfigFactory
 import scala.collection.JavaConversions._
 
 /**
-  Instantiates a new RabbitErrorLogging strategy that reports exceptions, along with message and message headers, to Airbrake.
+  == BATTERIES NOT INCLUDED ==
 
-  == Instantiating from config ==
+  To use this package, you must add `'op-rabbit-airbrake'` to your dependencies.
 
-  You can call the convenience lazy-getter and have airbrake configuration pulled from the application configuration:
+  == Overview ==
 
-  {{{AirbrakeLogger.fromConfig}}}
+  Instantiates a new [[RabbitErrorLogging]] strategy that reports exceptions, along with message and message headers, to [[https://airbrake.io Airbrake]].
 
+  === Instantiating from config ==
 
-  It expects the config be specified as follows:
+  Call the convenience lazy-getter [[AirbrakeLogger$.fromConfig
+  AirBrake.fromConfig]] to get a [[AirbrakeLogger]] initialize from
+  application configuration, which should be formatted as follows:
 
   {{{
   airbrake {
@@ -64,9 +67,22 @@ class AirbrakeLogger(appName: String, airbrakeKey: String, environment: String) 
   }
 }
 
+/**
+  @see [[AirbrakeLogger]]
+  */
 object AirbrakeLogger {
   /**
-    @see [[AirbrakeLogger]]
+    Instantiates an [[AirbrakeLogger]] from typesafe configuration.
+
+    It expects the config be specified as follows:
+
+    {{{
+    airbrake {
+      app-name = "my-awesome-app"
+      key = "deadbeefdeadbeefdeadbeefdeadbeef"
+      environment = "production"
+    }
+    }}}
     */
   lazy val fromConfig = {
     val airbrakeConfig = ConfigFactory.load().getConfig("airbrake")

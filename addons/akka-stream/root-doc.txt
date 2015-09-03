@@ -1,5 +1,0 @@
-== Experimental status! ==
-
-The RabbitMQ streaming interface is currently experimental, and will likely change, drastically. Please refer the the specs for examples:
-
-[[https://github.com/SpinGo/op-rabbit/tree/master/addons/akka-stream/src/test/scala/com/spingo/op_rabbit Akka Stream Specs on GitHub]]

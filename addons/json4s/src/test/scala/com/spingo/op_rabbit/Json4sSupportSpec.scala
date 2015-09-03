@@ -6,7 +6,7 @@ import org.scalatest.Matchers
 case class Thing(a: Int)
 
 class Json4sSupportSpec extends FunSpec with Matchers {
-  import Json4sSupport._
+  import Json4sSupport.native._
   implicit val formats = org.json4s.DefaultFormats
   val u = implicitly[RabbitUnmarshaller[Thing]]
   val m = implicitly[RabbitMarshaller[Thing]]

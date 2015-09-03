@@ -5,6 +5,12 @@ import play.api.libs.json._
 import java.nio.charset.Charset
 
 /**
+  == BATTERIES NOT INCLUDED ==
+
+  To use this package, you must add `'op-rabbit-play-json'` to your dependencies.
+
+  == Overview ==
+
   Use implicit PlayJson formats for serialization by importing this object.
 
   Example:

@@ -43,11 +43,12 @@ val commonSettings = Seq(
 
 lazy val `op-rabbit` = (project in file(".")).
   settings(commonSettings: _*).
+  settings(unidocSettings: _*).
   settings(
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
   dependsOn(core).
-  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `play-json-23`)
+  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s)
 
 
 lazy val core = (project in file("./core")).
@@ -74,14 +75,6 @@ lazy val `play-json` = (project in file("./addons/play-json")).
   settings(
     name := "op-rabbit-play-json",
     libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.2").
-  dependsOn(core)
-
-lazy val `play-json-23` = (project in file("./addons/play-json-23")).
-  settings(commonSettings: _*).
-  settings(
-    scalaSource in Compile := `play-json`.base.getAbsoluteFile / "src" / "main" / "scala",
-    name := "op-rabbit-play-json-23",
-    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.3.4").
   dependsOn(core)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).

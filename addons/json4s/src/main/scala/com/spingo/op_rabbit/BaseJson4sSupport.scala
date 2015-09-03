@@ -8,7 +8,7 @@ import java.nio.charset.Charset
   Json4s, this trait has two implementations, one providing the native
   serialization driver, the other the jackson
   */
-trait BaseJson4sSupport {
+private [op_rabbit] trait BaseJson4sSupport {
   val serialization: org.json4s.Serialization
 
   private val utf8 = Charset.forName("UTF-8")
