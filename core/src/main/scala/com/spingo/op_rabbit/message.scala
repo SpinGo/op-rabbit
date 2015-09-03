@@ -86,7 +86,7 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
   @inline
   def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): M
 
-  def apply[T](publisher: Publisher, body: T, properties: Seq[MessageProperty] = Seq())(implicit marshaller: RabbitMarshaller[T]) = {
+  def apply[T](body: T, publisher: Publisher, properties: Seq[MessageProperty] = Seq())(implicit marshaller: RabbitMarshaller[T]) = {
     val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
     marshaller.setProperties(builder)
     newInstance(publisher, marshaller.marshall(body), builder.build)
@@ -104,13 +104,13 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
     Shorthand for [[.apply ConfirmedMessage]](Publisher.exchange(...), ...)
     */
   def exchange[T](message: T, exchange: String, routingKey: String = "", properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
-    apply(Publisher.exchange(exchange, routingKey), message, properties)
+    apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
     Shorthand for [[.apply ConfirmedMessage]](Publisher.topic(...), ...)
     */
   def topic[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
-    apply(Publisher.exchange(exchange, routingKey), message, properties)
+    apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
     Shorthand for [[.apply ConfirmedMessage]](Publisher.queue(...), ...)
@@ -119,7 +119,7 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
     message: T,
     queue: String,
     properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M  =
-    apply(Publisher.queue(queue), message, properties)
+    apply(message, Publisher.queue(queue), properties)
 }
 
 /**

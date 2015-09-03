@@ -169,11 +169,12 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
 
     it("fails delivery to non-existent queues when using VerifiedQueuePublisher") {
       new RabbitFixtures {
-        val Failure(ex: com.rabbitmq.client.ShutdownSignalException) = Try(await((rabbitControl ? Message(VerifiedQueuePublisher("non-existent-queue"), 1)).mapTo[Boolean]))
+        val msg = Message(VerifiedQueuePublisher("non-existent-queue"), 1)
+        val response = await((rabbitControl ? msg).mapTo[Message.Fail])
 
-        ex.getMessage() should include ("no queue 'non-existent-queue'")
+        response.id should be (msg.id)
+        response.exception.getMessage() should include ("no queue 'non-existent-queue'")
       }
     }
-
   }
 }
