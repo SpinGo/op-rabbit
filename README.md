@@ -16,7 +16,7 @@ Issues go here:
 
 # Intro
 
-Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for interacting with RabbitMQ; the following is a high-level feature list:
+Op-Rabbit is a high-level, type-safe, opinionated, composable, fault-tolerant library for interacting with RabbitMQ; the following is a high-level feature list:
 
 - Recovery:
     - Consumers automatically reconnect and subscribe if the connection is lost
@@ -30,6 +30,8 @@ Op-Rabbit is a high-level, opinionated, composable, fault-tolerant library for i
     - Composition favored over inheritance enabling flexible and high code reuse.
 - Modeled
     - Queue binding, exchange binding modeled with case classes
+    - Queue, and Exchange arguments, such as `x-ttl`, are modeled
+    - HeaderValues are modeled; if you try and provide RabbitMQ an invalid type for a header value, the compiler will let you know.
     - Publishing mechanisms also modeled
 - Reliability
     - Builds on the excellent [Akka RabbitMQ client](https://github.com/thenewmotion/akka-rabbitmq) library for easy recovery.
