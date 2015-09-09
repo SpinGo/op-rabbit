@@ -85,15 +85,12 @@ private class MessagePublisherSinkActor(rabbitControl: ActorRef, timeoutAfter: F
 
   private val handleResponse: Message.ConfirmResponse => Unit = {
     case Message.Ack(id) =>
-      println(s"ACK ${id}")
       queue.remove(id).get.success(())
 
     case Message.Nack(id) =>
-      println(s"Nack ${id}")
       queue.remove(id).get.failure(new MessageNacked(id))
 
     case Message.Fail(id, exception: Throwable) =>
-      println(s"Fail ${id} $exception")
       queue.remove(id).get.failure(exception)
   }
 }
