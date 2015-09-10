@@ -85,7 +85,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         }
         await(subscription.initialized)
 
-        val msg = Message(Publisher.queue(queueName), 5)
+        val msg = Message(5, Publisher.queue(queueName))
         await(rabbitControl ? msg) should be (Message.Ack(msg.id))
         deleteQueue(queueName)
       }
@@ -169,7 +169,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
 
     it("fails delivery to non-existent queues when using VerifiedQueuePublisher") {
       new RabbitFixtures {
-        val msg = Message(VerifiedQueuePublisher("non-existent-queue"), 1)
+        val msg = Message(1, VerifiedQueuePublisher("non-existent-queue"))
         val response = await((rabbitControl ? msg).mapTo[Message.Fail])
 
         response.id should be (msg.id)

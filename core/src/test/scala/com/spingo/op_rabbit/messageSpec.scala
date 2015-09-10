@@ -40,7 +40,7 @@ class MessageSpec extends FunSpec with Matchers {
 
   describe("Standard Message") {
     it("defaults to persistent") {
-      val msg = Message(Publisher.topic("very.route"), "hi", List(ReplyTo("respond.here.please")))
+      val msg = Message("hi", Publisher.topic("very.route"), List(ReplyTo("respond.here.please")))
       msg.properties.getDeliveryMode should be (2)
       msg.properties.getReplyTo should be ("respond.here.please")
     }

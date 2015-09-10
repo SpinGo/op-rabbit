@@ -47,7 +47,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         await(s.initialized)
       }
 
-      rabbitControl ! Message(Publisher.exchange("test-fanout-exchange"), "le value", List(Header("thing", "1")))
+      rabbitControl ! Message("le value", Publisher.exchange("test-fanout-exchange"), List(Header("thing", "1")))
 
       consumerResult.map(p => await(p.future)) should be (List("le value", "le value"))
     }
@@ -102,8 +102,8 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       await(subscriptionInt.initialized)
       await(subscriptionString.initialized)
 
-      rabbitControl ! Message(Publisher.exchange("test-headers-exchange"), "string", List(Header("thing", "1")))
-      rabbitControl ! Message(Publisher.exchange("test-headers-exchange"), "int", List(Header("thing", 1)))
+      rabbitControl ! Message("string", Publisher.exchange("test-headers-exchange"), List(Header("thing", "1")))
+      rabbitControl ! Message("int", Publisher.exchange("test-headers-exchange"), List(Header("thing", 1)))
 
       await(stringReceived.future) should be ("string")
       await(intReceived.future) should be ("int")
@@ -133,7 +133,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       await(subscription.initialized)
 
-      rabbitControl ! Message(Publisher.topic(".."), "string")
+      rabbitControl ! Message("string", Publisher.topic(".."))
 
       await(received.future) should be ("string")
     }
