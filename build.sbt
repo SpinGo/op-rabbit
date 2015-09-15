@@ -48,7 +48,7 @@ lazy val `op-rabbit` = (project in file(".")).
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
   dependsOn(core).
-  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s)
+  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `spray-json`)
 
 
 lazy val core = (project in file("./core")).
