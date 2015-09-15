@@ -77,6 +77,13 @@ lazy val `play-json` = (project in file("./addons/play-json")).
     libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.2").
   dependsOn(core)
 
+lazy val `spray-json` = (project in file("./addons/spray-json")).
+  settings(commonSettings: _*).
+  settings(
+    name := "op-rabbit-spray-json",
+    libraryDependencies += "io.spray" %% "spray-json" % "1.3.2").
+  dependsOn(core)
+
 lazy val airbrake = (project in file("./addons/airbrake/")).
   settings(commonSettings: _*).
   settings(
