@@ -2,7 +2,7 @@ package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
-import com.spingo.op_rabbit.binding._
+import com.spingo.op_rabbit.Binding._
 
 /**
   Common interface for how exchanges are defined.

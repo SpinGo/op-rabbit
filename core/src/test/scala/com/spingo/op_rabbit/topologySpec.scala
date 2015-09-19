@@ -30,7 +30,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
         Subscription.run(rabbitControl) {
           import Directives._
           channel() {
-            consume(FanoutBinding(
+            consume(Binding.fanout(
               Queue(queueName, autoDelete = true),
               Exchange.fanout("test-fanout-exchange", autoDelete = true))) {
               body(as[String]) { a =>
@@ -62,7 +62,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       val subscriptionInt = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
-          consume(HeadersBinding(
+          consume(Binding.headers(
             Queue(
               queueName = queueName + "int",
               autoDelete = true,
@@ -81,7 +81,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       val subscriptionString = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
-          consume(HeadersBinding(
+          consume(Binding.headers(
             Queue(
               queueName = queueName + "string",
               autoDelete = true,
@@ -118,7 +118,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       val subscription = Subscription.run(rabbitControl) {
         import Directives._
         channel() {
-          consume(TopicBinding(
+          consume(Binding.topic(
             Queue(queueName + "int", autoDelete = true),
             topics = List("*.*.*")
           )) {

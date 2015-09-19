@@ -3,7 +3,7 @@ package com.spingo.op_rabbit
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
 import scala.concurrent.duration._
-import com.spingo.op_rabbit.binding._
+import com.spingo.op_rabbit.Binding._
 
 /**
   Binding which declare a message queue, without any exchange or topic bindings.

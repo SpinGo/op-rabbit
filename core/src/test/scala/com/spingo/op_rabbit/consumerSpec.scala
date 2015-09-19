@@ -54,7 +54,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
                 println(s"Received #${i}")
                 Thread.sleep(Math.round(generator.nextDouble() * 100))
                 promises(i).success(i)
-                ack()
+                ack
               }
             }
           }

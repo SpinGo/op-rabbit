@@ -4,7 +4,7 @@ import com.spingo.op_rabbit.properties.PropertyExtractor
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.language.implicitConversions
 import shapeless._
-import com.spingo.op_rabbit.binding._
+import com.spingo.op_rabbit.Binding._
 
 trait Ackable {
   val handler: Handler
@@ -124,7 +124,7 @@ trait Directives {
   def topic(
     queue: QueueDefinition[Concrete],
     topics: List[String],
-    exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl.topicExchangeName)) = TopicBinding(queue, topics, exchange)
+    exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl.topicExchangeName)) = Binding.topic(queue, topics, exchange)
 
   /**
    * Passive topic binding

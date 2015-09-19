@@ -7,6 +7,7 @@ import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
 import scala.util.Try
 import com.spingo.op_rabbit.properties._
+import com.spingo.op_rabbit.Binding._
 
 object ModeledMessageHeaders {
   import properties._
@@ -50,21 +51,21 @@ private class PublisherImpl(val exchangeName: String, val routingKey: String) ex
 object Publisher {
   def queue(queueName: String): Publisher =
     new PublisherImpl("", queueName)
-  def queue(queue: binding.QueueDefinition[binding.Concreteness]): Publisher =
+  def queue(queue: QueueDefinition[Concreteness]): Publisher =
     new DefiningPublisher(queue, "", queue.queueName)
 
   def topic(routingKey: String, exchangeName: String): Publisher =
     new PublisherImpl(exchangeName, routingKey)
   def topic(routingKey: String): Publisher =
     topic(routingKey, RabbitControl.topicExchangeName)
-  def topic(routingKey: String, exchange: binding.ExchangeDefinition[binding.Concreteness]): Publisher =
+  def topic(routingKey: String, exchange: ExchangeDefinition[Concreteness]): Publisher =
     new DefiningPublisher(exchange, exchange.exchangeName, routingKey)
 
   def exchange(exchangeName: String, routingKey: String): Publisher =
     new PublisherImpl(exchangeName, routingKey)
   def exchange(exchangeName: String): Publisher =
     exchange(exchangeName, "")
-  def exchange(exchange: binding.ExchangeDefinition[binding.Concreteness]): Publisher =
+  def exchange(exchange: ExchangeDefinition[Concreteness]): Publisher =
     new DefiningPublisher(exchange, exchange.exchangeName, "")
 }
 
@@ -74,7 +75,7 @@ object Publisher {
   This is useful if you want to prevent publishing to a non-existent queue
   */
 private class DefiningPublisher(
-  topologyDefinition: binding.TopologyDefinition,
+  topologyDefinition: TopologyDefinition,
   exchangeName: String,
   routingKey: String) extends PublisherImpl(exchangeName, routingKey) {
   private var verified = false
