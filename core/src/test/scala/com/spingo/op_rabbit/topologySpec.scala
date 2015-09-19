@@ -9,7 +9,6 @@ import com.thenewmotion.akka.rabbitmq.RichConnectionActor
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.Promise
 import scala.concurrent.{ExecutionContext, Future}
-import scala.concurrent.duration._
 
 class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   val _queueName = ScopedFixture[String] { setter =>

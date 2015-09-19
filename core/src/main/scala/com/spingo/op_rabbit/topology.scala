@@ -2,19 +2,7 @@ package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
-import scala.concurrent.duration._
-
-/**
-  Implementors of this trait describe how a channel is defined, and
-  how bindings are associated.
-  */
-trait QueueDefinition {
-  /**
-    The name of the message queue this binding declares.
-    */
-  val queueName: String
-  def declare(channel: Channel): Unit
-}
+import com.spingo.op_rabbit.binding._
 
 /**
   Binding which declares a message queue, and then binds various topics to it. Note that bindings are idempotent.
@@ -26,33 +14,19 @@ trait QueueDefinition {
   @param exchange     The topic exchange over which to listen for said topics. Defaults to durable, configured topic exchange, as named by configuration `op-rabbit.topic-exchange-name`.
   */
 case class TopicBinding(
-  queue: Queue,
-  topics: List[String],
-  exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl topicExchangeName)
-) extends QueueDefinition {
+  queue: QueueDefinition[Concrete],
+  topics: Seq[String],
+  exchange:
+      ExchangeDefinition[Concrete] with
+      Exchange[Exchange.Topic.type] =
+    Exchange.topic(RabbitControl topicExchangeName)
+) extends Binding {
   val queueName = queue.queueName
+  val exchangeName = exchange.exchangeName
   def declare(c: Channel): Unit = {
     exchange.declare(c)
     queue.declare(c)
-    topics foreach { c.queueBind(queueName, exchange.name, _) }
-  }
-}
-
-/**
-  Passively connect to a queue. If the queue does not exist already,
-  then either try the fallback binding, or fail.
-
-  This is useful when binding to a queue defined by another process, and with pre-existing properties set, such as `x-message-ttl`.
-
-  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
-  */
-private class QueueBindingPassive(val queueName: String, ifNotDefined: Option[QueueDefinition] = None) extends QueueDefinition {
-  def declare(channel: Channel): Unit = {
-    RabbitHelpers.tempChannel(channel.getConnection) { t =>
-      t.queueDeclarePassive(queueName)
-    }.left.foreach { (ex =>
-      ifNotDefined.map(_.declare(channel)) getOrElse { throw ex })
-    }
+    topics foreach { c.queueBind(queueName, exchange.exchangeName, _) }
   }
 }
 
@@ -78,12 +52,13 @@ private class QueueBindingPassive(val queueName: String, ifNotDefined: Option[Qu
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class HeadersBinding(
-  queue: Queue,
-  exchange: Exchange[Exchange.Headers.type],
+  queue: QueueDefinition[Concrete],
+  exchange: ExchangeDefinition[Concrete] with Exchange[Exchange.Headers.type],
   headers: Seq[com.spingo.op_rabbit.properties.Header],
   matchAll: Boolean = true,
-  exchangeDurable: Boolean = true) extends QueueDefinition {
+  exchangeDurable: Boolean = true) extends Binding {
   val queueName = queue.queueName
+  val exchangeName = exchange.exchangeName
   def declare(c: Channel): Unit = {
     exchange.declare(c)
     queue.declare(c)
@@ -92,7 +67,7 @@ case class HeadersBinding(
     headers.foreach { case Header(name, value) =>
       bindingArgs.put(name, value.serializable)
     }
-    c.queueBind(queueName, exchange.name, "", bindingArgs);
+    c.queueBind(queueName, exchange.exchangeName, "", bindingArgs);
   }
 }
 
@@ -108,12 +83,13 @@ case class HeadersBinding(
   @param exchangeDurable Specifies whether or not the exchange should survive a broker restart; default to `durable` parameter value.
   */
 case class FanoutBinding(
-  queue: Queue,
-  exchange: Exchange[Exchange.Fanout.type]) extends QueueDefinition {
+  queue: QueueDefinition[Concrete],
+  exchange: ExchangeDefinition[Concrete] with Exchange[Exchange.Fanout.type]) extends Binding {
+  val exchangeName = exchange.exchangeName
   val queueName = queue.queueName
   def declare(c: Channel): Unit = {
     exchange.declare(c)
     queue.declare(c)
-    c.queueBind(queueName, exchange.name, "", null);
+    c.queueBind(queueName, exchange.exchangeName, "", null);
   }
 }

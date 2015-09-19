@@ -2,7 +2,9 @@ package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.PropertyExtractor
 import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.language.implicitConversions
 import shapeless._
+import com.spingo.op_rabbit.binding._
 
 trait Ackable {
   val handler: Handler
@@ -39,8 +41,8 @@ protected object TypeHolder {
   def apply[T] = new TypeHolder[T]
 }
 
-private [op_rabbit] case class BoundConsumerDefinition(queue: QueueDefinition, handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
-private [op_rabbit] case class BindingDirective(binding: QueueDefinition, args: Seq[properties.Header]) {
+private [op_rabbit] case class BoundConsumerDefinition(queue: QueueDefinition[Concreteness], handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
+private [op_rabbit] case class BindingDirective(binding: QueueDefinition[Concreteness], args: Seq[properties.Header]) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
     BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args)
 }
@@ -101,7 +103,7 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(binding: QueueDefinition, args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
+  def consume(binding: QueueDefinition[Concreteness], args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
 
   /**
     Provides values for the [[consume]] directive.
@@ -120,14 +122,14 @@ trait Directives {
 
 
   def topic(
-    queue: Queue,
+    queue: QueueDefinition[Concrete],
     topics: List[String],
-    exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl topicExchangeName)) = TopicBinding(queue, topics, exchange)
+    exchange: Exchange[Exchange.Topic.type] = Exchange.topic(RabbitControl.topicExchangeName)) = TopicBinding(queue, topics, exchange)
 
   /**
    * Passive topic binding
    */
-  def passive(queue: Queue): QueueDefinition =
+  def passive[T <: Concreteness](queue: QueueDefinition[T]): QueueDefinition[T] =
     Queue.passive(queue)
 
   def passive[T <: Exchange.Value](exchange: Exchange[T]): Exchange[T] =

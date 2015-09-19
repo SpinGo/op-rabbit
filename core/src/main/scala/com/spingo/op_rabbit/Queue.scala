@@ -3,6 +3,7 @@ package com.spingo.op_rabbit
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
 import scala.concurrent.duration._
+import com.spingo.op_rabbit.binding._
 
 /**
   Binding which declare a message queue, without any exchange or topic bindings.
@@ -15,13 +16,12 @@ import scala.concurrent.duration._
   @param autoDelete   Specifies whether this message queue should be deleted when the connection is closed; default false.
   @param arguments    Special arguments for this queue; See [[Queue$.ModeledArgs$ Queue.ModeledArgs]] for a list of valid arguments, and their effect.
   */
-case class Queue(
-  queueName: String,
-  durable: Boolean = true,
-  exclusive: Boolean = false,
-  autoDelete: Boolean = false,
-  arguments: Seq[Header] = Seq()
-) extends QueueDefinition {
+private class QueueConcrete(
+  val queueName: String,
+  durable: Boolean,
+  exclusive: Boolean,
+  autoDelete: Boolean,
+  arguments: Seq[Header]) extends QueueDefinition[Concrete] {
 
   def declare(c: Channel): Unit = {
     c.queueDeclare(queueName, durable, exclusive, autoDelete,
@@ -33,9 +33,47 @@ case class Queue(
   }
 }
 
+/**
+  Passively connect to a queue. If the queue does not exist already,
+  then either try the fallback binding, or fail.
+
+  This is useful when binding to a queue defined by another process, and with pre-existing properties set, such as `x-message-ttl`.
+
+  See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#queueDeclarePassive(jva.lang.String) Channel.queueDeclarePassive]].
+  */
+private class QueuePassive[T <: Concreteness](val queueName: String, ifNotDefined: Option[QueueDefinition[T]] = None) extends QueueDefinition[T] {
+  def declare(channel: Channel): Unit = {
+    RabbitHelpers.tempChannel(channel.getConnection) { t =>
+      t.queueDeclarePassive(queueName)
+    }.left.foreach { (ex =>
+      ifNotDefined.map(_.declare(channel)) getOrElse { throw ex })
+    }
+  }
+}
+
 object Queue {
-  def passive(queueName: String): QueueDefinition = new QueueBindingPassive(queueName, None)
-  def passive(binding: QueueDefinition): QueueDefinition = new QueueBindingPassive(binding.queueName, Some(binding))
+  trait Abstract {
+    /**
+      The name of the message queue this binding declares.
+      */
+    val queueName: String
+    def declare(channel: Channel): Unit
+  }
+  def apply(
+    queueName: String,
+    durable: Boolean = true,
+    exclusive: Boolean = false,
+    autoDelete: Boolean = false,
+    arguments: Seq[Header] = Seq()): QueueDefinition[Concrete] =
+    new QueueConcrete(
+      queueName,
+      durable,
+      exclusive,
+      autoDelete,
+      arguments)
+
+  def passive(queueName: String): QueueDefinition[Concrete] = new QueuePassive(queueName, None)
+  def passive[T <: Concreteness](binding: QueueDefinition[T]): QueueDefinition[T] = new QueuePassive(binding.queueName, Some(binding))
 
   /**
     Collection of known queue arguments for RabbitMQ.

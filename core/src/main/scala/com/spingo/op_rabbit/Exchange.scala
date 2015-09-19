@@ -2,7 +2,7 @@ package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.Header
 import com.thenewmotion.akka.rabbitmq.Channel
-import scala.concurrent.duration._
+import com.spingo.op_rabbit.binding._
 
 /**
   Common interface for how exchanges are defined.
@@ -12,14 +12,12 @@ import scala.concurrent.duration._
   - [[Exchange$ Exchange object]] for various factory definitions.
   - [[Exchange$.ModeledArgs$ Exchange.ModeledArgs]]
   */
-trait Exchange[+T <: Exchange.Value] {
-  val name: String
-  def declare(channel: Channel): Unit
+trait Exchange[+T <: Exchange.Value] extends ExchangeDefinition[Concrete] {
 }
 
-private class ExchangeImpl[+T <: Exchange.Value](val name: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends Exchange[T] {
+private class ExchangeImpl[+T <: Exchange.Value](val exchangeName: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends Exchange[T] {
   def declare(c: Channel): Unit =
-    c.exchangeDeclare(name, kind.toString, durable, autoDelete, properties.toJavaMap(arguments))
+    c.exchangeDeclare(exchangeName, kind.toString, durable, autoDelete, properties.toJavaMap(arguments))
 }
 
 /**
@@ -28,10 +26,10 @@ private class ExchangeImpl[+T <: Exchange.Value](val name: String, kind: T, dura
 
   See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#exchangeDeclarePassive(java.lang.String) Channel.exchangeDeclarePassive]].
   */
-private class ExchangePassive[T <: Exchange.Value](val name: String, ifNotDefined: Option[Exchange[T]] = None) extends Exchange[T] {
+private class ExchangePassive[T <: Exchange.Value](val exchangeName: String, ifNotDefined: Option[Exchange[T]] = None) extends Exchange[T] {
   def declare(channel: Channel): Unit = {
     RabbitHelpers.tempChannel(channel.getConnection) { t =>
-      t.exchangeDeclarePassive(name)
+      t.exchangeDeclarePassive(exchangeName)
     }.left.foreach { (ex =>
       ifNotDefined.map(_.declare(channel)) getOrElse { throw ex })
     }
@@ -39,18 +37,26 @@ private class ExchangePassive[T <: Exchange.Value](val name: String, ifNotDefine
 }
 
 object Exchange extends Enumeration {
+  trait Abstract {
+    val exchangeName: String
+    def declare(channel: Channel): Unit
+  }
   val Topic = Value("topic")
   val Headers = Value("headers")
   val Fanout = Value("fanout")
   val Direct = Value("direct")
 
-  def topic(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Topic.type] = new ExchangeImpl(name: String, Exchange.Topic, durable, autoDelete, arguments)
-  def headers(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Headers.type] = new ExchangeImpl(name: String, Exchange.Headers, durable, autoDelete, arguments)
-  def fanout(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Fanout.type] = new ExchangeImpl(name: String, Exchange.Fanout, durable, autoDelete, arguments)
-  def direct(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()): Exchange[Exchange.Direct.type] = new ExchangeImpl(name: String, Exchange.Direct, durable, autoDelete, arguments)
+  def topic(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()):
+      Exchange[Exchange.Topic.type] = new ExchangeImpl(name: String, Exchange.Topic, durable, autoDelete, arguments)
+  def headers(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()):
+      Exchange[Exchange.Headers.type] = new ExchangeImpl(name: String, Exchange.Headers, durable, autoDelete, arguments)
+  def fanout(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()):
+      Exchange[Exchange.Fanout.type] = new ExchangeImpl(name: String, Exchange.Fanout, durable, autoDelete, arguments)
+  def direct(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()):
+      Exchange[Exchange.Direct.type] = new ExchangeImpl(name: String, Exchange.Direct, durable, autoDelete, arguments)
 
   def passive(exchangeName: String): Exchange[Nothing] = new ExchangePassive(exchangeName, None)
-  def passive[T <: Exchange.Value](binding: Exchange[T]): Exchange[T] = new ExchangePassive(binding.name, Some(binding))
+  def passive[T <: Exchange.Value](binding: Exchange[T]): Exchange[T] = new ExchangePassive(binding.exchangeName, Some(binding))
 
   /**
     Collection of known exchange arguments for RabbitMQ.

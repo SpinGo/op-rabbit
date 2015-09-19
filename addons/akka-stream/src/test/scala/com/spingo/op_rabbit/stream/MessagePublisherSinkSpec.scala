@@ -72,13 +72,13 @@ class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers
 
     it("propagates publish exceptions to promise") {
       new RabbitFixtures {
-        val factory = Message.factory(VerifiedQueuePublisher("no-existe"))
+        val factory = Message.factory(Publisher.queue(Queue.passive("no-existe")))
         val sink = MessagePublisherSink(rabbitControl)
 
         val data = range map { i => (Promise[Unit], i) }
 
         val published = AckedSource(data).
-          map(Message(_, VerifiedQueuePublisher("no-existe"))).
+          map(Message(_, Publisher.queue(Queue.passive("no-existe")))).
           runWith(sink)
 
         await(published)
