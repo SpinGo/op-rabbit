@@ -257,7 +257,7 @@ RabbitSource(
   } // after each successful iteration the message is acknowledged.
 ```
 
-Note: `RabbitSource` yields an [AckedSource](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSource.scala), which can be combined with an [AckedSink](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSink.scala) (such as [`ConfirmedPublisherSink`](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html#com.spingo.op_rabbit.stream.ConfirmedPublisherSink$)). You can convert an acked stream into a normal stream by calling `AckedStream.acked`; once messages flow passed the `acked` component, they are considered acknowledged, and acknowledgement tracking is no longer a concern (and thus, you are free to use the akka-stream library in it's entirety).
+Note: `RabbitSource` yields an [AckedSource](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSource.scala), which can be combined with an [AckedSink](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSink.scala) (such as [`MessagePublisherSink`](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html#com.spingo.op_rabbit.stream.MessagePublisherSink$)). You can convert an acked stream into a normal stream by calling `AckedStream.acked`; once messages flow passed the `acked` component, they are considered acknowledged, and acknowledgement tracking is no longer a concern (and thus, you are free to use the akka-stream library in it's entirety).
 
 ### Publishing using Akka streams
 
@@ -269,12 +269,9 @@ import com.spingo.op_rabbit.stream._
 import com.spingo.op_rabbit.PlayJsonSupport._
 implicit val workFormat = Format[Work] // setup play-json serializer
 
-val sink = ConfirmedPublisherSink[Work](
-  rabbitControl,
-  Message.factory(Publisher.queue(queueName())))
-
 AckedSource(1 to 15). // Each element in source will be acknowledged after publish confirmation is received
-  to(sink)
+  map(Message.queue(_, queueName)).
+  to(MessagePublisherSink(rabbitControl))
   .run
 ```
 
