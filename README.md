@@ -8,7 +8,7 @@ Browse the latest [API Docs](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/c
 
 For announcements, discussions, etc., join the discussion:
 
-- [https://groups.google.com/forum/#!forum/op-rabbit](Op-rabbit discussion forum)
+- [Op-rabbit discussion forum](https://groups.google.com/forum/#!forum/op-rabbit)
 
 Issues go here:
 
