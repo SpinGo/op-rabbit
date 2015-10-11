@@ -5,7 +5,7 @@ target/scala-2.11/unidoc/index.html:
 	sbt unidoc
 
 target/docs-published: target/scala-2.11/unidoc/index.html
-	aws s3 sync target/scala-2.11/unidoc s3://spingo-oss/docs/op-rabbit/current --delete
+	aws s3 sync target/scala-2.11/unidoc/ s3://spingo-oss/docs/op-rabbit/current/ --acl public-read --delete
 	touch $@
 
 README.md: project/version.properties
