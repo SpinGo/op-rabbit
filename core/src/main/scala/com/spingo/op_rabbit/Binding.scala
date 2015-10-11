@@ -27,6 +27,25 @@ object Binding {
     val exchangeName: String
   }
 
+  def direct(
+    queue: QueueDefinition[Concrete],
+    exchange:
+        ExchangeDefinition[Concrete] with
+        Exchange[Exchange.Direct.type],
+    routingKeys: List[String]
+  ): Binding = new Binding {
+    val queueName = queue.queueName
+    val exchangeName = exchange.exchangeName
+
+    def declare(c: Channel): Unit = {
+      exchange.declare(c)
+      queue.declare(c)
+      routingKeys.foreach { routingKey =>
+        c.queueBind(queueName, exchangeName, routingKey, null)
+      }
+    }
+  }
+
   /**
     Binding which declares a message queue, and then binds various topics to it. Note that bindings are idempotent.
 

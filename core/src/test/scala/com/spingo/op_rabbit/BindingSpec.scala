@@ -10,7 +10,7 @@ import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.Promise
 import scala.concurrent.{ExecutionContext, Future}
 
-class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
+class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   val _queueName = ScopedFixture[String] { setter =>
     val name = s"test-queue-rabbit-control-${Math.random()}"
     deleteQueue(name)
@@ -19,7 +19,53 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
     r
   }
 
-  describe("FanoutBinding") {
+  describe("Binding.direct") {
+    it("delivers messages to the queues with names matching routingKey") {
+
+      import scala.concurrent.ExecutionContext.Implicits.global
+
+      val consumerResult = List(Promise[String], Promise[String])
+
+      val queues = (0 to 1) map { case idx =>
+        _queueName() + idx
+      }
+      val subscriptions = queues.zipWithIndex map { case (queueName, idx) =>
+        Subscription.run(rabbitControl) {
+          import Directives._
+          channel() {
+            consume(
+              Binding.direct(
+                Queue(queueName, autoDelete = true),
+                Exchange.direct("test-direct-exchange", autoDelete = true),
+                List(queueName)
+              )) {
+              body(as[String]) { a =>
+                consumerResult(idx).success(a)
+                ack
+              }
+            }
+          }
+        }
+      }
+
+      subscriptions foreach { s =>
+        await(s.initialized)
+      }
+
+      queues.zipWithIndex.foreach { case (queueName, idx) =>
+        rabbitControl ! Message(
+          s"le value ${idx}",
+          Publisher.exchange(
+            "test-direct-exchange",
+            routingKey = queueName))
+      }
+
+      consumerResult.map(p => await(p.future)) should be (List("le value 0", "le value 1"))
+
+    }
+  }
+
+  describe("Binding.fanout") {
     it("properly declares the fanout binding") {
       import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -52,7 +98,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
     }
   }
 
-  describe("HeadersBinding") {
+  describe("Binding.headers") {
     it("properly declares the header binding with appropriate type matching") {
       import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -109,7 +155,7 @@ class bindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
     }
   }
 
-  describe("TopicBinding") {
+  describe("Binding.topic") {
     it("properly declares the topic binding with appropriate bindings") {
       import scala.concurrent.ExecutionContext.Implicits.global
 
