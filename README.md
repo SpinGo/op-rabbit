@@ -237,7 +237,7 @@ By default:
         import akka.util.Timeout
         import scala.concurrent.duration._
         implicit val timeout = Timeout(5 seconds)
-        val received = (rabbitControl ? Message.queue(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
+        val received = (rabbitControl ? Message.queue(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[ConfirmResponse]
         ```
 
 ### Consuming using Akka streams

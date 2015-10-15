@@ -153,7 +153,7 @@ By default:
 - If you would like to be notified of confirmation, use the ask pattern:
 
 {{{scala
-val received = (rabbitControl ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[Boolean]
+val received = (rabbitControl ? QueueMessage(Person(name = "Ivanah Tinkle", age = 25), queue = "such-message-queue")).mapTo[ConfirmResponse]
 }}}
 
 == Error Notification ==
