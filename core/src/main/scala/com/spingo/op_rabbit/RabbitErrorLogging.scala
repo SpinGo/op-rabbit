@@ -60,6 +60,14 @@ object Slf4jLogger extends RabbitErrorLogging {
   }
 }
 
+@deprecated("LogbackLogger has been renamed to Slf4jLogger", "1.0.2")
+object LogbackLogger extends RabbitErrorLogging {
+  def apply(name: String, context: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
+    val logger = LoggerFactory.getLogger(name)
+    logger.error(s"${context}. Body=${bodyAsString(body, properties)}. Envelope=${envelope}", exception)
+  }
+}
+
 object RabbitErrorLogging {
   object StringHelpers {
     import scala.collection.JavaConversions
