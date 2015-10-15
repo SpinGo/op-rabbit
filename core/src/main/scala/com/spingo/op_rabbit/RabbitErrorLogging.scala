@@ -51,9 +51,9 @@ private class CombinedLogger(a: RabbitErrorLogging, b: RabbitErrorLogging) exten
 }
 
 /**
-  Reports consumer errors to Logback.
+  Reports consumer errors to Slf4j.
   */
-object LogbackLogger extends RabbitErrorLogging {
+object Slf4jLogger extends RabbitErrorLogging {
   def apply(name: String, context: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
     val logger = LoggerFactory.getLogger(name)
     logger.error(s"${context}. Body=${bodyAsString(body, properties)}. Envelope=${envelope}", exception)
@@ -81,5 +81,5 @@ object RabbitErrorLogging {
     }
   }
 
-  implicit val defaultLogger: RabbitErrorLogging = LogbackLogger
+  implicit val defaultLogger: RabbitErrorLogging = Slf4jLogger
 }

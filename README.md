@@ -279,20 +279,20 @@ If you can see the pattern here, combining an akka-stream rabbitmq consumer and 
 
 ### Error notification
 
-It's important to know when your consumers fail. Out of the box, `op-rabbit` ships with support for logging to `logback` (and therefore syslog), and also `airbrake` via `op-rabbit-airbrake`. Without any additional signal provided by you, logback will be used, making error visibility a default.
+It's important to know when your consumers fail. Out of the box, `op-rabbit` ships with support for logging to `slf4j` (and therefore syslog), and also `airbrake` via `op-rabbit-airbrake`. Without any additional signal provided by you, slf4j will be used, making error visibility a default.
 
-You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `logback` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
+You can report errors to multiple sources by combining error logging strategies; for example, if you'd like to report to both `slf4j` and to `airbrake`, import / set the following implicit RabbitErrorLogging in the scope where your consumer is instantiated:
 
 ```scala
-import com.spingo.op_rabbit.{LogbackLogger, AirbrakeLogger}
+import com.spingo.op_rabbit.{Slf4jLogger, AirbrakeLogger}
 
-implicit val rabbitErrorLogging = LogbackLogger + AirbrakeLogger.fromConfig
+implicit val rabbitErrorLogging = Slf4jLogger + AirbrakeLogger.fromConfig
 ```
 
-Implementing your own error reporting strategy is simple; here's the source code for the LogbackLogger:
+Implementing your own error reporting strategy is simple; here's the source code for the slf4jLogger:
 
 ```scala
-object LogbackLogger extends RabbitErrorLogging {
+object Slf4jLogger extends RabbitErrorLogging {
   def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
     val logger = LoggerFactory.getLogger(name)
     logger.error(s"${message}. Body=${bodyAsString(body, properties)}. Envelope=${envelope}", exception)
