@@ -64,7 +64,39 @@ libraryDependencies ++= Seq(
 )
 ```
 
-A high-level overview of the available components:
+### Version Compatibility Matrix:
+
+1.1.x
+
+| module                       | dependsOn                | version  |
+| ---------------------------- | ------------------------ | -------- |
+| op-rabbit-core               | akka                     | 2.4.x    |
+|                              | akka-rabbitmq            | 2.x      |
+|                              | shapeless                | 2.2.x    |
+|                              | type-safe config         | >= 1.3.0 |
+| op-rabbit-play-json          | play-json                | 2.4.x    |
+| op-rabbit-json4s             | json4s                   | 3.2.x    |
+| op-rabbit-airbrake           | airbrake                 | 2.2.x    |
+| op-rabbit-akka-steam         | acked-stream             | 1.0      |
+|                              | akka-stream-experimental | 1.0      |
+| op-rabbit-akka-steam-2.0-M1  | acked-stream             | 2.0-M1-2 |
+|                              | akka-stream-experimental | 2.0-M1   |
+
+1.0.x
+
+| module                       | dependsOn                | version  |
+| ---------------------------- | ------------------------ | -------- |
+| op-rabbit-core               | akka                     | 2.2.x    |
+|                              | akka-rabbitmq            | 1.3.x    |
+|                              | shapeless                | 2.2.x    |
+|                              | type-safe config         | >= 1.3.0 |
+| op-rabbit-play-json          | play-json                | 2.4.x    |
+| op-rabbit-json4s             | json4s                   | 3.2.x    |
+| op-rabbit-airbrake           | airbrake                 | 2.2.x    |
+| op-rabbit-akka-steam         | acked-stream             | 1.0      |
+|                              | akka-stream-experimental | 1.0      |
+
+## A high-level overview of the available components:
 
 - `op-rabbit-core` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html)
     - Implements basic patterns for serialization and message processing.

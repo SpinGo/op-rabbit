@@ -25,7 +25,7 @@ val commonSettings = Seq(
     "Sonatype Releases"  at "http://oss.sonatype.org/content/repositories/releases"
   ),
   libraryDependencies ++= Seq(
-    "com.chuusai" %%  "shapeless" % "2.2.3",
+    "com.chuusai" %%  "shapeless" % "2.2.5",
     "com.typesafe" % "config" % "1.3.0",
     "com.typesafe.akka"     %%  "akka-actor"   % akkaVersion,
     "com.typesafe.akka"     %%  "akka-testkit" % akkaVersion % "test",
@@ -99,8 +99,22 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
   settings(
     name := "op-rabbit-akka-stream",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-stream" % "1.0-RC1",
+      "com.timcharper"    %% "acked-streams" % "1.0",
       "com.typesafe.akka" %% "akka-stream-experimental" % "1.0"),
+    unmanagedResourceDirectories in Test ++= Seq(
+      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
+    unmanagedSourceDirectories in Test ++= Seq(
+      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
+  dependsOn(core)
+
+lazy val `akka-stream-2-M1` = (project in file("./addons/akka-stream-2-M1")).
+  settings(commonSettings: _*).
+  settings(
+    name := "op-rabbit-akka-stream-2.0-M1",
+    scalaSource in Compile := `akka-stream`.base.getAbsoluteFile / "src" / "main" / "scala",
+    libraryDependencies ++= Seq(
+      "com.timcharper"    %% "acked-streams" % "2.0-M1-2",
+      "com.typesafe.akka" %% "akka-stream-experimental" % "2.0-M1"),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
