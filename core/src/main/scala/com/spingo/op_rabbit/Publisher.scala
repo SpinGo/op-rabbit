@@ -37,6 +37,8 @@ object Publisher {
     new PublisherImpl(exchangeName, routingKey)
   def exchange(exchangeName: String): Publisher =
     exchange(exchangeName, "")
+  def exchange(exchange: ExchangeDefinition[Concreteness], routingKey: String): Publisher =
+    new DefiningPublisher(exchange, exchange.exchangeName, routingKey)
   def exchange(exchange: ExchangeDefinition[Concreteness]): Publisher =
     new DefiningPublisher(exchange, exchange.exchangeName, "")
 }
