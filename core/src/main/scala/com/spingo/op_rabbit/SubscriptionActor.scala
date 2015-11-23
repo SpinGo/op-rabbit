@@ -39,7 +39,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
       stay using p.copy(nextState = Paused)
 
     case Event(Run, p: DisconnectedPayload) =>
-      stay using p.copy(nextState = Running)
+      stay using p.copy(nextState = Binding)
 
     case Event(Stop(cause, timeout), p: DisconnectedPayload) =>
       stay using p.copy(nextState = Stopping, shutdownCause = cause)
@@ -53,18 +53,50 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
 
   when(Running) {
     case Event(ChannelConnected(channel, _), info: ConnectedPayload) =>
-      subscribe(info.copy(channel = channel))
+      goto(Binding) using info.copy(channel = channel)
     case Event(Run, _) =>
       stay
     case Event(Pause, _) =>
       goto(Paused)
   }
 
+  when(Binding) {
+    case Event(ChannelConnected(channel, _), info: ConnectedPayload) =>
+      goto(Binding) using info.copy(channel = channel)
+    case Event(Run, _) =>
+      stay
+    case Event(Pause, _) =>
+      goto(Paused)
+    case Event(BindSuccess(channel), info: ConnectedPayload) =>
+      if (info.channel == channel)
+        goto(Running)
+      else
+        // we received two channels while in the Binding state. Ignore the first result.
+        stay
+    case Event(BindFailure(channel, ex), info: ConnectedPayload) =>
+      if (info.channel == channel) {
+        initialized.tryFailure(ex)
+        /* propagate exception to closed future as well, as it's
+         * possible for the initialization to succeed at one point, but
+         * fail later. */
+        closed.tryFailure(ex)
+
+        ex match {
+          case shutdownEx: ShutdownSignalException =>
+            goto(Stopped) using info.copy(shutdownCause = Some(shutdownEx))
+          case _ =>
+            goto(Stopped)
+        }
+      } else {
+        stay // we received two channels while in the Binding state. Ignore the first result.
+      }
+  }
+
   when(Paused) {
     case Event(Pause, _) =>
       stay
     case Event(Run, _) =>
-      goto(Running)
+      goto(Binding)
   }
 
   // Waiting for consumer actor to stop
@@ -78,6 +110,12 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
   }
 
   whenUnhandled {
+    case Event(BindSuccess, _) => // ignore
+      stay
+
+    case Event(ex: BindFailure, _) => // ignore
+      stay
+
     case Event(ChannelConnected(channel, channelActor), c: ConnectedPayload) =>
       stay using c.copy(channel = channel, channelActor = channelActor)
 
@@ -105,16 +143,25 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
   }
 
   onTransition {
-    case _ -> Running =>
+    case Binding -> Running =>
+      initialized.trySuccess(())
       nextStateData match {
         case d: ConnectedPayload =>
-          subscribe(d)
+          d.consumer.foreach(_ ! impl.Consumer.Subscribe(d.channel))
         case _ =>
           log.error("Invalid state: cannot be Running without a ConnectedPayload")
           context stop self
       }
+    case _ -> Binding =>
+      nextStateData match {
+        case d: ConnectedPayload =>
+          doSubscribe(d)
+        case _ =>
+          log.error("Invalid state: cannot be Binding without a ConnectedPayload")
+          context stop self
+      }
 
-    case _ -> Paused =>
+    case Running -> Paused =>
       nextConnectedState { d =>
         d.consumer.foreach(_ ! impl.Consumer.Unsubscribe)
       }
@@ -170,29 +217,22 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
     import ExecutionContext.Implicits.global
     val system = context.system
     connection ! CreateChannel(ChannelActor.props({(channel: Channel, channelActor: ActorRef) =>
-      log.info(s"Channel created; ${channel}")
+      log.debug(s"Channel created; ${channel}")
       self ! ChannelConnected(channel, channelActor)
     }))
   }
 
-  def subscribe(connectionInfo: ConnectedPayload) = {
+  def doSubscribe(connectionInfo: ConnectedPayload): Unit = {
+    log.debug(s"Setting up subscription to ${subscription.queue.queueName} in ${self.path}")
     val channel = connectionInfo.channel
 
     try {
       channel.basicQos(connectionInfo.qos)
       subscription.queue.declare(channel)
-      initialized.trySuccess()
-      connectionInfo.consumer.foreach(_ ! impl.Consumer.Subscribe(channel))
-      goto(Running) using connectionInfo
+      self ! BindSuccess(channel)
     } catch {
-      case ex: ShutdownSignalException =>
-        initialized.tryFailure(ex)
-        closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
-        goto(Stopped) using connectionInfo.copy(shutdownCause = Some(ex))
       case ex: Throwable =>
-        initialized.tryFailure(ex)
-        closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
-        goto(Stopped)
+        self ! BindFailure(channel, ex)
     }
   }
 }
@@ -207,6 +247,9 @@ object SubscriptionActor {
   case object Paused extends State {
     val isTerminal = false
   }
+  case object Binding extends State {
+    val isTerminal = false
+  }
   case object Running extends State {
     val isTerminal = false
   }
@@ -219,9 +262,11 @@ object SubscriptionActor {
 
   sealed trait Commands
 
+  private [op_rabbit] case class BindSuccess(channel: Channel) extends Commands
+  private [op_rabbit] case class BindFailure(channel: Channel, reason: Throwable) extends Commands
   case class Stop(shutdownCause: Option[Throwable], timeout: FiniteDuration = Stop.defaultTimeout) extends Commands
   object Stop {
-    val defaultTimeout = 5 minutes
+    val defaultTimeout = 5.minutes
   }
   case class Abort(shutdownCause: Option[Throwable]) extends Commands
 

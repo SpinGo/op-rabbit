@@ -91,33 +91,25 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
       }
     }
 
-    // TODO - make this test not suck
     it("handles connection interruption without dropping messages") {
       new RabbitFixtures {
-        var received = List.empty[Int]
-        var countConfirmed = 0
-        var countReceived = 0
-        var lastReceived = -1
-        val doneConfirm = Promise[Unit]
-        val doneReceive = Promise[Unit]
+        val doneConfirm = Promise[Set[Int]]
+        val doneReceive = Promise[Set[Int]]
 
         val counter = actorSystem.actorOf(Props(new Actor {
+          var received = Set.empty[Int]
+          var confirmed = Set.empty[Int]
           def receive = {
-            case ('confirm, -1) =>
-              doneConfirm.success()
-            case ('receive, -1) =>
-              doneReceive.success()
             case ('confirm, n: Int) =>
-              println(s"== confirm $n")
-              countConfirmed += 1
+              println(s"Counter: confirm $n")
+              confirmed = confirmed + n
+              if (n == -1)
+                doneConfirm.trySuccess(confirmed)
             case ('receive, n: Int) =>
-              println(s"receive $n")
-              if(n <= lastReceived) // duplicate message
-                ()
-              else {
-                countReceived += 1
-                lastReceived = n
-              }
+              println(s"Counter: receive $n")
+              received = received + n
+              if (n == -1)
+                doneReceive.trySuccess(received)
           }
         }))
 
@@ -126,42 +118,43 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
           channel(qos = 1) {
             consume(queue(queueName, durable = true, exclusive = false)) {
               body(as[Int]) { i =>
-                counter ! ('receive, i)
-                ack()
+                println(s"Consumer received $i")
+                counter ! (('receive, i))
+                ack
               }
             }
           }
         }
         await(subscription.initialized)
 
-        val factory = Message.factory(Publisher.queue(queueName))
-
-        var keepSending = true
-        val lastSentF = Future {
+        val sender = actorSystem.actorOf(Props(new Actor {
+          val factory = Message.factory(Publisher.queue(queueName))
           var i = 0
-          while (keepSending) {
-            i = i + 1
-            val n = i
-            val msg = factory(n)
-            (rabbitControl ? msg) foreach { _ =>
-              counter ! ('confirm, n)
-            }
-            Thread.sleep(10) // slight delay as to not overwhelm RAM
+          override def preStart(): Unit = {
+            context.system.scheduler.schedule(0.seconds, 5.millis, self, 'beat)
           }
-          i
-        }
 
-        Thread.sleep(100)
-        reconnect(rabbitControl)
-        keepSending = false
-        val lastSent = await(lastSentF)
-        val confirmMsg = factory(-1)
-        (rabbitControl ? confirmMsg) foreach { case m: Message.Ack =>
-          counter ! ('confirm, -1)
-        }
-        await(doneReceive.future)
-        await(doneConfirm.future)
-        countReceived should be (countConfirmed)
+          def receive = {
+            case 'beat if i == 40 =>
+              doSend(-1)
+              context.stop(self)
+            case 'beat =>
+              i = i + 1
+              if (i == 20)
+                Future { reconnect(rabbitControl) }
+              doSend(i)
+          }
+
+          def doSend(n: Int): Unit = {
+            (rabbitControl ? factory(n)) foreach { case m: Message.Ack =>
+              counter ! (('confirm, n))
+            }
+          }
+        }))
+
+        val received = await(doneReceive.future)
+        val confirmed = await(doneConfirm.future)
+        received shouldBe confirmed
 
         deleteQueue(queueName)
       }

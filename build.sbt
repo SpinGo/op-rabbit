@@ -2,7 +2,7 @@ import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 import java.util.Properties
 
-val akkaVersion = "2.3.10"
+val akkaVersion = "2.4.0"
 
 val json4sVersion = "3.2.10"
 
@@ -30,7 +30,7 @@ val commonSettings = Seq(
     "com.typesafe.akka"     %%  "akka-actor"   % akkaVersion,
     "com.typesafe.akka"     %%  "akka-testkit" % akkaVersion % "test",
     "com.typesafe.akka"     %%  "akka-slf4j"   % akkaVersion % "test",
-    "com.thenewmotion.akka" %% "akka-rabbitmq" % "1.2.7",
+    "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.0",
     "org.slf4j" % "slf4j-api" % "1.7.12",
     "ch.qos.logback" % "logback-classic" % "1.1.3" % "test",
     "org.scalatest" %% "scalatest" % "2.2.1" % "test",
@@ -76,7 +76,7 @@ lazy val `play-json` = (project in file("./addons/play-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-play-json",
-    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.2").
+    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.3").
   dependsOn(core)
 
 lazy val `spray-json` = (project in file("./addons/spray-json")).
