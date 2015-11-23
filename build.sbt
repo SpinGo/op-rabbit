@@ -99,7 +99,7 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
   settings(
     name := "op-rabbit-akka-stream",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-stream" % "1.0-RC1",
+      "com.timcharper"    %% "acked-streams" % "1.0",
       "com.typesafe.akka" %% "akka-stream-experimental" % "1.0"),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
