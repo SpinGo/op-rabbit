@@ -23,7 +23,7 @@ object Binding {
     val queueName: String
   }
 
-  trait ExchangeDefinition[T <: Concreteness] extends TopologyDefinition {
+  trait ExchangeDefinition[+T <: Concreteness] extends TopologyDefinition {
     val exchangeName: String
   }
 
