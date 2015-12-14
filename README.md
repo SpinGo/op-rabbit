@@ -97,8 +97,8 @@ libraryDependencies ++= Seq(
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
 | op-rabbit-akka-steam         | acked-stream             | 1.0      |
 |                              | akka-stream-experimental | 1.0      |
-| op-rabbit-akka-steam-2.0-M1  | acked-stream             | 2.0-M1-2 |
-|                              | akka-stream-experimental | 2.0-M1   |
+| op-rabbit-akka-steam-2.0-M2  | acked-stream             | 2.0-M2   |
+|                              | akka-stream-experimental | 2.0-M2   |
 
 1.0.x
 

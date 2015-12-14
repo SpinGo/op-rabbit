@@ -107,14 +107,14 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
   dependsOn(core)
 
-lazy val `akka-stream-2-M1` = (project in file("./addons/akka-stream-2-M1")).
+lazy val `akka-stream-2-M2` = (project in file("./addons/akka-stream-2-M2")).
   settings(commonSettings: _*).
   settings(
-    name := "op-rabbit-akka-stream-2.0-M1",
+    name := "op-rabbit-akka-stream-2.0-M2",
     scalaSource in Compile := `akka-stream`.base.getAbsoluteFile / "src" / "main" / "scala",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-streams" % "2.0-M1-2",
-      "com.typesafe.akka" %% "akka-stream-experimental" % "2.0-M1"),
+      "com.timcharper"    %% "acked-streams" % "2.0-M2",
+      "com.typesafe.akka" %% "akka-stream-experimental" % "2.0-M2"),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
