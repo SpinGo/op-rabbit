@@ -1,0 +1,17 @@
+cat <<-'EOF' > README.md.html
+<!DOCTYPE html>
+<html>
+<title>Op-Rabbit</title>
+<xmp theme="united" style="display:none;">
+EOF
+
+cat README.md >> README.md.html
+
+cat <<-'EOF' >> README.md.html
+</xmp>
+
+<script src="http://strapdownjs.com/v/0.2/strapdown.js"></script>
+</html>
+EOF
+
+open README.md.html

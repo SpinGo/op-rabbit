@@ -81,3 +81,4 @@ src/test/resources/logback-test.xml
 scratch/
 .history
 erl_crash.dump
+README.md.html
