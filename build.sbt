@@ -2,8 +2,6 @@ import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 import java.util.Properties
 
-val akkaVersion = "2.4.0"
-
 val json4sVersion = "3.2.10"
 
 val appProperties = {
@@ -14,6 +12,17 @@ val appProperties = {
 
 val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't packaged")
 
+def akka(scalaVersion: String) = {
+  val version = scalaVersion match {
+    case x if x.startsWith("2.10") => "2.3.14"
+    case x => "2.4.1"
+  }
+
+  def libs(xs: String*) = xs.map(x => "com.typesafe.akka" %% s"akka-$x" % version)
+
+  libs("actor") ++ libs("testkit", "slf4j").map(_ % "test")
+}
+
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
@@ -22,20 +31,19 @@ val commonSettings = Seq(
   resolvers ++= Seq(
     "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases",
-    "Sonatype Releases"  at "http://oss.sonatype.org/content/repositories/releases"
+    "Sonatype Releases"  at "http://oss.sonatype.org/content/repositories/releases",
+    "The New Motion Public Repo" at "http://nexus.thenewmotion.com/content/groups/public/"
   ),
   libraryDependencies ++= Seq(
     "com.chuusai" %%  "shapeless" % "2.2.5",
     "com.typesafe" % "config" % "1.3.0",
-    "com.typesafe.akka"     %%  "akka-actor"   % akkaVersion,
-    "com.typesafe.akka"     %%  "akka-testkit" % akkaVersion % "test",
-    "com.typesafe.akka"     %%  "akka-slf4j"   % akkaVersion % "test",
-    "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.0",
+    "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.2",
     "org.slf4j" % "slf4j-api" % "1.7.12",
     "ch.qos.logback" % "logback-classic" % "1.1.3" % "test",
     "org.scalatest" %% "scalatest" % "2.2.1" % "test",
     "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test"
   ),
+  libraryDependencies <++= scalaVersion { v: String => akka(v) },
   publishMavenStyle := true,
   publishTo := {
     val repo = if (version.value.trim.endsWith("SNAPSHOT")) "snapshots" else "releases"
