@@ -40,7 +40,7 @@ val commonSettings = Seq(
     "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.2",
     "org.slf4j" % "slf4j-api" % "1.7.12",
     "ch.qos.logback" % "logback-classic" % "1.1.3" % "test",
-    "org.scalatest" %% "scalatest" % "2.2.1" % "test",
+    "org.scalatest" %% "scalatest" % "2.2.4" % "test",
     "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test"
   ),
   libraryDependencies <++= scalaVersion { v: String => akka(v) },
