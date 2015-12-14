@@ -82,9 +82,9 @@ libraryDependencies ++= Seq(
 )
 ```
 
-### Version Compatibility Matrix:
+### Scala Version Compatibility Matrix:
 
-1.1.x
+2.11.x
 
 | module                       | dependsOn                | version  |
 | ---------------------------- | ------------------------ | -------- |
@@ -100,12 +100,12 @@ libraryDependencies ++= Seq(
 | op-rabbit-akka-steam-2.0-M2  | acked-stream             | 2.0-M2   |
 |                              | akka-stream-experimental | 2.0-M2   |
 
-1.0.x
+2.10.x
 
 | module                       | dependsOn                | version  |
 | ---------------------------- | ------------------------ | -------- |
-| op-rabbit-core               | akka                     | 2.2.x    |
-|                              | akka-rabbitmq            | 1.3.x    |
+| op-rabbit-core               | akka                     | 2.3.x    |
+|                              | akka-rabbitmq            | 2.x      |
 |                              | shapeless                | 2.2.x    |
 |                              | type-safe config         | >= 1.3.0 |
 | op-rabbit-play-json          | play-json                | 2.4.x    |
