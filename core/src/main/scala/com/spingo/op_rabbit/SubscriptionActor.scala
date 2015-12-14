@@ -80,6 +80,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
          * possible for the initialization to succeed at one point, but
          * fail later. */
         closed.tryFailure(ex)
+        log.error(ex, s"An error while trying to bind a consumer to ${subscription.consumer.queue.queueName}")
 
         ex match {
           case shutdownEx: ShutdownSignalException =>

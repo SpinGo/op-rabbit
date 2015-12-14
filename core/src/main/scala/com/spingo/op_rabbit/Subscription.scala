@@ -62,7 +62,7 @@ class Subscription private(config: BoundChannel) extends Directives {
   protected [op_rabbit] lazy val queue = config.boundConsumer.queue
   protected [op_rabbit] lazy val consumer = config.boundConsumer
 
-  def run(rabbitControl: ActorRef, timeout: FiniteDuration = 5 seconds): SubscriptionRef = {
+  def run(rabbitControl: ActorRef, timeout: FiniteDuration = 5.seconds): SubscriptionRef = {
     implicit val akkaTimeout = Timeout(timeout)
     SubscriptionRefProxy((rabbitControl ? this).mapTo[SubscriptionRef])
   }
