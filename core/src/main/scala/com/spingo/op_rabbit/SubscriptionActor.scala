@@ -188,10 +188,12 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
       case ex: ShutdownSignalException =>
         initialized.tryFailure(ex)
         closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+        log.error(ex, s"An error while trying to bind a consumer to ${subscription.consumer.queue.queueName}")
         goto(Stopped) using connectionInfo.copy(shutdownCause = Some(ex))
       case ex: Throwable =>
         initialized.tryFailure(ex)
         closed.tryFailure(ex) // propagate exception to closed future as well, as it's possible for the initialization to succeed at one point, but fail later.
+        log.error(ex, s"An error while trying to bind a consumer to ${subscription.consumer.queue.queueName}")
         goto(Stopped)
     }
   }

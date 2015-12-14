@@ -83,7 +83,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
   private var subscriptions = List.empty[ActorRef]
   private val deadLetters = context.system.deadLetters
 
-  implicit val timeout = Timeout(5 seconds)
+  implicit val timeout = Timeout(5.seconds)
   implicit val ec = context.dispatcher
 
   var running: SubscriptionCommand = Run
