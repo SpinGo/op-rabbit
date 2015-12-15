@@ -244,7 +244,20 @@ if the Future fails:
   // ...
 
 ```
+#### Consuming from existing queues
+If the queue already exists and doesn't match the expected configuration, topic subscription will fail. To bind to an externally configured queue use `Queue.passive`:
 
+```scala
+  channel(qos = 3) {
+    consume(Queue.passive("very-exist-queue")) { ...
+```
+
+It is also possible to optionally create the queue if it doesn't exist, by providing a `QueueDefinition` instead of a `String`:
+
+```scala
+  channel(qos = 3) {
+    consume(Queue.passive(topic(queue("wow-maybe-queue"), List("some-topic.#")))) { ...
+```
 #### Accessing additional headers
 
 As seen in the example above, you can extract headers in addition to
