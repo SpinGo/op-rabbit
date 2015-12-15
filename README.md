@@ -245,7 +245,7 @@ if the Future fails:
 
 ```
 #### Consuming from existing queues
-If the queue already exists and doesn't match the expected configuration, silent failures are possible. In this case, use `Queue.passive`:
+If the queue already exists and doesn't match the expected configuration, topic subscription will fail. To bind to an externally configured queue use `Queue.passive`:
 
 ```scala
   channel(qos = 3) {
