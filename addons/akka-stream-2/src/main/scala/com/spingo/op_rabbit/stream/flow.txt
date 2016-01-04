@@ -1,0 +1,29 @@
+[SourceNode]
+   |   ^
+   |  /|
+   v / |
+[FilterNode]
+   |   ^
+   |   |
+   v   |
+[ MapNode ]
+   |   ^
+   |  /|
+   v / |
+[MapConcatNode]
+   |   ^
+   |   |
+   v   |
+[  RunAck  ]
+
+
+/* Broadcast is a no-go.
+
+10s of nodes, hundreds of fanouts, fanins - how do you reason about what's going to happen?
+
+Async 3 faced commit,
+
+
+- every stange acks?
+- every stage considered persistence? Each node persists (CQRS) ?
+- BidiFlow, transitive operation (Map) - hoist. Every point where do something fishy, can pass things through or not.
