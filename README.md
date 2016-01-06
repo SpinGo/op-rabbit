@@ -95,9 +95,9 @@ libraryDependencies ++= Seq(
 | op-rabbit-play-json          | play-json                | 2.4.x    |
 | op-rabbit-json4s             | json4s                   | 3.2.x    |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
-| op-rabbit-akka-steam         | acked-stream             | 1.0      |
+| op-rabbit-akka-stream        | acked-stream             | 1.0      |
 |                              | akka-stream-experimental | 1.0      |
-| op-rabbit-akka-steam-2.0     | acked-stream             | 2.0      |
+| op-rabbit-akka-stream-2.0    | acked-stream             | 2.0      |
 |                              | akka-stream-experimental | 2.0.1    |
 
 2.10.x
@@ -111,9 +111,9 @@ libraryDependencies ++= Seq(
 | op-rabbit-play-json          | play-json                | 2.4.x    |
 | op-rabbit-json4s             | json4s                   | 3.2.x    |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
-| op-rabbit-akka-steam         | acked-stream             | 1.0      |
+| op-rabbit-akka-stream        | acked-stream             | 1.0      |
 |                              | akka-stream-experimental | 1.0      |
-| op-rabbit-akka-steam-2.0     | acked-stream             | 2.0      |
+| op-rabbit-akka-stream-2.0    | acked-stream             | 2.0      |
 |                              | akka-stream-experimental | 2.0.1    |
 
 ## A high-level overview of the available components:

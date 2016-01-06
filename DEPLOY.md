@@ -13,3 +13,5 @@ Run the following:
     git commit -m v$version
     git tag v$version
     git push origin v$version master
+
+Presently, you need to comment out the `akka-stream-2-M2` block when running `make docs publish`, as referring to the same source tree twice introduces compile errors for unidoc.
