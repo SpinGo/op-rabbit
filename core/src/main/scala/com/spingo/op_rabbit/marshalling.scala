@@ -3,12 +3,25 @@ package com.spingo.op_rabbit
 import com.rabbitmq.client.AMQP.BasicProperties
 import java.nio.charset.Charset
 
+sealed abstract class MarshallingException(message: String) extends Exception(message)
+
+case class GenericMarshallingException(message: String) extends MarshallingException(message)
+
 /**
   This exception is thrown when a [[RabbitUnmarshaller]] tries to
   unmarshall a message with the wrong contentType specified in the
   header.
   */
-case class MismatchedContentType(received: String, expected: String) extends Exception(s"MismatchedContentType: expected '${expected}', received '${received}'")
+case class MismatchedContentType(received: String, expected: String)
+    extends MarshallingException(s"MismatchedContentType: expected '${expected}', received '${received}'")
+
+/**
+  This exception is thrown when a [[RabbitUnmarshaller]] tries to
+  unmarshall a message with the wrong contentType specified in the
+  header.
+  */
+case class InvalidFormat(received: String, error: String)
+    extends MarshallingException(s"Couldn't Unmarshall; received '${received}', error: ${error}")
 
 /**
   This trait is used to serialize messages for publication; it

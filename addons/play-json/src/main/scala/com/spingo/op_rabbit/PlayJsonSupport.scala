@@ -52,7 +52,31 @@ object PlayJsonSupport {
           case Some(value) if (value != "application/json" && value != "text/json") =>
             throw MismatchedContentType(value, "application/json")
           case _ =>
-            reads.reads(Json.parse(new String(value, charset map (Charset.forName) getOrElse utf8))).get
+            val str = try {
+              new String(
+                value,
+                charset map (Charset.forName) getOrElse utf8)
+            } catch {
+              case ex: Throwable =>
+                throw new GenericMarshallingException(
+                  s"Could not convert input to charset of type ${charset}; ${ex.toString}")
+            }
+
+            val json = try {
+              Json.parse(str)
+            } catch {
+              case ex: Throwable =>
+                throw InvalidFormat(str, ex.toString)
+            }
+
+            Json.fromJson[T](json) match {
+              case JsSuccess(v, _) =>
+                v
+              case JsError(errors) =>
+                throw InvalidFormat(
+                  json.toString,
+                  JsError.toJson(errors).toString)
+            }
         }
       }
     }

@@ -26,6 +26,12 @@ class PlayJsonSupportSpec extends FunSpec with Matchers {
       }
     }
 
+    it("throws an InvalidFormat exception when unmarshalling is unpossible") {
+      a [InvalidFormat] should be thrownBy {
+        u.unmarshall("""{"a": }""".getBytes, Some("application/json"), Some("UTF-8"))
+      }
+    }
+
     it("serializes the provided content") {
       val body = m.marshall(Thing(5))
     }
