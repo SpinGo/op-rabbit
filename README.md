@@ -323,6 +323,17 @@ subscription.initialized
 subscription.closed
 ```
 
+#### Recovery strategy:
+
+Configured using [RecoveryStrategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html#com.spingo.op_rabbit.RecoveryStrategy). 
+
+By default, uses the [default strategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html#com.spingo.op_rabbit.RecoveryStrategy$@default:com.spingo.op_rabbit.RecoveryStrategy{valx-retry:com.spingo.op_rabbit.properties.UnboundTypedHeader[Int];defgenRetryQueue%28queueName:String%29:com.spingo.op_rabbit.Binding.QueueDefinition[com.spingo.op_rabbit.Binding.Concrete]})
+
+Easiest way to set-up: declare an implicit, e.g.:
+```
+implicit val recoveryStrategy = RecoveryStrategy.nack()
+```
+
 ### Publish a message:
 
 ```scala
