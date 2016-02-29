@@ -84,37 +84,20 @@ libraryDependencies ++= Seq(
 
 ### Scala Version Compatibility Matrix:
 
-2.11.x
+Only Scala 2.11.x is supported.
 
 | module                       | dependsOn                | version  |
 | ---------------------------- | ------------------------ | -------- |
 | op-rabbit-core               | akka                     | 2.4.x    |
 |                              | akka-rabbitmq            | 2.x      |
-|                              | shapeless                | 2.2.x    |
+|                              | shapeless                | 2.3.x    |
 |                              | type-safe config         | >= 1.3.0 |
 | op-rabbit-play-json          | play-json                | 2.4.x    |
 | op-rabbit-json4s             | json4s                   | 3.2.x    |
+| op-rabbit-circe              | circe                    | 0.3.x    |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
-| op-rabbit-akka-stream        | acked-stream             | 1.0      |
-|                              | akka-stream-experimental | 1.0      |
-| op-rabbit-akka-stream-2-0    | acked-stream             | 2.0      |
-|                              | akka-stream-experimental | 2.0.1    |
-
-2.10.x
-
-| module                       | dependsOn                | version  |
-| ---------------------------- | ------------------------ | -------- |
-| op-rabbit-core               | akka                     | 2.3.x    |
-|                              | akka-rabbitmq            | 2.x      |
-|                              | shapeless                | 2.2.x    |
-|                              | type-safe config         | >= 1.3.0 |
-| op-rabbit-play-json          | play-json                | 2.4.x    |
-| op-rabbit-json4s             | json4s                   | 3.2.x    |
-| op-rabbit-airbrake           | airbrake                 | 2.2.x    |
-| op-rabbit-akka-stream        | acked-stream             | 1.0      |
-|                              | akka-stream-experimental | 1.0      |
-| op-rabbit-akka-stream-2-0    | acked-stream             | 2.0      |
-|                              | akka-stream-experimental | 2.0.1    |
+| op-rabbit-akka-stream        | acked-stream             | 2.1.x    |
+|                              | akka-stream              | >= 2.4.2 |
 
 ## A high-level overview of the available components:
 

@@ -2,7 +2,9 @@ import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 import java.util.Properties
 
-val json4sVersion = "3.2.10"
+val json4sVersion = "3.2.11"
+
+val circeVersion = "0.3.0"
 
 val appProperties = {
   val prop = new Properties()
@@ -12,22 +14,11 @@ val appProperties = {
 
 val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't packaged")
 
-def akka(scalaVersion: String) = {
-  val version = scalaVersion match {
-    case x if x.startsWith("2.10") => "2.3.14"
-    case x => "2.4.1"
-  }
-
-  def libs(xs: String*) = xs.map(x => "com.typesafe.akka" %% s"akka-$x" % version)
-
-  libs("actor") ++ libs("testkit", "slf4j").map(_ % "test")
-}
-
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
   scalaVersion := "2.11.7",
-  crossScalaVersions := Seq("2.11.7", "2.10.5"),
+  crossScalaVersions := Seq("2.11.7"),
   resolvers ++= Seq(
     "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases",
@@ -41,9 +32,11 @@ val commonSettings = Seq(
     "org.slf4j" % "slf4j-api" % "1.7.12",
     "ch.qos.logback" % "logback-classic" % "1.1.3" % "test",
     "org.scalatest" %% "scalatest" % "2.2.4" % "test",
-    "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test"
+    "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test",
+    "com.typesafe.akka" %% "akka-actor" % "2.4.2",
+    "com.typesafe.akka" %% "akka-testkit" % "2.4.2" % "test",
+    "com.typesafe.akka" %% "akka-slf4j" % "2.4.2" % "test"
   ),
-  libraryDependencies <++= scalaVersion { v: String => akka(v) },
   publishMavenStyle := true,
   publishTo := {
     val repo = if (version.value.trim.endsWith("SNAPSHOT")) "snapshots" else "releases"
@@ -58,7 +51,7 @@ lazy val `op-rabbit` = (project in file(".")).
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
   dependsOn(core).
-  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `spray-json`)
+  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `spray-json`, circe)
 
 
 lazy val core = (project in file("./core")).
@@ -101,29 +94,26 @@ lazy val airbrake = (project in file("./addons/airbrake/")).
     libraryDependencies += "io.airbrake" % "airbrake-java" % "2.2.8").
   dependsOn(core)
 
-
 lazy val `akka-stream` = (project in file("./addons/akka-stream")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-akka-stream",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-streams" % "1.0",
-      "com.typesafe.akka" %% "akka-stream-experimental" % "1.0"),
+      "com.timcharper"    %% "acked-streams" % "2.1.0",
+      "com.typesafe.akka" %% "akka-stream" % "2.4.2"),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
   dependsOn(core)
 
-lazy val `akka-stream-2` = (project in file("./addons/akka-stream-2")).
+lazy val circe = (project in file("./addons/circe")).
   settings(commonSettings: _*).
   settings(
-    name := "op-rabbit-akka-stream-2.0",
+    name := "op-rabbit-circe",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-streams" % "2.0",
-      "com.typesafe.akka" %% "akka-stream-experimental" % "2.0.1"),
-    unmanagedResourceDirectories in Test ++= Seq(
-      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
-    unmanagedSourceDirectories in Test ++= Seq(
-      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
+      "io.circe" %% "circe-core" % circeVersion,
+      "io.circe" %% "circe-generic" % circeVersion,
+      "io.circe" %% "circe-parser" % circeVersion
+    )).
   dependsOn(core)

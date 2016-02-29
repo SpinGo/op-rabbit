@@ -164,6 +164,6 @@ object RabbitSource {
 
     abort.future.foreach({ _ => subscription.abort() })(SameThreadExecutionContext)
     consumerStopped.completeWith(subscription.closed)
-    new AckedSource(Source(ActorPublisher[Out](leActor)).mapMaterializedValue(_ => subscription))
+    new AckedSource(Source.fromPublisher(ActorPublisher[Out](leActor)).mapMaterializedValue(_ => subscription))
   }
 }

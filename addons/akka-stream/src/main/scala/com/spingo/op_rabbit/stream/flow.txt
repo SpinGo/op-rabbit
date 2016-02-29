@@ -21,7 +21,7 @@
 
 10s of nodes, hundreds of fanouts, fanins - how do you reason about what's going to happen?
 
-Async 3 faced commit, 
+Async 3 faced commit,
 
 
 - every stange acks?
