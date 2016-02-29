@@ -5,12 +5,12 @@ import akka.pattern.ask
 import com.spingo.scoped_fixtures.ScopedFixtures
 import com.thenewmotion.akka.rabbitmq.{ChannelActor, RichConnectionActor}
 import helpers.RabbitTestHelpers
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.{Inside, FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
 import scala.util.{Failure, Try}
 
-class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
+class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers with Inside {
 
   val _queueName = ScopedFixture[String] { setter =>
     val name = s"test-queue-rabbit-control-${Math.random()}"
@@ -169,5 +169,35 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
         response.exception.getMessage() should include ("no queue 'non-existent-queue'")
       }
     }
+
+    it("overcomes channel-closes resulting in routing messages to non-existent exchanges") {
+      new RabbitFixtures {
+
+        Subscription.run(rabbitControl) {
+          import Directives._
+          channel() {
+            consume(Binding.direct(Queue("somegoodqueue"), Exchange.direct("somegoodexchange"), List("somegoodroutingkey"))) {
+              body(as[Int]) { n =>
+                ack
+              }
+            }
+          }
+        }
+
+        inside(await(rabbitControl ? Message.exchange("bad", "somebadexchange", "somebadroutingkey"))) {
+          case Message.Fail(_, ex: com.rabbitmq.client.ShutdownSignalException) =>
+            ex.getReason.protocolMethodId shouldBe 40
+        }
+
+        for(i <- 1 to 10) {
+          val msg = Message.exchange(i, "somegoodexchange", "somegoodroutingkey")
+          inside(await(rabbitControl ? msg)) {
+            case Message.Ack(id) =>
+              msg.id shouldBe id
+          }
+        }
+      }
+    }
+
   }
 }
