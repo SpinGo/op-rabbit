@@ -4,7 +4,7 @@ import akka.actor.SupervisorStrategy._
 import akka.actor._
 import akka.pattern.{ask,pipe}
 import akka.util.Timeout
-import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, Channel, ConnectionFactory, ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
+import com.thenewmotion.akka.rabbitmq.{ RichConnectionActor, ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
 import com.typesafe.config.ConfigFactory
 import java.net.URLEncoder
 import scala.concurrent.Future
@@ -83,7 +83,7 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
   private var subscriptions = List.empty[ActorRef]
   private val deadLetters = context.system.deadLetters
 
-  implicit val timeout = Timeout(5 seconds)
+  implicit val timeout = Timeout(5.seconds)
   implicit val ec = context.dispatcher
 
   var running: SubscriptionCommand = Run

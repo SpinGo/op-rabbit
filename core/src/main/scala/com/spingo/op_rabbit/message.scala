@@ -96,7 +96,7 @@ object Message extends MessageFactory[Message] {
   def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): Message =
     new Message(publisher, body, properties)
 
-  private var messageSequence = new java.util.concurrent.atomic.AtomicLong()
+  private val messageSequence = new java.util.concurrent.atomic.AtomicLong()
   def nextMessageId = messageSequence.getAndIncrement
 
   sealed trait ConfirmResponse { val id: Long }

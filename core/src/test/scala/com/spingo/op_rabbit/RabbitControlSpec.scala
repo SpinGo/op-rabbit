@@ -29,7 +29,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
       new RabbitFixtures {
         import RabbitControl._
         var count = 0
-        val promises = (0 to 2) map { i => Promise[Int] } toList
+        val promises = (0 to 2).map { i => Promise[Int] }.toList
 
         val subscription = Subscription.run(rabbitControl) {
           import Directives._
@@ -39,7 +39,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
                 println(s"received $i")
                 count += 1
                 promises(i).success(i)
-                ack()
+                ack
               }
             }
           }
@@ -79,7 +79,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
           import Directives._
           channel(qos = 5) {
             consume(queue(queueName, durable = false, exclusive = false)) {
-              ack()
+              ack
             }
           }
         }
