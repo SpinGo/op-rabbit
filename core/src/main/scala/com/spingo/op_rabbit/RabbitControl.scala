@@ -70,8 +70,11 @@ private [op_rabbit] class Sequence extends Iterator[Int] {
   - [[RabbitControl$.GetConnectionActor RabbitControl.GetConnectionActor]] - Return the akka.actor.ActorRef for the `akka-rabbitmq` ConnectionActor
   - [[Subscription]] - Activate the given subscription; responds with a [[SubscriptionRef]]
   */
-class RabbitControl(connectionParams: ConnectionParams) extends Actor with ActorLogging with Stash {
-  def this() = this(ConnectionParams.fromConfig())
+class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Actor with ActorLogging with Stash {
+  def this() = this(Left(ConnectionParams.fromConfig()))
+  def this(connectionParams: ConnectionParams) = this(Left(connectionParams))
+  def this(actorRef: ActorRef) = this(Right(actorRef))
+
   val sequence = new Sequence
 
   import RabbitControl._
@@ -87,12 +90,17 @@ class RabbitControl(connectionParams: ConnectionParams) extends Actor with Actor
   implicit val ec = context.dispatcher
 
   var running: SubscriptionCommand = Run
-  private val connectionFactory = new ClusterConnectionFactory
-  connectionParams.applyTo(connectionFactory)
 
-  val connectionActor = context.actorOf(
-    ConnectionActor.props(connectionFactory),
-    name = CONNECTION_ACTOR_NAME)
+  val connectionActor = connection match {
+    case Left(connectionParams) =>
+      val connectionFactory = new ClusterConnectionFactory
+      connectionParams.applyTo(connectionFactory)
+      context.actorOf(
+        ConnectionActor.props(connectionFactory),
+        name = CONNECTION_ACTOR_NAME)
+
+    case Right(actorRef) => actorRef
+  }
 
   val confirmedPublisher = context.actorOf(
     Props(new ConfirmedPublisherActor(connectionActor)),
