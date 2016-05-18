@@ -155,16 +155,16 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
           self ! ackOrNack
 
         case Left(e @ UnhandledExceptionRejection(_, RabbitExceptionMatchers.NonFatalRabbitException(_))) =>
-          log.error(s"Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.", e)
+          log.error(e, "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
           self ! Nack(true, delivery.envelope.getDeliveryTag)
 
         case Left(UnhandledExceptionRejection(_, e)) =>
-          log.error(s"Recovery strategy failed, or something else went horribly wrong; Nacking with requeue = true, then shutting consumer down.", e)
+          log.error(e, "Recovery strategy failed, or something else went horribly wrong; Nacking with requeue = true, then shutting consumer down.")
           self ! Shutdown(Some(e))
           self ! Nack(true, delivery.envelope.getDeliveryTag)
 
         case Left(e: ExtractRejection) =>
-          log.error(s"Recovery Strategy rejected; Nacking with requeue = true, then shutting consumer down.", e)
+          log.error(e, "Recovery Strategy rejected; Nacking with requeue = true, then shutting consumer down.")
           self ! Shutdown(Some(e))
           self ! Nack(true, delivery.envelope.getDeliveryTag)
       }
