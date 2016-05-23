@@ -25,13 +25,13 @@ object RecoveryStrategy {
   object LimitedRedeliver {
     import Directives._
 
-    type AbandonStrategy = (String, Channel, BasicProperties, Array[Byte]) => Handler
+    type AbandonStrategy = (String, Channel, BasicProperties, Array[Byte], Throwable) => Handler
     import Queue.ModeledArgs._
 
     /**
       Places messages into a queue with "op-rabbit.abandoned" prepended; after ttl (default of 1 day), these messages are dropped.
       */
-    def abandonedQueue(defaultTTL: FiniteDuration = 1 day, abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
+    def abandonedQueue(defaultTTL: FiniteDuration = 1 day, abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }): AbandonStrategy = { (queueName, channel, amqpProperties, body, exception) =>
       val failureQueue = Queue.passive(
         Queue(
           abandonTo(queueName),
@@ -45,7 +45,7 @@ object RecoveryStrategy {
       ack
     }
 
-    val drop: AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
+    val drop: AbandonStrategy = { (queueName, channel, amqpProperties, body, exception) =>
       Directives.nack(false)
     }
   }
@@ -87,7 +87,8 @@ object RecoveryStrategy {
           onAbandon(queueName,
             channel,
             amqpProperties + exceptionHeader,
-            body)
+            body,
+            ex)
         }
       }
     }
