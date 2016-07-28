@@ -2,9 +2,9 @@ import spray.boilerplate.BoilerplatePlugin.Boilerplate
 
 import java.util.Properties
 
-val json4sVersion = "3.2.11"
+val json4sVersion = "3.4.0"
 
-val circeVersion = "0.3.0"
+val circeVersion = "0.4.1"
 
 val appProperties = {
   val prop = new Properties()
@@ -17,8 +17,8 @@ val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't p
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
-  scalaVersion := "2.11.7",
-  crossScalaVersions := Seq("2.11.7"),
+  scalaVersion := "2.11.8",
+  crossScalaVersions := Seq("2.11.8"),
   resolvers ++= Seq(
     "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/",
     "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases",
@@ -26,16 +26,16 @@ val commonSettings = Seq(
     "The New Motion Public Repo" at "http://nexus.thenewmotion.com/content/groups/public/"
   ),
   libraryDependencies ++= Seq(
-    "com.chuusai" %%  "shapeless" % "2.2.5",
+    "com.chuusai" %%  "shapeless" % "2.3.1",
     "com.typesafe" % "config" % "1.3.0",
-    "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.2",
-    "org.slf4j" % "slf4j-api" % "1.7.12",
-    "ch.qos.logback" % "logback-classic" % "1.1.3" % "test",
-    "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+    "com.thenewmotion.akka" %% "akka-rabbitmq" % "2.3",
+    "org.slf4j" % "slf4j-api" % "1.7.21",
+    "ch.qos.logback" % "logback-classic" % "1.1.7" % "test",
+    "org.scalatest" %% "scalatest" % "2.2.6" % "test",
     "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.4.2",
-    "com.typesafe.akka" %% "akka-testkit" % "2.4.2" % "test",
-    "com.typesafe.akka" %% "akka-slf4j" % "2.4.2" % "test"
+    "com.typesafe.akka" %% "akka-actor" % "2.4.8",
+    "com.typesafe.akka" %% "akka-testkit" % "2.4.8" % "test",
+    "com.typesafe.akka" %% "akka-slf4j" % "2.4.8" % "test"
   ),
   publishMavenStyle := true,
   publishTo := {
@@ -77,7 +77,7 @@ lazy val `play-json` = (project in file("./addons/play-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-play-json",
-    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.4.3").
+    libraryDependencies += "com.typesafe.play" %% "play-json" % "2.5.4").
   dependsOn(core)
 
 lazy val `spray-json` = (project in file("./addons/spray-json")).
@@ -100,7 +100,7 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
     name := "op-rabbit-akka-stream",
     libraryDependencies ++= Seq(
       "com.timcharper"    %% "acked-streams" % "2.1.0",
-      "com.typesafe.akka" %% "akka-stream" % "2.4.2"),
+      "com.typesafe.akka" %% "akka-stream" % "2.4.8"),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
