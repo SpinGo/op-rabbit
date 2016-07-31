@@ -31,10 +31,10 @@ object RecoveryStrategy {
     /**
       Places messages into a queue with "op-rabbit.abandoned" prepended; after ttl (default of 1 day), these messages are dropped.
       */
-    def abandonedQueue(defaultTTL: FiniteDuration = 1 day): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
+    def abandonedQueue(defaultTTL: FiniteDuration = 1 day, abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }): AbandonStrategy = { (queueName, channel, amqpProperties, body) =>
       val failureQueue = Queue.passive(
         Queue(
-          s"op-rabbit.abandoned.${queueName}",
+          abandonTo(queueName),
           durable = true,
           arguments = Seq(
             `x-message-ttl`(defaultTTL),
@@ -50,15 +50,15 @@ object RecoveryStrategy {
     }
   }
 
-  def limitedRedeliver(redeliverDelay: FiniteDuration = 10 seconds, retryCount: Int = 3, onAbandon: LimitedRedeliver.AbandonStrategy = LimitedRedeliver.drop) = new RecoveryStrategy {
+  def limitedRedeliver(redeliverDelay: FiniteDuration = 10 seconds, retryCount: Int = 3, onAbandon: LimitedRedeliver.AbandonStrategy = LimitedRedeliver.drop, retryVia : (String) => String = { q => s"op-rabbit.retry.$q" }) = new RecoveryStrategy {
     import Directives._
     val `x-retry` = properties.TypedHeader[Int]("x-retry")
     import Queue.ModeledArgs._
 
-    def genRetryQueue(queueName: String) = 
+    def genRetryQueue(queueName: String) =
       Queue.passive(
         Queue(
-          s"op-rabbit.retry.${queueName}",
+          retryVia(queueName),
           durable = true,
           arguments = Seq(
             `x-expires`(redeliverDelay * 3),
