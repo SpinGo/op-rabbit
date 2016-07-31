@@ -141,7 +141,7 @@ op-rabbit {
     password = "guest"
     port = 5672
     ssl = false
-    timeout = 3s
+    ceonnction-timeout = 3s
   }
 }
 ```
