@@ -6,6 +6,8 @@ val json4sVersion = "3.4.0"
 
 val circeVersion = "0.4.1"
 
+val akkaVersion = "2.4.8"
+
 val appProperties = {
   val prop = new Properties()
   IO.load(prop, new File("project/version.properties"))
@@ -33,9 +35,9 @@ val commonSettings = Seq(
     "ch.qos.logback" % "logback-classic" % "1.1.7" % "test",
     "org.scalatest" %% "scalatest" % "2.2.6" % "test",
     "com.spingo" %% "scoped-fixtures" % "1.0.0" % "test",
-    "com.typesafe.akka" %% "akka-actor" % "2.4.8",
-    "com.typesafe.akka" %% "akka-testkit" % "2.4.8" % "test",
-    "com.typesafe.akka" %% "akka-slf4j" % "2.4.8" % "test"
+    "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+    "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
+    "com.typesafe.akka" %% "akka-slf4j" % akkaVersion % "test"
   ),
   publishMavenStyle := true,
   publishTo := {
@@ -100,7 +102,7 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
     name := "op-rabbit-akka-stream",
     libraryDependencies ++= Seq(
       "com.timcharper"    %% "acked-streams" % "2.1.0",
-      "com.typesafe.akka" %% "akka-stream" % "2.4.8"),
+      "com.typesafe.akka" %% "akka-stream" % akkaVersion),
     unmanagedResourceDirectories in Test ++= Seq(
       (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
