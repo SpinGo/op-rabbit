@@ -71,7 +71,7 @@ resolvers ++= Seq(
   "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
 )
 
-val opRabbitVersion = "1.3.0"
+val opRabbitVersion = "1.4.0"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
@@ -90,12 +90,12 @@ Only Scala 2.11.x is supported. If you require Scala 2.10.x, use
 | module                       | dependsOn                | version  |
 | ---------------------------- | ------------------------ | -------- |
 | op-rabbit-core               | akka                     | 2.4.x    |
-|                              | akka-rabbitmq            | 2.x      |
+|                              | akka-rabbitmq            | 2.3      |
 |                              | shapeless                | 2.3.x    |
 |                              | type-safe config         | >= 1.3.0 |
-| op-rabbit-play-json          | play-json                | 2.4.x    |
-| op-rabbit-json4s             | json4s                   | 3.2.x    |
-| op-rabbit-circe              | circe                    | 0.3.x    |
+| op-rabbit-play-json          | play-json                | 2.5.x    |
+| op-rabbit-json4s             | json4s                   | 3.4.x    |
+| op-rabbit-circe              | circe                    | 0.5.x    |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
 | op-rabbit-akka-stream        | acked-stream             | 2.1.x    |
 |                              | akka-stream              | >= 2.4.2 |
