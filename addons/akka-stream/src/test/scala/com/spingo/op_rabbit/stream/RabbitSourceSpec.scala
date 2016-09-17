@@ -2,13 +2,8 @@ package com.spingo.op_rabbit
 package stream
 
 import akka.actor._
-import akka.pattern.ask
 import akka.stream.ActorMaterializer
-import akka.stream.ActorMaterializerSettings
-import akka.stream.Materializer
-import akka.stream.Supervision
-import akka.stream.scaladsl.Keep
-import akka.stream.scaladsl.{Sink, Source}
+import akka.stream.scaladsl.{Keep, Sink}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.Directives._
@@ -17,7 +12,7 @@ import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import scala.util.{Try,Success,Failure}
+import scala.util.Try
 
 class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 
@@ -38,7 +33,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         exceptionReported.trySuccess(true)
       }
     }
-    val range = (0 to 16) toList
+    val range = (0 to 16).toList
     val qos = 8
 
     implicit val recoveryStrategy = RecoveryStrategy.none
@@ -55,7 +50,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
       new RabbitFixtures {
         lazy val promises = range map (_ => Promise[Unit])
         val (subscription, result) = source.
-          map { i => promises(i).success(); i }.
+          map { i => promises(i).success(()); i }.
           acked.
           toMat(Sink.fold(0)(_ + _))(Keep.both).run
 
@@ -112,7 +107,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           reconnect(rabbitControl)
 
           // open the floodgate; let's wait for the entire stream to complete
-          floodgate.success()
+          floodgate.success(())
           delivered.foreach(p => await(p.future)) // if this fails, it means it did not replay every message
 
           // test is done; let's stop the stream
@@ -123,7 +118,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           val delete = DeleteQueue(queueName())
           rabbitControl ! DeleteQueue(queueName())
           Try {
-            await(delete.processed, 1 second)
+            await(delete.processed, 1.second)
             println("deleted")
           }
         }

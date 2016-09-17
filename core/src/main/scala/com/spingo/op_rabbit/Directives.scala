@@ -1,7 +1,7 @@
 package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.PropertyExtractor
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import shapeless._
 import com.spingo.op_rabbit.Binding._
