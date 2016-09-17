@@ -26,6 +26,12 @@ class PlayJsonSupportSpec extends FunSpec with Matchers {
       }
     }
 
+    it("deserializes a jsObject") {
+      val jsObject = implicitly[RabbitUnmarshaller[JsObject]]
+      jsObject.unmarshall("""{"n": 5}""".getBytes, None, None) should be (JsObject(Map("n" -> JsNumber(5))))
+      jsObject.unmarshall("""{"n": 5}""".getBytes, Some("application/json"), Some("UTF-8")) should be (JsObject(Map("n" -> JsNumber(5))))
+    }
+
     it("throws an InvalidFormat exception when unmarshalling is unpossible") {
       a [InvalidFormat] should be thrownBy {
         u.unmarshall("""{"a": }""".getBytes, Some("application/json"), Some("UTF-8"))
