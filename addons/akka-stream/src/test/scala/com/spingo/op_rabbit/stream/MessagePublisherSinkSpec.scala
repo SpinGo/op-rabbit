@@ -3,7 +3,7 @@ package stream
 
 import akka.actor._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.{Keep, Sink, Source}
+import akka.stream.scaladsl.{Keep, Sink}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.Directives._
@@ -13,7 +13,6 @@ import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.util.{Try,Failure}
-import shapeless._
 
 class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   implicit val executionContext = ExecutionContext.global
@@ -50,7 +49,7 @@ class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers
           consume(queue(queueName, durable = true, exclusive = false, autoDelete = false)),
           body(as[Int])).
           acked.
-          take(range.length).
+          take(range.length.toLong).
           toMat(Sink.fold(List.empty[Int]) {
             case (acc, v) =>
               acc ++ List(v)
