@@ -33,6 +33,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
   }
   describe("consuming messages asynchronously") {
     it("receives and acks every message") {
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       new RabbitFixtures {
         import RabbitErrorLogging.defaultLogger
 
@@ -113,12 +114,18 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
       val queueName: String
       def awaitDeliveries() = Await.result(
         Future.sequence(promises.flatten.map(_.future)), 10.seconds)
+      val directExchange = Exchange.direct("amq.direct", durable = false, autoDelete = true)
       def countAndRejectSubscription()(implicit recoveryStrategy: RecoveryStrategy) =
         Subscription {
           import Directives._
 
+          val directBinding =
+            Binding.direct(
+              queue(queueName, durable = false, exclusive = false, autoDelete = true),
+              Exchange.passive(directExchange))
+
           channel(qos = 3) {
-            consume(queue(queueName, durable = false, exclusive = false, autoDelete = true)) {
+            consume(directBinding) {
               body(as[Int]) { i =>
                 promises(i)(seen(i).getAndIncrement()).success(i)
                 ack(Future.failed(new Exception("Such failure")))
@@ -146,42 +153,46 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
       }
     }
 
-    describe("onAbandon abandonedQueue") {
-      it("deposits messages into error queue on abandon") {
+    describe("onAbandon") {
+      it("applies the onAbandon recoveryStrategy, preserving original exchange and routing key") {
         new RedeliveryFixtures {
           val queueName          = "redeliveryFailedQueueTest"
           val abandonedQueueName = s"op-rabbit.abandoned.${queueName}"
           val retryQueueName     = s"op-rabbit.retry.${queueName}"
-          val retryCount         = 0
+          val retryCount         = 2
 
           try {
-            val recoveryStrategy = RecoveryStrategy.limitedRedeliver(
+            implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(
               redeliverDelay = 100.millis,
-              retryCount     = 0,
-              onAbandon      = RecoveryStrategy.LimitedRedeliver.abandonedQueue(3.seconds))
+              retryCount     = retryCount,
+              onAbandon      = RecoveryStrategy.abandonedQueue(3.seconds))
             val subscription = countAndRejectSubscription()(recoveryStrategy).run(rabbitControl)
             await(subscription.initialized)
 
-            range foreach { i => rabbitControl ! Message.queue(i, queueName) }
+            range foreach { i =>
+              rabbitControl ! Message.exchange(i, directExchange.exchangeName, routingKey = queueName)
+            }
             awaitDeliveries()
 
             subscription.close()
             await(subscription.closed)
 
-            val nineReceived = Promise[Unit]
+            val nineReceived = Promise[(String, String)]
             val errorSubscription = Subscription.run(rabbitControl) {
               import Directives._
               channel(1) {
                 consume(pqueue(abandonedQueueName)) {
-                  body(as[Int]) { i =>
-                    if (i == 9) nineReceived.success(())
+                  (body(as[Int]) &
+                    property(RecoveryStrategy.`x-original-exchange`) &
+                    property(RecoveryStrategy.`x-original-routing-key`)) { (i, rk, x) =>
+                    if (i == 9) nineReceived.success((rk, x))
                     ack
                   }
                 }
               }
             }
             await(errorSubscription.initialized)
-            await(nineReceived.future)
+            await(nineReceived.future) shouldBe (("amq.direct", queueName))
           } finally {
             deleteQueue(queueName)
           }
@@ -198,7 +209,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
               implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver(
                 redeliverDelay = 100.millis,
                 retryCount     = 1,
-                onAbandon      = RecoveryStrategy.LimitedRedeliver.abandonedQueue(time))
+                onAbandon      = RecoveryStrategy.abandonedQueue(time))
               val subscription = countAndRejectSubscription()
 
               val subscriptionRef = subscription.run(rabbitControl)
@@ -221,6 +232,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
     it("waits until all pending promises are acked prior to closing the subscription") {
       new RabbitFixtures {
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
         val ackThem        = Promise[Unit]
         val range          = (0 to 15).toList
         val receivedCounts = scala.collection.mutable.IndexedSeq.fill(range.length)(0)
@@ -285,6 +297,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
         val receivedCounts = scala.collection.mutable.IndexedSeq.fill(range.length)(0)
         val received = range map { i => Promise[Unit] }
         val firstEight = received.take(8)
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
 
         val subscription = Subscription.run(rabbitControl) {
           import Directives._

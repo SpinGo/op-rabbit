@@ -24,6 +24,8 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
       import scala.concurrent.ExecutionContext.Implicits.global
 
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
+
       val consumerResult = List(Promise[String], Promise[String])
 
       val queues = (0 to 1) map { case idx =>
@@ -70,6 +72,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
       import scala.concurrent.ExecutionContext.Implicits.global
 
       val consumerResult = List(Promise[String], Promise[String])
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
 
       val subscriptions = (0 to 1) map { case idx =>
         val queueName = _queueName() + idx
@@ -101,7 +104,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
   describe("Binding.headers") {
     it("properly declares the header binding with appropriate type matching") {
       import scala.concurrent.ExecutionContext.Implicits.global
-
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       val queueName = _queueName()
       val stringReceived = Promise[String]
       val intReceived = Promise[String]
@@ -158,7 +161,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
   describe("Binding.topic") {
     it("properly declares the topic binding with appropriate bindings") {
       import scala.concurrent.ExecutionContext.Implicits.global
-
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       val queueName = _queueName()
       val received = Promise[String]
       val subscription = Subscription.run(rabbitControl) {

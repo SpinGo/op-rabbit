@@ -21,6 +21,7 @@ class SubscriptionSpec extends FunSpec with ScopedFixtures with Matchers with Ra
 
   describe("Failed subscription") {
     it("propagates the exception via the initialized future") {
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       new RabbitFixtures {
         val s = Subscription.run(rabbitControl) {
           import Directives._

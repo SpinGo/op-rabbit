@@ -75,8 +75,8 @@ object RabbitSource {
   )(implicit tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy) = {
     val src = Source.queue[AckTup[tupler.Out]](channelDirective.config.qos, OverflowStrategy.backpressure).mapMaterializedValue { input =>
       def interceptingRecoveryStrategy = new RecoveryStrategy {
-        def apply(ex: Throwable, channel: Channel, queueName: String): Handler = { (p, delivery) =>
-          recoveryStrategy(ex, channel, queueName)(p, delivery)
+        def apply(queueName: String, channel: Channel, ex: Throwable): Handler = { (p, delivery) =>
+          recoveryStrategy(queueName, channel, ex)(p, delivery)
           // if recovery strategy fails, then yield the exception through the stream
           input.fail(ex)
         }

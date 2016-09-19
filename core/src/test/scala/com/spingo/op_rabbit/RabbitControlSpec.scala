@@ -27,6 +27,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
     it("unsubscribes all subscriptions") {
       new RabbitFixtures {
         import RabbitControl._
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
         var count = 0
         val promises = (0 to 2).map { i => Promise[Int] }.toList
 
@@ -73,6 +74,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
 
   describe("Message publication") {
     it("responds with Ack(msg.id) on delivery confirmation") {
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       new RabbitFixtures {
         val subscription = Subscription.run(rabbitControl) {
           import Directives._
@@ -91,6 +93,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
     }
 
     it("handles connection interruption without dropping messages") {
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       new RabbitFixtures {
         val doneConfirm = Promise[Set[Int]]
         val doneReceive = Promise[Set[Int]]
@@ -170,6 +173,7 @@ class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with R
     }
 
     it("overcomes channel-closes resulting in routing messages to non-existent exchanges") {
+      implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       new RabbitFixtures {
 
         Subscription.run(rabbitControl) {

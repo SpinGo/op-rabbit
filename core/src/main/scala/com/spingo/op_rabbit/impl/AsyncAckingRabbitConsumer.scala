@@ -148,7 +148,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
         applyHandler("running recoveryStrategy",
           fail.delivery)(
-          subscription.recoveryStrategy(fail.exception, channel, subscription.queue.queueName)).
+          subscription.recoveryStrategy(subscription.queue.queueName, channel, fail.exception)).
           onSuccess {
             case ackOrNack @ (_: ReceiveResult.Ack | _: ReceiveResult.Nack) =>
               self ! ackOrNack

@@ -52,13 +52,15 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
   @inline
   def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties): M
 
-  def apply[T](body: T, publisher: Publisher, properties: Seq[MessageProperty] = Seq())(implicit marshaller: RabbitMarshaller[T]) = {
+  def apply[T](body: T, publisher: Publisher, properties: Seq[MessageProperty] = Seq())(
+    implicit marshaller: RabbitMarshaller[T]) = {
     val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
     marshaller.setProperties(builder)
     newInstance(publisher, marshaller.marshall(body), builder.build)
   }
 
-  def factory[T](publisher: Publisher, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, M] = {
+  def factory[T](publisher: Publisher, properties: Seq[MessageProperty] = Seq.empty)(
+    implicit marshaller: RabbitMarshaller[T]): MessageForPublicationLike.Factory[T, M] = {
     val builder = builderWithProperties(MessageForPublicationLike.defaultProperties ++ properties)
     marshaller.setProperties(builder)
     val rabbitProperties = builder.build
@@ -69,13 +71,18 @@ private [op_rabbit] trait MessageFactory[M <: MessageForPublicationLike] {
   /**
     Shorthand for [[.apply Message]](Publisher.exchange(...), ...)
     */
-  def exchange[T](message: T, exchange: String, routingKey: String = "", properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
+  def exchange[T](message: T, exchange: String, routingKey: String = "", properties: Seq[MessageProperty] = Seq.empty)(
+    implicit marshaller: RabbitMarshaller[T]): M =
     apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
     Shorthand for [[.apply Message]](Publisher.topic(...), ...)
     */
-  def topic[T](message: T, routingKey: String, exchange: String = RabbitControl.topicExchangeName, properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
+  def topic[T](
+    message: T,
+    routingKey: String,
+    exchange: String = RabbitControl.topicExchangeName,
+    properties: Seq[MessageProperty] = Seq.empty)(implicit marshaller: RabbitMarshaller[T]): M =
     apply(message, Publisher.exchange(exchange, routingKey), properties)
 
   /**
@@ -115,7 +122,8 @@ final class UnconfirmedMessage(
 
 object UnconfirmedMessage extends MessageFactory[UnconfirmedMessage] {
   @inline
-  def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties) = new UnconfirmedMessage(publisher, body, properties)
+  def newInstance(publisher: Publisher, body: Array[Byte], properties: BasicProperties) =
+    new UnconfirmedMessage(publisher, body, properties)
 }
 
 object StatusCheckMessage {
@@ -124,7 +132,8 @@ object StatusCheckMessage {
 /**
   Send this message to RabbitControl to check the status of our connection to the RabbitMQ broker.
   */
-class StatusCheckMessage(timeout: Duration = 5 seconds)(implicit actorSystem: ActorSystem) extends MessageForPublicationLike {
+class StatusCheckMessage(timeout: Duration = 5 seconds)(implicit actorSystem: ActorSystem)
+    extends MessageForPublicationLike {
   val dropIfNoChannel = true
   private val isOpenPromise = Promise[Unit]
 

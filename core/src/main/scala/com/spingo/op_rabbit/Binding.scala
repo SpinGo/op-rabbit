@@ -32,7 +32,7 @@ object Binding {
     exchange:
         ExchangeDefinition[Concrete] with
         Exchange[Exchange.Direct.type],
-    routingKeys: List[String]
+    routingKeys: List[String] = Nil
   ): Binding = new Binding {
     val queueName = queue.queueName
     val exchangeName = exchange.exchangeName
@@ -40,9 +40,12 @@ object Binding {
     def declare(c: Channel): Unit = {
       exchange.declare(c)
       queue.declare(c)
-      routingKeys.foreach { routingKey =>
-        c.queueBind(queueName, exchangeName, routingKey, null)
-      }
+      if (routingKeys.isEmpty)
+        c.queueBind(queueName, exchangeName, queueName, null)
+      else
+        routingKeys.foreach { routingKey =>
+          c.queueBind(queueName, exchangeName, routingKey, null)
+        }
     }
   }
 

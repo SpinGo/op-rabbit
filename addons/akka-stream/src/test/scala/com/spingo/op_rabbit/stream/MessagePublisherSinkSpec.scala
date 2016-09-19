@@ -42,6 +42,7 @@ class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers
   describe("PublisherSink") {
     it("publishes all messages consumed, and acknowledges the promises") {
       new RabbitFixtures {
+        implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
 
         val (subscription, consumed) = RabbitSource(
           rabbitControl,
