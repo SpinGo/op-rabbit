@@ -58,17 +58,19 @@ object RecoveryStrategy {
     */
   def abandonedQueue(
     defaultTTL: FiniteDuration = 1.day,
-    abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }) = RecoveryStrategy {
+    abandonQueueName: (String) => String = { q => s"op-rabbit.abandoned.$q" },
+    abandonQueueProperties: List[properties.Header] = Nil) = RecoveryStrategy {
     (queueName, channel, exception) =>
 
     (extract(identity) & originalRoutingKey & originalExchange) { (delivery, rk, x) =>
       val failureQueue = Queue.passive(
         Queue(
-          abandonTo(queueName),
+          abandonQueueName(queueName),
           durable = true,
-          arguments = Seq(
+          arguments = List[properties.Header](
             `x-message-ttl`(defaultTTL),
-            `x-expires`(defaultTTL * 2))))
+            `x-expires`(defaultTTL * 2)) ++
+            abandonQueueProperties))
       failureQueue.declare(channel)
       channel.basicPublish("",
         failureQueue.queueName,
@@ -138,20 +140,21 @@ object RecoveryStrategy {
     redeliverDelay: FiniteDuration = 10.seconds,
     retryCount: Int = 3,
     onAbandon: RecoveryStrategy = nack(false),
-    retryQueue : (String) => String = { q => s"op-rabbit.retry.$q" }) = new RecoveryStrategy {
+    retryQueueName : (String) => String = { q => s"op-rabbit.retry.$q" },
+    retryQueueProperties: List[properties.Header] = Nil) = new RecoveryStrategy {
     import Directives._
     import Queue.ModeledArgs._
 
     def genRetryQueue(queueName: String) =
       Queue.passive(
         Queue(
-          retryQueue(queueName),
+          retryQueueName(queueName),
           durable = true,
-          arguments = Seq(
+          arguments = List[properties.Header](
             `x-expires`(redeliverDelay * 3),
             `x-message-ttl`(redeliverDelay),
             `x-dead-letter-exchange`(""), // default exchange
-            `x-dead-letter-routing-key`(queueName))))
+            `x-dead-letter-routing-key`(queueName)) ++ retryQueueProperties))
 
     private val getRetryCount = (property(`x-retry`) | provide(0))
     def apply(queueName: String, channel: Channel, ex: Throwable): Handler = {
