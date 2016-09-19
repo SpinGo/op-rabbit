@@ -16,7 +16,7 @@ import scala.collection.JavaConversions._
 
   Instantiates a new [[RabbitErrorLogging]] strategy that reports exceptions, along with message and message headers, to [[https://airbrake.io Airbrake]].
 
-  === Instantiating from config ==
+  === Instantiating from config ===
 
   Call the convenience lazy-getter [[AirbrakeLogger$.fromConfig
   AirBrake.fromConfig]] to get a [[AirbrakeLogger]] initialize from

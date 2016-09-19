@@ -52,7 +52,7 @@ object Binding {
   /**
     Binding which declares a message queue, and then binds various topics to it. Note that bindings are idempotent.
 
-    @see [[Queue]], [[HeadersBinding]], [[FanoutBinding]], [[Subscription]]
+    @see [[Queue]], [[Binding$.headers]], [[Binding$.fanout]], [[Subscription]]
 
     @param queue        The queue which will receive the messages matching the topics
     @param topics       A list of topics to bind to the message queue. Examples: "stock.*.nyse", "stock.#"

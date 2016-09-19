@@ -7,13 +7,12 @@ import Directives.{property, extract, ack, exchange, routingKey}
 import com.spingo.op_rabbit.Queue.ModeledArgs.{`x-message-ttl`, `x-expires`}
 
 /**
-  Instructs rabbitmq what to do when an unhandled exceptions occur; by default, simply nack the message.
-
-  By contract, RecoveryStrategy returns a Future[Boolean], which is interpreted as follows:
-
-  - Success(true) acks the message, consumer continues with it's business
-  - Success(false) nacks the message, consumer continues with it's business
-  - Failure(ex) nacks the message, and causes the consumer to stop.
+  * Instructs RabbitMQ what to do in the event of a consumer failure, failure being defined as the handler throwing an
+  * exception, the `fail` directive being used, or `ack(Future.failed(ex))` / `ack(Failure(ex))`.
+  *
+  * By contract, RecoveryStrategy accept a queueName, channel, and exception, and return a [[Handler]] whose status
+  * dictates the fate of the recovered message. A RecoveryStratregy should not do any asynchronous work involving the
+  * provided channel
   */
 trait RecoveryStrategy extends ((String, Channel, Throwable) => Handler)
 private [op_rabbit] class RecoveryStrategyWrap(fn: (String, Channel, Throwable) => Handler) extends RecoveryStrategy {
@@ -51,7 +50,7 @@ object RecoveryStrategy {
   val `x-exception` = properties.TypedHeader[String]("x-exception")
 
   /** Places copy of message into a queue with "op-rabbit.abandoned." prepended (configurable); after ttl (default of 1
-    * day), these messages are dropped. Exception is stored in `x-exception` header; Original routing information stored
+    * day), these messages are dropped. Exception is stored in `x-exception` header; original routing information stored
     * in `x-original-routing-key` and `x-original-exchange`.
     *
     * @param defaultTTL - How long abandoned messages should stay in the queue.
@@ -83,52 +82,52 @@ object RecoveryStrategy {
   }
 
 
-  /***
-   * Recovery strategy which redelivers messages a limited number of times. Violates message ordering guarantees.
+  /**
+   * Recovery strategy which redelivers messages a limited number of times. '''Violates message ordering guarantees.'''
    *
-   * Failure is defined as the handler throwing an exception, the `fail` directive being used, or
-   * `ack(Future.failed(ex))` / `ack(Failure(ex))`.
+   * For a definition of what constitutes failure, see [[RecoveryStrategy]].
    *
    * In the event of a failure, the following happens:
    *
-   * - The message header [[x-retry `x-retry`]] is read to determine if there are retries remaining.
+   *   - The message header [[x-retry `x-retry`]] is read to determine if there are retries remaining.
    *
-   * - If retries are exhausted, then fallback to provided onAbandon handler.
+   *   - If retries are exhausted, then fallback to provided `onAbandon` handler.
    *
-   * - Otherwise, publish a new copy of the message to the configurable, passively created retryQueue. It is of *vital
-   *   importance* that you read the queue caveats related noted below.
+   *   - Otherwise, publish a new copy of the message to the configurable, passively created `retryQueue`. It is of
+   *     '''vital importance''' that you read the queue caveats related noted below.
    *
-   *   - [[x-retry `x-retry`]] is incremented.
+   *     - [[x-retry `x-retry`]] is incremented.
    *
-   *   - The passive-queue definition is attempted at every retry. This leads to more IO but prevents the queue from
-   *     expiring and basicPublish being none-the-wiser.
+   *     - The passive-queue definition is attempted at every retry. This leads to more IO but prevents the queue from
+   *       expiring and basicPublish being none-the-wiser.
    *
-   *   - The message copy is published using basicPublish. Sometime after, using the same channel, the original message
-   *     is acknowledged, using the same channel. This means two things:
+   *     - The message copy is published using `channel.basicPublish`. Sometime after, using the same channel, the
+   *       original message is acknowledged, using the same channel. This means two things:
    *
-   *       1) The publish could succeed and the acknowledgement could fail, leading to a duplication of the message. An
-   *          IO exception or network event at the right time could cause this.
+   *         1) The publish could succeed and the acknowledgement could fail, leading to a duplication of the
+   *            message. An IO exception or network event at the right time could cause this.
    *
-   *       2) In certain clustering configurations, it might be possible for the basicPublish to fail, but the
-   *          acknowledgement to succeed. The failure case would require that the the message queue and the redelivery
-   *          queue are on different cluster nodes, and that one can be reached but the other is not. Plan as needed. An
-   *          implementation using transactions (slow) / asynchronous publisher confirms (faster) may be warranted.
+   *         2) In certain clustering configurations, it might be possible for the basicPublish to fail, but the
+   *            acknowledgement to succeed. The failure case would require that the the message queue and the redelivery
+   *            queue are on different cluster nodes, and that one can be reached but the other is not. Plan as
+   *            needed. An implementation using transactions (slow) / asynchronous publisher confirms (faster) may be
+   *            warranted.
    *
-   *   - The message copy is re-inserted into the queue using the default (direct) exchange. This means that the second
-   *     time around, if a direct-exchange wasn't used to initially route the message into the queue, then the
-   *     routingKey will be modified. See the message header [[x-original-routing-key `x-original-routing-key`]] for the
-   *     original routing key.
+   *     - The message copy is re-inserted into the queue using the default (direct) exchange. This means that the
+   *       second time around, if a direct-exchange wasn't used to initially route the message into the queue, then the
+   *       routingKey will be modified. See the message header [[x-original-routing-key `x-original-routing-key`]] for
+   *       the original routing key.
    *
-   * = retryQueue passive creations CAVEATS!!!
+   * == retryQueue passive creations CAVEATS!!! ==
    *
    * The retry queue is created passively. This allows the retryQueue to be used without error in the case of a
    * configuration change (in cases where a crash would be worse), but means that configuration changes done after the
    * initial creation of the queue will not propagate. As a result, if you want to guarantee that changes made to your
    * redelivery strategy propagate that you modify `retryVia` function such that it will create a new redelivery
-   * queue. The old, unused one will expire, after an idle period of redeliveryDelay * 3.
+   * queue. The old, unused one will expire, after an idle period of `redeliveryDelay * 3`.
    *
    * Also, it is vitally important that for every input queue-name of the `retryVia`, a unique value is returned. In
-   * other words, DO NOT TRY AND CONSOLIDATE REDELIVERY QUEUES.
+   * other words, '''DO NOT TRY AND CONSOLIDATE REDELIVERY QUEUES'''.
    *
    * @param redeliveryDelay The period after which the message should be re-inserted into the original queue.
    * @param retryCount The number of times to retry. A value of 3 will result in 4 attempts, including the initial.
