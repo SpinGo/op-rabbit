@@ -3,12 +3,11 @@ package com.spingo.op_rabbit
 import akka.actor._
 import akka.pattern.ask
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.{ChannelActor, RichConnectionActor}
+import com.thenewmotion.akka.rabbitmq.ChannelActor
 import helpers.RabbitTestHelpers
 import org.scalatest.{Inside, FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
-import scala.util.{Failure, Try}
 
 class RabbitControlSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers with Inside {
 

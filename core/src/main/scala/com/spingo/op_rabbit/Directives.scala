@@ -5,36 +5,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import shapeless._
 import com.spingo.op_rabbit.Binding._
-
-trait Ackable {
-  val handler: Handler
-}
-object Ackable {
-  implicit def ackableFromFuture(f: Future[_]) = new Ackable {
-    val handler: Handler = { (p, delivery) =>
-      // TODO - reuse thread
-      import scala.concurrent.ExecutionContext.Implicits.global
-      p.completeWith(f.map(_ => Right(Ack(delivery.envelope.getDeliveryTag))))
-    }
-  }
-
-  val ackHandler: Handler = { (p, delivery) =>
-    p.success(Right(Ack(delivery.envelope.getDeliveryTag)))
-  }
-
-  private [op_rabbit] val nackNoRequeueHandler: Handler = { (p, delivery) =>
-    p.success(Right(Nack(false, delivery.envelope.getDeliveryTag)))
-  }
-  private [op_rabbit] val nackRequeueHandler: Handler = { (p, delivery) =>
-    p.success(Right(Nack(true, delivery.envelope.getDeliveryTag)))
-  }
-
-  val unitAck = new Ackable {
-    val handler: Handler = ackHandler
-  }
-
-  implicit def ackableFromUnit(u: Unit) = unitAck
-}
+import scala.util.{Try,Failure,Success}
 
 protected class TypeHolder[T] {}
 protected object TypeHolder {
@@ -95,6 +66,7 @@ private [op_rabbit] case class ChannelDirective(config: ChannelConfiguration) {
   }}}
   */
 trait Directives {
+  import Directives.Ackable
   /**
     Declarative which declares a channel
     */
@@ -166,9 +138,14 @@ trait Directives {
   def ack: Handler = Ackable.ackHandler
 
   /**
+    * Fail the given element
+    */
+  def fail(ex: Throwable): Handler = Ackable.failHandler(ex)
+
+  /**
     Nack the message; does NOT trigger the [[RecoveryStrategy]] in use.
     */
-  def nack(requeue: Boolean = false): Handler = if (requeue) Ackable.nackRequeueHandler else Ackable.nackNoRequeueHandler
+  def nack(requeue: Boolean = false): Handler = Ackable.nackHandler(requeue)
 
   /**
     Extract the message body. Uses a [[com.spingo.op_rabbit.RabbitUnmarshaller RabbitUnmarshaller]] to deserialize.
@@ -201,7 +178,7 @@ trait Directives {
   def extractEither[T](map: Delivery => Either[Rejection, T]) = new Directive1[T] {
     def happly(fn: ::[T, HNil] => Handler): Handler = { (promise, delivery) =>
       map(delivery) match {
-        case Left(rejection) => promise.success(Left(rejection))
+        case Left(rejection) => promise.success(ReceiveResult.Fail(delivery, None, rejection))
         case Right(value) => fn(value :: HNil)(promise, delivery)
       }
     }
@@ -220,7 +197,8 @@ trait Directives {
   def property[T](extractor: PropertyExtractor[T]) = extractEither { delivery =>
     extractor.extract(delivery.properties) match {
       case Some(v) => Right(v)
-      case None => Left(ValueExpectedExtractRejection(s"Property ${extractor.extractorName} was not provided"))
+      case None => Left(
+        Rejection.ValueExpectedExtractRejection(s"Property ${extractor.extractorName} was not provided"))
     }
   }
 
@@ -243,4 +221,40 @@ trait Directives {
 /**
   Convenience object and recommended way for bringing the directives in scope. See [[Directives]] trait.
   */
-object Directives extends Directives
+object Directives extends Directives {
+
+  case class Ackable(handler: Handler)
+  object Ackable extends (Handler => Ackable) {
+    implicit def ackableFromFuture(f: Future[_]) = Ackable({ (p, delivery) =>
+      // TODO - reuse thread
+      import scala.concurrent.ExecutionContext.Implicits.global
+      f.map(Right(_))
+      p.completeWith(f.map(_ => ReceiveResult.Ack(delivery)))
+    })
+
+    implicit def ackableFromTry(t: Try[_]) = Ackable({ (p, delivery) =>
+      t match {
+        case Success(_) =>
+          p.success(ReceiveResult.Ack(delivery))
+        case Failure(ex) =>
+          p.success(ReceiveResult.Fail(delivery, None, ex))
+      }
+    })
+
+    val ackHandler: Handler = { (p, delivery) =>
+      p.success(ReceiveResult.Ack(delivery))
+    }
+
+    def failHandler(ex: Throwable): Handler = { (p, delivery) =>
+      p.success(ReceiveResult.Fail(delivery, None, ex))
+    }
+
+    private [op_rabbit] def nackHandler(requeue: Boolean): Handler = { (p, delivery) =>
+      p.success(ReceiveResult.Nack(delivery, requeue))
+    }
+
+    val unitAck =  Ackable(ackHandler)
+
+    implicit def ackableFromUnit(u: Unit) = unitAck
+  }
+}

@@ -16,8 +16,9 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
 
   val props = Props {
     new impl.AsyncAckingRabbitConsumer(
-      name             = subscription.queue.queueName,
-      subscription     = subscription.consumer)(subscription.consumer.executionContext)
+      name                    = subscription.queue.queueName,
+      subscription            = subscription.consumer,
+      handlerExecutionContext = subscription.consumer.executionContext)
   }
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)

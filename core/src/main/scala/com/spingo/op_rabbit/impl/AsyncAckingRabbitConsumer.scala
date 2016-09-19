@@ -1,20 +1,21 @@
 package com.spingo.op_rabbit
 package impl
 
-import akka.actor.{Actor, ActorLogging, Terminated, ActorRef}
+import akka.actor.{Actor, ActorLogging, Terminated}
+import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Failure, Success, Try}
 
 private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
-  subscription: BoundConsumerDefinition)(implicit executionContext: ExecutionContext) extends Actor with ActorLogging {
+  subscription: BoundConsumerDefinition,
+  handlerExecutionContext: ExecutionContext) extends Actor with ActorLogging {
 
   import Consumer._
 
-  var pendingDeliveries = mutable.Set.empty[Long]
+  val pendingDeliveries = mutable.Set.empty[Long]
 
   context watch self
 
@@ -39,6 +40,10 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       ()
   }
 
+  def async(handler: Handler)(implicit ec: ExecutionContext): Handler = { (p, delivery) =>
+    Future { handler(p, delivery) } onFailure { case ex => p.failure(ex) }
+  }
+
   def connected(channel: Channel, consumerTag: Option[String]): Receive = {
     case Subscribe(newChannel) =>
       if (channel != newChannel)
@@ -50,8 +55,11 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       handleUnsubscribe(channel, consumerTag)
       context.become(connected(channel, None))
     case delivery: Delivery =>
-      handleDelivery(channel, delivery)
-    case r : AckOrNack =>
+      pendingDeliveries.add(delivery.envelope.getDeliveryTag)
+      implicit val ec = handlerExecutionContext
+      applyHandler("running handler", delivery)(async(subscription.handler)) pipeTo self
+
+    case r : ReceiveResult =>
       handleAckOrNack(r, channel)
     case Shutdown(cause) =>
       propCause(cause)
@@ -76,7 +84,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
         pendingDeliveries.clear
         context stop self
       }
-    case r: AckOrNack =>
+    case r: ReceiveResult =>
       handleAckOrNack(r, channel)
       if (pendingDeliveries.isEmpty)
         context stop self
@@ -115,58 +123,62 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     }
   }
 
-  def handleAckOrNack(rejectOrAck: AckOrNack, channel: Channel): Unit = {
-    pendingDeliveries.remove(rejectOrAck.deliveryTag)
-    rejectOrAck(channel)
-  }
+  def handleAckOrNack(rejectOrAck: ReceiveResult, channel: Channel): Unit = {
+    val deliveryTag = rejectOrAck.deliveryTag
 
-  def handleDelivery(channel: Channel, delivery: Delivery): Unit = {
-    pendingDeliveries.add(delivery.envelope.getDeliveryTag)
-
-    lazy val reportError = subscription.errorReporting(name, _: String, _: Throwable, delivery.consumerTag, delivery.envelope, delivery.properties, delivery.body)
-
-    def doTheThing(whileText: String)(fn: (Promise[Result], Delivery) => Unit): Future[Result] = {
-      val handled = Promise[Result]
-
-      try fn(handled, delivery)
-      catch {
-        case e: Throwable =>
-          handled.trySuccess(Left(UnhandledExceptionRejection(s"Error while ${whileText}", e)))
-      }
-      handled.future.recover { case e => Left(UnhandledExceptionRejection(s"Unhandled exception occurred while ${whileText}", e)) }
+    if (!(pendingDeliveries contains deliveryTag)) {
+      /* if deliveryTag not in pendingDeliveries, this means we've already
+       * restarted the actor due to some unhandled exception, the channel was
+       * closed and therefore this deliveryTag invalid */
+      return ()
     }
 
-    Future {
-      doTheThing("running handler")(subscription.handler)
-    }.flatMap(identity).
-      flatMap {
-        case r @ Right(_) =>
-          Future.successful(r)
-        case Left(r @ UnhandledExceptionRejection(msg, cause)) =>
-          reportError(msg, cause)
-          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(cause, channel, subscription.queue.queueName))
-        case Left(r: ExtractRejection) =>
-          // retrying is not going to do help. What to do? ¯\_(ツ)_/¯
-          reportError(s"Could not extract required data", r)
-          doTheThing("running recoveryStrategy")(subscription.recoveryStrategy(r, channel, subscription.queue.queueName))
-      }.
-      foreach {
-        case Right(ackOrNack) =>
-          self ! ackOrNack
+    rejectOrAck match {
+      case ack: ReceiveResult.Ack =>
+        pendingDeliveries.remove(deliveryTag)
+        channel.basicAck(deliveryTag, false)
+      case nack: ReceiveResult.Nack =>
+        pendingDeliveries.remove(deliveryTag)
+        channel.basicReject(deliveryTag, nack.requeue)
+      case fail: ReceiveResult.Fail =>
+        subscription.errorReporting(name,
+          "exception while processing message",
+          fail.exception,
+          fail.delivery.consumerTag, fail.delivery.envelope, fail.delivery.properties, fail.delivery.body)
 
-        case Left(e @ UnhandledExceptionRejection(_, RabbitExceptionMatchers.NonFatalRabbitException(_))) =>
-          log.error(e, "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
-          self ! Nack(true, delivery.envelope.getDeliveryTag)
+        applyHandler("running recoveryStrategy",
+          fail.delivery)(
+          subscription.recoveryStrategy(fail.exception, channel, subscription.queue.queueName)).
+          onSuccess {
+            case ackOrNack @ (_: ReceiveResult.Ack | _: ReceiveResult.Nack) =>
+              self ! ackOrNack
+            case ReceiveResult.Fail(_, _, e @ RabbitExceptionMatchers.NonFatalRabbitException(_)) =>
+              log.error(e,
+                "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
+              self ! ReceiveResult.Nack(deliveryTag, true)
+            case ReceiveResult.Fail(_, _, exception) =>
+              log.error(exception,
+                "Recovery strategy failed, or something else went horribly wrong; " +
+                  "Nacking with requeue = true, then shutting consumer down.")
+              self ! Shutdown(Some(exception))
+              self ! ReceiveResult.Nack(deliveryTag, true)
+          }(context.dispatcher)
+    }
+  }
 
-        case Left(UnhandledExceptionRejection(_, e)) =>
-          log.error(e, "Recovery strategy failed, or something else went horribly wrong; Nacking with requeue = true, then shutting consumer down.")
-          self ! Shutdown(Some(e))
-          self ! Nack(true, delivery.envelope.getDeliveryTag)
+  /**
+    * Applies the providen handler; unhandled exceptions are caught and recovered as a Fail AckOfNack type.
+    */
+  private def applyHandler(whileText: String, delivery: Delivery)(fn: Handler): Future[ReceiveResult] = {
+    val handled = Promise[ReceiveResult]
 
-        case Left(e: ExtractRejection) =>
-          log.error(e, "Recovery Strategy rejected; Nacking with requeue = true, then shutting consumer down.")
-          self ! Shutdown(Some(e))
-          self ! Nack(true, delivery.envelope.getDeliveryTag)
-      }
+    try fn(handled, delivery)
+    catch {
+      case e: Throwable =>
+        handled.trySuccess(ReceiveResult.Fail(delivery, Some(s"Error while ${whileText}"), e))
+    }
+    handled.future.recover { case e =>
+      ReceiveResult.Fail(delivery, Some(s"Unhandled exception occurred while ${whileText}"), e)
+    }(context.dispatcher)
   }
 }

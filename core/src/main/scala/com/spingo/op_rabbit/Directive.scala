@@ -1,10 +1,11 @@
 package com.spingo.op_rabbit
 
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.Promise
 import scala.annotation.unchecked.uncheckedVariance
-import scala.util.{Success, Try}
+import scala.util.Success
 import shapeless._
 import shapeless.ops.hlist.Prepend
+import scala.language.implicitConversions
 
 /**
   HListable
@@ -49,7 +50,7 @@ abstract class Directive[+L <: HList] { self =>
     new Directive[R] {
       def happly(f: R => Handler) = { (upstreamPromise, delivery) =>
         @volatile var doRecover = true
-        val interimPromise = Promise[Result]
+        val interimPromise = Promise[ReceiveResult]
         val left = self.happly { list =>
           { (promise, delivery) =>
             // if we made it this far, then the directives succeeded; don't recover
@@ -57,13 +58,14 @@ abstract class Directive[+L <: HList] { self =>
             f(list)(promise, delivery)
           }
         }(interimPromise, delivery)
-        import scala.concurrent.ExecutionContext.Implicits.global
         interimPromise.future.onComplete {
-          case Success(Left(rejection)) if doRecover =>
-            that.happly(f)(upstreamPromise, delivery)
+          case Success(ReceiveResult.Fail(_, _, r: Rejection)) if doRecover =>
+            try { that.happly(f)(upstreamPromise, delivery) }
+            catch { case ex: Throwable => () }
           case _ =>
-            upstreamPromise.completeWith(interimPromise.future)
-        }
+            try { upstreamPromise.completeWith(interimPromise.future) }
+            catch { case ex: Throwable => () }
+        }(SameThreadExecutionContext)
       }
     }
 

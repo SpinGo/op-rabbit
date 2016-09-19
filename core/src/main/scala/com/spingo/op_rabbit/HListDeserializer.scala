@@ -22,7 +22,7 @@ package com.spingo.op_rabbit
 import shapeless._
 
 private [op_rabbit] trait HListDeserializer[L <: HList, T] extends Deserializer[L, T] {
-  def apply(data: L): Either[ExtractRejection, T]
+  def apply(data: L): Either[Rejection.ExtractRejection, T]
 }
 private [op_rabbit] object HListDeserializer extends HListDeserializerInstances {
   protected type DS[A, AA] = Deserializer[A, AA] // alias for brevity
@@ -39,8 +39,9 @@ private [op_rabbit] object HListDeserializer extends HListDeserializerInstances 
       def apply(list: L): Deserialized[T] =
         try Right(deserialize(list))
         catch {
-          case e: BubbleLeftException      ⇒ e.left.asInstanceOf[Left[ExtractRejection, T]]
-          case e: IllegalArgumentException ⇒ Left(ParseExtractRejection(Option(e.getMessage) getOrElse "", e))
+          case e: BubbleLeftException      ⇒ e.left.asInstanceOf[Left[Rejection.ExtractRejection, T]]
+          case e: IllegalArgumentException ⇒ Left(
+            Rejection.ParseExtractRejection(Option(e.getMessage) getOrElse "", e))
         }
     }
 

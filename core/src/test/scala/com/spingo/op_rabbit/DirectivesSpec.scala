@@ -1,24 +1,23 @@
 package com.spingo.op_rabbit
 
 import com.rabbitmq.client.Envelope
-import com.rabbitmq.client.MessageProperties
-import org.scalatest.{FunSpec, Matchers}
+import org.scalatest.{FunSpec, Matchers, Inside}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 
-class DirectivesSpec extends FunSpec with Matchers {
+class DirectivesSpec extends FunSpec with Matchers with Inside {
   val dummyEnvelope = new Envelope(1L, false, "kthx", "bai")
 
-  val acked: Result = Right(Ack(1L))
+  val acked: ReceiveResult = ReceiveResult.Ack(1L)
 
-  def await[T](f: Future[T], duration: Duration = 5 seconds) =
+  def await[T](f: Future[T], duration: Duration = 5.seconds) =
     Await.result(f, duration)
 
   import Directives._
   import com.spingo.op_rabbit.properties._
 
   def resultFor(delivery: Delivery)(handler: Handler) = {
-    val handled = Promise[Result]
+    val handled = Promise[ReceiveResult]
     handler(handled, delivery)
     await(handled.future)
   }
@@ -29,11 +28,15 @@ class DirectivesSpec extends FunSpec with Matchers {
 
   describe("property") {
     it("rejects when the property is not defined") {
-      resultFor(testDelivery()) {
+      val result = resultFor(testDelivery()) {
         property(ReplyTo) { replyTo =>
           ack
         }
-      } should be (Left(ValueExpectedExtractRejection("Property ReplyTo was not provided")))
+      }
+      inside(result) {
+        case ReceiveResult.Fail(_, _, e: Rejection.ValueExpectedExtractRejection) =>
+          e.reason shouldBe "Property ReplyTo was not provided"
+      }
     }
 
     it("yields the value when the property is defined") {
@@ -58,7 +61,7 @@ class DirectivesSpec extends FunSpec with Matchers {
 
     it("rejects when the conversion fails") {
       val delivery = testDelivery(properties = Seq(Header("recovery-attempts", "a number of times")))
-      an [ExtractRejection] should be thrownBy {
+      an [Rejection.ExtractRejection] should be thrownBy {
         resultFor(delivery) {
           (property(TypedHeader[Int]("recovery-attempts"))) { (i) =>
             ack
@@ -128,7 +131,6 @@ class DirectivesSpec extends FunSpec with Matchers {
             ack
           case Right(byteArray) =>
             throw new RuntimeException("I shouldn't be here")
-            ack
         }
       } should be (acked)
 

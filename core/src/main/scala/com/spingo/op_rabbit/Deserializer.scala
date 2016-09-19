@@ -1,6 +1,7 @@
 package com.spingo.op_rabbit
 
 import scala.util.control.NonFatal
+import scala.language.implicitConversions
 
 trait Deserializer[A, B] extends (A => Deserialized[B]) {}
 object Deserializer extends DeserializerLowerPriorityImplicits {
@@ -10,7 +11,7 @@ object Deserializer extends DeserializerLowerPriorityImplicits {
       def apply(a: A) = {
         try Right(f(a))
         catch {
-          case NonFatal(ex) ⇒ Left(ParseExtractRejection(ex.toString, ex))
+          case NonFatal(ex) ⇒ Left(Rejection.ParseExtractRejection(ex.toString, ex))
         }
       }
     }
@@ -19,7 +20,7 @@ object Deserializer extends DeserializerLowerPriorityImplicits {
     new Deserializer[A, Option[B]] {
       def apply(value: A) = converter(value) match {
         case Right(a)              ⇒ Right(Some(a))
-        case Left(ex: ValueExpectedExtractRejection) ⇒ Right(None)
+        case Left(ex: Rejection.ValueExpectedExtractRejection) ⇒ Right(None)
         case Left(error)           ⇒ Left(error)
       }
     }
@@ -31,7 +32,8 @@ private[op_rabbit] abstract class DeserializerLowerPriorityImplicits {
     new Deserializer[Option[A], B] {
       def apply(value: Option[A]) = value match {
         case Some(a) ⇒ converter(a)
-        case None    ⇒ Left(ValueExpectedExtractRejection(s"Expected a value when extracting the contents of an Option"))
+        case None    ⇒ Left(
+          Rejection.ValueExpectedExtractRejection(s"Expected a value when extracting the contents of an Option"))
       }
     }
   }

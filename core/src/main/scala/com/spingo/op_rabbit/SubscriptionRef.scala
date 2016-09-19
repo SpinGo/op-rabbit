@@ -40,7 +40,7 @@ private [op_rabbit] case class SubscriptionRefProxy(subscriptionRef: Future[Subs
   implicit val ec = SameThreadExecutionContext
   val closed = subscriptionRef.flatMap(_.closed)
   val initialized = subscriptionRef.flatMap(_.initialized)
-  def close(timeout: FiniteDuration = 5 minutes): Unit =
+  def close(timeout: FiniteDuration = 5.minutes): Unit =
     subscriptionRef.foreach(_.close(timeout))
 
   def abort(): Unit =

@@ -1,11 +1,9 @@
 package com.spingo.op_rabbit
 
-import akka.actor.ActorSystem
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Channel
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import com.spingo.op_rabbit.properties.Header
 import com.spingo.op_rabbit.properties.PimpedBasicProperties
 
 /**
@@ -29,9 +27,17 @@ object RecoveryStrategy {
     import Queue.ModeledArgs._
 
     /**
-      Places messages into a queue with "op-rabbit.abandoned" prepended; after ttl (default of 1 day), these messages are dropped.
+      The message header used to track retry attempts.
       */
-    def abandonedQueue(defaultTTL: FiniteDuration = 1 day, abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }): AbandonStrategy = { (queueName, channel, amqpProperties, body, exception) =>
+    val `x-retry` = properties.TypedHeader[Int]("x-retry")
+
+    /** Places messages into a queue with "op-rabbit.abandoned" prepended; after ttl (default of 1 day), these messages
+      * are dropped.
+      */
+    def abandonedQueue(
+      defaultTTL: FiniteDuration = 1.day,
+      abandonTo: (String) => String = { q => s"op-rabbit.abandoned.$q" }): AbandonStrategy = {
+      (queueName, channel, amqpProperties, body, exception) =>
       val failureQueue = Queue.passive(
         Queue(
           abandonTo(queueName),
@@ -50,10 +56,14 @@ object RecoveryStrategy {
     }
   }
 
-  def limitedRedeliver(redeliverDelay: FiniteDuration = 10 seconds, retryCount: Int = 3, onAbandon: LimitedRedeliver.AbandonStrategy = LimitedRedeliver.drop, retryVia : (String) => String = { q => s"op-rabbit.retry.$q" }) = new RecoveryStrategy {
+  def limitedRedeliver(
+    redeliverDelay: FiniteDuration = 10.seconds,
+    retryCount: Int = 3,
+    onAbandon: LimitedRedeliver.AbandonStrategy = LimitedRedeliver.drop,
+    retryVia : (String) => String = { q => s"op-rabbit.retry.$q" }) = new RecoveryStrategy {
     import Directives._
-    val `x-retry` = properties.TypedHeader[Int]("x-retry")
     import Queue.ModeledArgs._
+    import LimitedRedeliver.`x-retry`
 
     def genRetryQueue(queueName: String) =
       Queue.passive(

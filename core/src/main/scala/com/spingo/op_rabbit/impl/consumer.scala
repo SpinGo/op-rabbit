@@ -1,8 +1,5 @@
 package com.spingo.op_rabbit.impl
 
-import akka.actor.{ActorSystem, Props}
-import com.rabbitmq.client.AMQP.BasicProperties
-import com.rabbitmq.client.Envelope
 import com.thenewmotion.akka.rabbitmq.Channel
 
 private [op_rabbit] object Consumer {
@@ -32,4 +29,5 @@ private [op_rabbit] object Consumer {
    acknowledged before stopping the actor
    */
   case class Abort(cause: Option[Throwable]) extends ConsumerCommand
+
 }
