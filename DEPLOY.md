@@ -1,5 +1,7 @@
 - Edit project/version.properties
 
+- Edit README.md; note the appropriate stable version as appropriate.
+
 Run the following:
 
     . project/version.properties

@@ -71,7 +71,7 @@ resolvers ++= Seq(
   "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
 )
 
-val opRabbitVersion = "1.4.0"
+val opRabbitVersion = "1.5.0-RC1"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
@@ -81,6 +81,8 @@ libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-akka-stream" % opRabbitVersion
 )
 ```
+
+Note: previous stable release is [v1.4.0](https://github.com/SpinGo/op-rabbit/tree/v1.4.0).
 
 ### Scala Version Compatibility Matrix:
 
