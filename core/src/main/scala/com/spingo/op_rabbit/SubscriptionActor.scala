@@ -3,12 +3,10 @@ package com.spingo.op_rabbit
 import akka.actor._
 import com.rabbitmq.client.ShutdownSignalException
 import com.spingo.op_rabbit.RabbitControl.{Pause, Run}
-import com.spingo.op_rabbit.RabbitHelpers.withChannelShutdownCatching
-import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, ChannelMessage, CreateChannel}
-import java.io.IOException
-import scala.concurrent.{ExecutionContext, Promise}
+import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, CreateChannel}
+import scala.concurrent.Promise
 import scala.concurrent.duration._
-import scala.util.{Try,Failure,Success}
+import scala.util.{Failure,Success}
 
 private [op_rabbit] class SubscriptionActor(
   subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit])
@@ -77,7 +75,9 @@ private [op_rabbit] class SubscriptionActor(
         // we received two channels while in the Binding state. Ignore the first result.
         stay
     case Event(BindFailure(channel, ex), info: ConnectedPayload) =>
-      if (info.channel == channel) {
+      if (info.channel != channel) {
+        stay // We received two channels while in the Binding state. Ignore the old first result.
+      } else if (channel.isOpen()) { // if the channel is still open, then this error is non-recoverable. Fail hard.
         initialized.tryFailure(ex)
         /* propagate exception to closed future as well, as it's
          * possible for the initialization to succeed at one point, but
@@ -92,7 +92,11 @@ private [op_rabbit] class SubscriptionActor(
             goto(Stopped)
         }
       } else {
-        stay // we received two channels while in the Binding state. Ignore the first result.
+        log.error(ex, s"Connection related error while trying to re-bind a consumer to {}. " +
+          "Waiting in anticipating of a new channel.",
+          subscription.consumer.queue.queueName)
+        /* When we receive another ChannelConnected message the binding will be tried again */
+        stay
       }
   }
 
@@ -226,6 +230,8 @@ private [op_rabbit] class SubscriptionActor(
     }))
   }
 
+  /** TODO: We should move this to Consumer actor.
+    */
   def doSubscribe(connectionInfo: ConnectedPayload): Unit = {
     log.debug(s"Setting up subscription to ${subscription.queue.queueName} in ${self.path}")
     val channel = connectionInfo.channel
