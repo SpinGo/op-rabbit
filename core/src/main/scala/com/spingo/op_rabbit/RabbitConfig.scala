@@ -1,5 +1,6 @@
 package com.spingo.op_rabbit
 
+import akka.actor.ActorSystem
 import scala.util.Try
 import com.typesafe.config.ConfigFactory
 
@@ -10,4 +11,7 @@ object RabbitConfig {
 
   lazy val systemConfig =
     ConfigFactory.load().getConfig("op-rabbit")
+
+  def channelDispatcher(implicit system: ActorSystem): String =
+    system.settings.config.getString("op-rabbit.channel-dispatcher")
 }

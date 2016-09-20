@@ -19,7 +19,7 @@ private [op_rabbit] class SubscriptionActor(subscription: Subscription, connecti
       name                    = subscription.queue.queueName,
       subscription            = subscription.consumer,
       handlerExecutionContext = subscription.consumer.executionContext)
-  }
+  }.withDispatcher(RabbitConfig.channelDispatcher(context.system))
 
   private case class ChannelConnected(channel: Channel, channelActor: ActorRef)
 
