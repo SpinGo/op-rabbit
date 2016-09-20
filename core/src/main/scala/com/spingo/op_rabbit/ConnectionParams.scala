@@ -8,14 +8,13 @@ import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
 import javax.net.SocketFactory
-import scala.concurrent.ExecutionContext
-import scala.util.Try
 import scala.collection.JavaConversions.mapAsJavaMap
 
-/**
-  Because topology recovery strategy configuration is crucial to how op-rabbit works, we don't allow some options to be specified
-  
-  Modeling the allowed options via a case-class allows the compiler to tell the library user which options aren't allowed.
+/** Because topology recovery strategy configuration is crucial to how op-rabbit works, we don't allow some options to
+  * be specified
+  *
+  * Modeling the allowed options via a case-class allows the compiler to tell the library user which options aren't
+  * allowed.
   */
 case class ConnectionParams(
   hosts: Seq[Address] = Seq(new Address(ConnectionFactory.DEFAULT_HOST, ConnectionFactory.DEFAULT_AMQP_PORT)),
@@ -26,8 +25,8 @@ case class ConnectionParams(
   // Replace the table of client properties that will be sent to the server during subsequent connection startups.
   clientProperties: Map[String, Object] = Map.empty[String, Object],
 
-  /**
-    Warning - setting this to 0 causes problems when connecting a cluster; if the first host is down, then further hosts may not be tried.
+  /** Warning - setting this to 0 causes problems when connecting a cluster; if the first host is down, then further
+    * hosts may not be tried.
     */
   connectionTimeout: Int = 10000 /* 10 seconds */,
   exceptionHandler: ExceptionHandler = new DefaultExceptionHandler(),

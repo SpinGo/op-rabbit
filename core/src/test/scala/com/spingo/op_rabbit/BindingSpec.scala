@@ -1,14 +1,12 @@
 package com.spingo.op_rabbit
 
 import akka.actor._
-import akka.pattern.ask
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import com.spingo.op_rabbit.properties.Header
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.RichConnectionActor
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.Promise
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.ExecutionContext
 
 class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   val _queueName = ScopedFixture[String] { setter =>
@@ -22,7 +20,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
   describe("Binding.direct") {
     it("delivers messages to the queues with names matching routingKey") {
 
-      import scala.concurrent.ExecutionContext.Implicits.global
+      import ExecutionContext.Implicits.global
 
       implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
 
@@ -69,7 +67,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
   describe("Binding.fanout") {
     it("properly declares the fanout binding") {
-      import scala.concurrent.ExecutionContext.Implicits.global
+      import ExecutionContext.Implicits.global
 
       val consumerResult = List(Promise[String], Promise[String])
       implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
@@ -103,7 +101,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
   describe("Binding.headers") {
     it("properly declares the header binding with appropriate type matching") {
-      import scala.concurrent.ExecutionContext.Implicits.global
+      import ExecutionContext.Implicits.global
       implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       val queueName = _queueName()
       val stringReceived = Promise[String]
@@ -160,7 +158,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
 
   describe("Binding.topic") {
     it("properly declares the topic binding with appropriate bindings") {
-      import scala.concurrent.ExecutionContext.Implicits.global
+      import ExecutionContext.Implicits.global
       implicit val recoveryStrategy = RecoveryStrategy.limitedRedeliver()
       val queueName = _queueName()
       val received = Promise[String]

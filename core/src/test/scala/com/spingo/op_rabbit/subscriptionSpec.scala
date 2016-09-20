@@ -1,15 +1,10 @@
 package com.spingo.op_rabbit
 
-import akka.actor._
-import akka.pattern.ask
-import akka.util.Timeout
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.{Channel, RichConnectionActor}
 import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import org.scalatest.{FunSpec, Matchers}
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.concurrent.duration._
-import scala.util.{Try,Success,Failure}
+import scala.concurrent.ExecutionContext
+import scala.util.{Try,Failure}
 
 class SubscriptionSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
 

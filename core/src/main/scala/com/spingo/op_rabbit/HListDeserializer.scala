@@ -20,6 +20,7 @@
 package com.spingo.op_rabbit
 
 import shapeless._
+import scala.language.implicitConversions
 
 private [op_rabbit] trait HListDeserializer[L <: HList, T] extends Deserializer[L, T] {
   def apply(data: L): Either[Rejection.ExtractRejection, T]

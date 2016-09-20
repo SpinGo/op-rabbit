@@ -2,12 +2,8 @@ package com.spingo.op_rabbit
 
 import com.rabbitmq.client.AMQP.BasicProperties.Builder
 import com.rabbitmq.client.AMQP.BasicProperties
-import java.util.Date
-import scala.concurrent.duration._
 
 package object properties {
-
-  import com.spingo.op_rabbit.Rejection.ParseExtractRejection
 
   type ToHeaderValue[T, V <: HeaderValue] = T => V
   type HeaderMap = java.util.HashMap[String, Object]

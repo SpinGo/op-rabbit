@@ -10,7 +10,9 @@ import scala.concurrent.{ExecutionContext, Promise}
 import scala.concurrent.duration._
 import scala.util.{Try,Failure,Success}
 
-private [op_rabbit] class SubscriptionActor(subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit]) extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
+private [op_rabbit] class SubscriptionActor(
+  subscription: Subscription, connection: ActorRef, initialized: Promise[Unit], closed: Promise[Unit])
+    extends LoggingFSM[SubscriptionActor.State, SubscriptionActor.SubscriptionPayload] {
   import SubscriptionActor._
   startWith(Disconnected, DisconnectedPayload(Paused, subscription.channelConfig.qos))
 
