@@ -123,8 +123,9 @@ private [op_rabbit] class SubscriptionActor(
     case Event(ChannelConnected(channel, channelActor), c: ConnectedPayload) =>
       stay using c.copy(channel = channel, channelActor = channelActor)
 
-    case Event(Subscription.SetQos(qos), c: ConnectedPayload) =>
-      c.channelActor ! ChannelMessage { _.basicQos(qos) }
+    case Event(msg @ Subscription.SetQos(qos), c: ConnectedPayload) =>
+      // TODO - Forward to the implementation actor. Send qos as part of Subscribe message.
+      c.consumer.foreach(_ ! msg)
       stay using c.copy(qos = qos)
 
     case Event(Terminated(actor), payload: ConnectedPayload) if payload.consumer == Some(actor) =>
@@ -151,7 +152,7 @@ private [op_rabbit] class SubscriptionActor(
       initialized.trySuccess(())
       nextStateData match {
         case d: ConnectedPayload =>
-          d.consumer.foreach(_ ! impl.Consumer.Subscribe(d.channel))
+          d.consumer.foreach(_ ! impl.Consumer.Subscribe(d.channel, d.qos))
         case _ =>
           log.error("Invalid state: cannot be Running without a ConnectedPayload")
           context stop self

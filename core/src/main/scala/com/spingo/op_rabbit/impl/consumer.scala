@@ -8,7 +8,7 @@ private [op_rabbit] object Consumer {
   /**
     Configure a subscription for a new channel
     */
-  case class Subscribe(channel: Channel) extends ConsumerCommand
+  case class Subscribe(channel: Channel, initialQos: Int) extends ConsumerCommand
 
   /**
     Tell the consumer to stop processing new messages; don't close the

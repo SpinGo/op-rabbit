@@ -26,8 +26,8 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     cause foreach (c => context.parent ! SubscriptionActor.Stop(Some(c)))
 
   def receive = {
-    case Subscribe(channel) =>
-      val consumerTag = setupSubscription(channel)
+    case Subscribe(channel, qos) =>
+      val consumerTag = setupSubscription(channel, qos)
       context.become(connected(channel, Some(consumerTag)))
     case Unsubscribe =>
       ()
@@ -46,11 +46,14 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   }
 
   def connected(channel: Channel, consumerTag: Option[String]): Receive = {
-    case Subscribe(newChannel) =>
+    case Subscription.SetQos(qos) =>
+      channel.basicQos(qos)
+
+    case Subscribe(newChannel, qos) =>
       if (channel != newChannel)
         pendingDeliveries.clear()
 
-      val newConsumerTag = setupSubscription(newChannel)
+      val newConsumerTag = setupSubscription(newChannel, qos)
       context.become(connected(newChannel, Some(newConsumerTag)))
     case Unsubscribe =>
       handleUnsubscribe(channel, consumerTag)
@@ -79,7 +82,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   }
 
   def stopping(channel: Channel): Receive = {
-    case Subscribe(newChannel) =>
+    case Subscribe(newChannel, _) =>
       // we lost our connection while stopping? Just bail. Nothing more to do.
       if (newChannel != channel) {
         pendingDeliveries.clear
@@ -102,13 +105,15 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       ()
   }
 
-  def setupSubscription(channel: Channel): String = {
+  def setupSubscription(channel: Channel, initialQos: Int): String = {
+    channel.basicQos(initialQos)
     channel.basicConsume(
       subscription.queue.queueName,
       false,
       properties.toJavaMap(subscription.consumerArgs),
       new DefaultConsumer(channel) {
-        override def handleDelivery(consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
+        override def handleDelivery(
+          consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = {
           self ! Delivery(consumerTag, envelope, properties, body)
         }
       }
