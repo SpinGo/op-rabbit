@@ -136,6 +136,30 @@ Set up RabbitMQ connection information in `application.conf`:
 ```conf
 op-rabbit {
   topic-exchange-name = "amq.topic"
+  channel-dispatcher = "op-rabbit.default-channel-dispatcher"
+  default-channel-dispatcher {
+    # Dispatcher is the name of the event-based dispatcher
+    type = Dispatcher
+
+    # What kind of ExecutionService to use
+    executor = "fork-join-executor"
+
+    # Configuration for the fork join pool
+    fork-join-executor {
+      # Min number of threads to cap factor-based parallelism number to
+      parallelism-min = 2
+
+      # Parallelism (threads) ... ceil(available processors * factor)
+      parallelism-factor = 2.0
+
+      # Max number of threads to cap factor-based parallelism number to
+      parallelism-max = 4
+    }
+    # Throughput defines the maximum number of messages to be
+    # processed per actor before the thread jumps to the next actor.
+    # Set to 1 for as fair as possible.
+    throughput = 100
+  }
   connection {
     virtual-host = "/"
     hosts = ["127.0.0.1"]
@@ -183,6 +207,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 case class Person(name: String, age: Int)
 // setup play-json serializer
 implicit val personFormat = Json.format[Person]
+implicit val recoveryStrategy = RecoveryStrategy.drop()
 
 val subscriptionRef = Subscription.run(rabbitControl) {
   import Directives._
@@ -311,11 +336,12 @@ subscription.closed
 
 #### Recovery strategy:
 
-Configured using [RecoveryStrategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html#com.spingo.op_rabbit.RecoveryStrategy). 
+A recovery strategy defines how a subscription should handle exceptions and **must be provided**. Should it redeliver
+them a limited number of times? Or, should it drop them? Several pre-defined recovery strategies with their
+corresponding documentation are defined in the
+[RecoveryStrategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html#com.spingo.op_rabbit.RecoveryStrategy$)
+companion object.
 
-By default, uses the [default strategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html#com.spingo.op_rabbit.RecoveryStrategy$@default:com.spingo.op_rabbit.RecoveryStrategy{valx-retry:com.spingo.op_rabbit.properties.UnboundTypedHeader[Int];defgenRetryQueue%28queueName:String%29:com.spingo.op_rabbit.Binding.QueueDefinition[com.spingo.op_rabbit.Binding.Concrete]})
-
-Easiest way to set-up: declare an implicit, e.g.:
 ```
 implicit val recoveryStrategy = RecoveryStrategy.nack()
 ```
@@ -365,6 +391,7 @@ By default:
 ```scala
 
 import Directives._
+implicit val recoveryStrategy = RecoveryStrategy.drop()
 RabbitSource(
   rabbitControl,
   channel(qos = 3),
