@@ -191,8 +191,8 @@ private [op_rabbit] class SubscriptionActor(
     nextStateData match {
       case d: ConnectedPayload =>
         Some(fn(d))
-      case _ =>
-        log.error("Invalid state: cannot be ${state} without a ConnectedPayload")
+      case state =>
+        log.error(s"Invalid state: cannot be ${state} without a ConnectedPayload")
         context stop self
         None
     }
@@ -218,7 +218,6 @@ private [op_rabbit] class SubscriptionActor(
   initialize()
 
   override def preStart: Unit = {
-    import ExecutionContext.Implicits.global
     val system = context.system
     connection ! CreateChannel(ChannelActor.props({(channel: Channel, channelActor: ActorRef) =>
       log.debug(s"Channel created; ${channel}")
@@ -280,12 +279,19 @@ object SubscriptionActor {
     def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause): SubscriptionPayload
   }
 
-  case class DisconnectedPayload(nextState: State, qos: Int, shutdownCause: Option[Throwable] = None) extends SubscriptionPayload {
+  case class DisconnectedPayload(nextState: State, qos: Int, shutdownCause: Option[Throwable] = None)
+      extends SubscriptionPayload {
     def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause) =
       copy(qos = qos, shutdownCause = shutdownCause)
   }
 
-  case class ConnectedPayload(channelActor: ActorRef, channel: Channel, qos: Int, consumer: Option[ActorRef], shutdownCause: Option[Throwable] = None) extends SubscriptionPayload {
+  case class ConnectedPayload(
+    channelActor: ActorRef,
+    channel: Channel,
+    qos: Int,
+    consumer: Option[ActorRef],
+    shutdownCause: Option[Throwable] = None)
+      extends SubscriptionPayload {
     def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause) =
       copy(qos = qos, shutdownCause = shutdownCause)
   }

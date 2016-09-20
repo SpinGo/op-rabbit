@@ -24,6 +24,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     */
   def propCause(cause: Option[Throwable]): Unit =
     cause foreach (c => context.parent ! SubscriptionActor.Stop(Some(c)))
+
   def receive = {
     case Subscribe(channel) =>
       val consumerTag = setupSubscription(channel)
