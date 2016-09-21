@@ -26,6 +26,13 @@ trait SubscriptionRef {
     Like close, but don't wait for pending messages to finish processing.
     */
   def abort(): Unit
+
+  /**
+    Like close, but cause the subscription closed future to fail
+
+    Note, if the subscription is closed for some other reason before this method is called, then this is a no-op
+    */
+  def abort(exception: Throwable): Unit
 }
 
 private [op_rabbit] case class SubscriptionRefDirect(subscriptionActor: ActorRef, initialized: Future[Unit], closed: Future[Unit]) extends SubscriptionRef {
@@ -34,6 +41,9 @@ private [op_rabbit] case class SubscriptionRefDirect(subscriptionActor: ActorRef
 
   def abort(): Unit =
     subscriptionActor ! SubscriptionActor.Abort(None)
+
+  def abort(exception: Throwable): Unit =
+    subscriptionActor ! SubscriptionActor.Abort(Some(exception))
 }
 
 private [op_rabbit] case class SubscriptionRefProxy(subscriptionRef: Future[SubscriptionRef]) extends SubscriptionRef {
@@ -45,4 +55,7 @@ private [op_rabbit] case class SubscriptionRefProxy(subscriptionRef: Future[Subs
 
   def abort(): Unit =
     subscriptionRef.foreach(_.abort())
+
+  def abort(exception: Throwable): Unit =
+    subscriptionRef.foreach(_.abort(exception))
 }

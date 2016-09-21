@@ -104,8 +104,11 @@ object RabbitSource {
             input.complete()
       }(ExecutionContext.global)
 
-      input.watchCompletion.onComplete { _ =>
-        subscription.abort()
+      input.watchCompletion.onComplete {
+        case Success(_) =>
+          subscription.abort()
+        case Failure(ex) =>
+          subscription.abort(ex)
       }(ExecutionContext.global)
 
       subscription
