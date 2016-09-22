@@ -104,11 +104,25 @@ object RabbitSource {
             input.complete()
       }(ExecutionContext.global)
 
+      // Down stream terminated?
       input.watchCompletion.onComplete {
         case Success(_) =>
-          subscription.abort()
+          import scala.concurrent.duration._
+          /* If the consumer abort is scheduled before the ReceiveResult.Fail message (representing the failure
+           * potentially causing the stream to stop), then we enter a potential infinite loop in which the message
+           * causing failure is infinitely requeued.
+           *
+           * A brief delay makes this unlikely race result near impossible, since RecoveryStrategy is processes
+           * synchronously and the channel will not close until after the consumer actor dies.
+           *
+           * A better solution would be if AckedStreams yielded a stream of acknowledgements, rather than using
+           * promises, so we could wait for the stream of promises to end.
+           */
+          subscription.close(1.second)
         case Failure(ex) =>
-          subscription.abort(ex)
+          /* We should actually never get here, since exceptions only flow downstream and the only way this could be
+           * reached is with input.fail(ex: Throwable), which is impossible since we don't expose that value. */
+          ???
       }(ExecutionContext.global)
 
       subscription

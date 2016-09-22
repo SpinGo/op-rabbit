@@ -136,12 +136,15 @@ private [op_rabbit] class SubscriptionActor(
       goto(Stopped) using payload.copy(consumer = None)
 
     case Event(Stop(cause, timeout), payload) =>
-      import context.dispatcher
-      context.system.scheduler.scheduleOnce(timeout, self, Abort(None))
+      payload.consumer foreach { consumer =>
+        consumer ! impl.Consumer.Shutdown(None)
+        context.system.scheduler.scheduleOnce(timeout, consumer, PoisonPill)(context.dispatcher)
+      }
       goto(Stopping) using payload.copyCommon(shutdownCause = cause)
 
     case Event(Abort(cause), payload) =>
-      goto(Stopped) using payload.copyCommon(shutdownCause = payload.shutdownCause orElse cause)
+      payload.consumer foreach { _ ! PoisonPill }
+      goto(Stopping) using payload.copyCommon(shutdownCause = payload.shutdownCause orElse cause)
 
     case Event(c: ChannelCreated, _) =>
       stay
@@ -171,36 +174,14 @@ private [op_rabbit] class SubscriptionActor(
       }
 
     case Running -> Paused =>
-      nextConnectedState { d =>
-        d.consumer.foreach(_ ! impl.Consumer.Unsubscribe)
-      }
+      nextStateData.consumer.foreach(_ ! impl.Consumer.Unsubscribe)
 
     case _ -> Stopping =>
-      nextStateData match {
-        case d: ConnectedPayload =>
-          d.consumer match {
-            case None =>
-              self ! Abort(None)
-            case Some(consumer) =>
-              consumer ! impl.Consumer.Shutdown(None)
-          }
-        case _ =>
-          self ! Abort(None)
-      }
+      if (nextStateData.consumer.isEmpty)
+        context stop self
 
     case _ -> Stopped =>
       context stop self
-  }
-
-  def nextConnectedState[T](fn: ConnectedPayload => T): Option[T] = {
-    nextStateData match {
-      case d: ConnectedPayload =>
-        Some(fn(d))
-      case state =>
-        log.error(s"Invalid state: cannot be ${state} without a ConnectedPayload")
-        context stop self
-        None
-    }
   }
 
   onTermination {
@@ -284,12 +265,14 @@ object SubscriptionActor {
     val qos: Int
     val shutdownCause: Option[Throwable]
     def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause): SubscriptionPayload
+    def consumer: Option[ActorRef]
   }
 
   case class DisconnectedPayload(nextState: State, qos: Int, shutdownCause: Option[Throwable] = None)
       extends SubscriptionPayload {
     def copyCommon(qos: Int = qos, shutdownCause: Option[Throwable] = shutdownCause) =
       copy(qos = qos, shutdownCause = shutdownCause)
+    def consumer = None
   }
 
   case class ConnectedPayload(

@@ -78,7 +78,10 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
           await(result)
         }
 
-        await(subscription.closed) // assert that subscription gets closed
+        a [java.lang.NumberFormatException] should be thrownBy {
+          await(subscription.closed) // assert that subscription gets closed
+        }
+
         await(exceptionReported.future) should be (true)
       }
     }
