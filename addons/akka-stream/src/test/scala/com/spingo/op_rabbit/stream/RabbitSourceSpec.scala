@@ -2,13 +2,14 @@ package com.spingo.op_rabbit
 package stream
 
 import akka.actor._
-import akka.stream.ActorMaterializer
+import akka.stream.{ ActorAttributes, ActorMaterializer, ActorMaterializerSettings, Supervision }
 import akka.stream.scaladsl.{Keep, Sink}
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.Directives._
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.scoped_fixtures.ScopedFixtures
+import com.timcharper.acked.AckedSource
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
@@ -128,7 +129,31 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
       }
     }
 
-    it("handles being brought down, and started up again") {
+    it("doesn't stop the subscription if the stream resumes and recovery strategy is defined") {
+      new RabbitFixtures {
+        override val qos = 1
+        override implicit val recoveryStrategy = RecoveryStrategy.nack(false)
+
+        val (subscription, result) = source.zip(AckedSource(range)).
+          map { case (n, _) =>
+            if (n % 2 == 0)
+              throw new RuntimeException("no evens please")
+            else
+              n
+          }.
+          acked.
+          toMat(Sink.fold(List.empty[Int])(_ :+ _))(Keep.both).
+          withAttributes(ActorAttributes.supervisionStrategy(Supervision.resumingDecider)).
+          run
+
+        await(subscription.initialized)
+        range foreach { i => rabbitControl ! Message.queue(i, queueName()) }
+        await(result).shouldBe(range.filter(_ % 2 == 1).toList)
+        await(subscription.closed)
+      }
+    }
+
+    it("ends the stream gracefully when the subscription is closed") {
       (0 to 1) foreach { time =>
         new RabbitFixtures {
           override lazy val binding = queue(queueName(), durable = false, exclusive = false, autoDelete = true)

@@ -4,11 +4,11 @@ package stream
 import akka.actor._
 import akka.stream.OverflowStrategy
 import akka.stream.scaladsl.Source
-import com.thenewmotion.akka.rabbitmq.Channel
 import com.timcharper.acked.{AckedSource, AckTup}
 import scala.concurrent.{ExecutionContext, Promise}
 import scala.util.{Failure,Success}
 import shapeless._
+import scala.concurrent.duration._
 
 private [op_rabbit] case class StreamException(e: Throwable)
 
@@ -74,14 +74,6 @@ object RabbitSource {
     handler: Directive[L]
   )(implicit tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy) = {
     val src = Source.queue[AckTup[tupler.Out]](channelDirective.config.qos, OverflowStrategy.backpressure).mapMaterializedValue { input =>
-      def interceptingRecoveryStrategy = new RecoveryStrategy {
-        def apply(queueName: String, channel: Channel, ex: Throwable): Handler = { (p, delivery) =>
-          recoveryStrategy(queueName, channel, ex)(p, delivery)
-          // if recovery strategy fails, then yield the exception through the stream
-          input.fail(ex)
-        }
-      }
-
       val subscription = Subscription.run(rabbitControl) {
         import Directives._
         channelDirective {
@@ -91,7 +83,7 @@ object RabbitSource {
               input.offer((p, tupler(l)))
               ack(p.future)
             }
-          })(errorReporting, interceptingRecoveryStrategy, SameThreadExecutionContext)
+          })(errorReporting, recoveryStrategy, SameThreadExecutionContext)
         }
       }
 
@@ -107,7 +99,6 @@ object RabbitSource {
       // Down stream terminated?
       input.watchCompletion.onComplete {
         case Success(_) =>
-          import scala.concurrent.duration._
           /* If the consumer abort is scheduled before the ReceiveResult.Fail message (representing the failure
            * potentially causing the stream to stop), then we enter a potential infinite loop in which the message
            * causing failure is infinitely requeued.
@@ -120,9 +111,7 @@ object RabbitSource {
            */
           subscription.close(1.second)
         case Failure(ex) =>
-          /* We should actually never get here, since exceptions only flow downstream and the only way this could be
-           * reached is with input.fail(ex: Throwable), which is impossible since we don't expose that value. */
-          ???
+          subscription.close(1.second)
       }(ExecutionContext.global)
 
       subscription
