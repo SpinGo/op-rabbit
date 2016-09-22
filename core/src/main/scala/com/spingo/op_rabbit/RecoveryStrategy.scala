@@ -76,7 +76,7 @@ object RecoveryStrategy {
               abandonQueueProperties)),
         exchange)
       binding.declare(channel)
-      channel.basicPublish("",
+      channel.basicPublish(exchange.exchangeName,
         binding.queueName,
         delivery.properties ++ Seq(
           `x-exception`(formatException(exception)),
@@ -159,7 +159,7 @@ object RecoveryStrategy {
             arguments = List[properties.Header](
               `x-expires`(redeliverDelay * 3),
               `x-message-ttl`(redeliverDelay),
-              `x-dead-letter-exchange`(""), // default exchange
+              `x-dead-letter-exchange`(exchange.exchangeName), // default exchange
               `x-dead-letter-routing-key`(queueName)) ++ retryQueueProperties)),
         exchange)
 
@@ -175,7 +175,7 @@ object RecoveryStrategy {
             val binding = genRetryBinding(queueName)
             binding.declare(channel)
 
-            channel.basicPublish("",
+            channel.basicPublish(exchange.exchangeName,
               binding.queueName,
               delivery.properties ++ Seq(
                 `x-retry`(thisRetryCount + 1),
