@@ -4,6 +4,7 @@ package impl
 import akka.actor.{Actor, ActorLogging, Terminated}
 import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
+import com.spingo.op_rabbit.RabbitExceptionMatchers.{ConnectionGoneException, NonFatalRabbitException}
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise, Await}
@@ -33,8 +34,9 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
   def receive = {
     case Subscribe(channel, qos) =>
-      val consumerTag = setupSubscription(channel, qos)
-      context.become(connected(channel, Some(consumerTag)))
+      setupSubscription(channel, qos) foreach { consumerTag =>
+        context.become(connected(channel, Some(consumerTag)))
+      }
     case Unsubscribe =>
       ()
     case Shutdown(cause) =>
@@ -56,8 +58,10 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       if (channel != newChannel)
         pendingDeliveries.clear()
 
-      val newConsumerTag = setupSubscription(newChannel, qos)
-      context.become(connected(newChannel, Some(newConsumerTag)))
+      setupSubscription(newChannel, qos).foreach { newConsumerTag =>
+        context.become(connected(newChannel, Some(newConsumerTag)))
+      }
+
     case Unsubscribe =>
       handleUnsubscribe(channel, consumerTag)
       context.become(connected(channel, None))
@@ -103,9 +107,9 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       ()
   }
 
-  def setupSubscription(channel: Channel, initialQos: Int): String = {
+  def setupSubscription(channel: Channel, initialQos: Int): Option[String] = try {
     channel.basicQos(initialQos)
-    channel.basicConsume(
+    Some(channel.basicConsume(
       subscription.queue.queueName,
       false,
       properties.toJavaMap(subscription.consumerArgs),
@@ -115,19 +119,23 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
           self ! Delivery(consumerTag, envelope, properties, body)
         }
       }
-    )
+    ))
+  } catch {
+    case ConnectionGoneException(_) =>
+      None
   }
+
 
   def handleUnsubscribe(channel: Channel, consumerTag: Option[String]): Unit = {
     try {
       consumerTag.foreach(channel.basicCancel(_))
     } catch {
-      case RabbitExceptionMatchers.NonFatalRabbitException(_) =>
+      case NonFatalRabbitException(_) =>
         ()
     }
   }
 
-  def handleAckOrNack(rejectOrAck: ReceiveResult, channel: Channel): Unit = {
+  def handleAckOrNack(rejectOrAck: ReceiveResult, channel: Channel): Unit = try {
     val deliveryTag = rejectOrAck.deliveryTag
 
     if (!(pendingDeliveries contains deliveryTag)) {
@@ -163,7 +171,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
         } match {
           case ackOrNack: ReceiveResult.Success =>
             ackOrNack
-          case ReceiveResult.Fail(_, _, e @ RabbitExceptionMatchers.NonFatalRabbitException(_)) =>
+          case ReceiveResult.Fail(_, _, e @ NonFatalRabbitException(_)) =>
             log.error(e,
               "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
 
@@ -177,6 +185,10 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
         }
         handleAckOrNack(nextStep, channel)
     }
+  } catch {
+    case NonFatalRabbitException(e) =>
+      // Ignore
+      ()
   }
 
   /**

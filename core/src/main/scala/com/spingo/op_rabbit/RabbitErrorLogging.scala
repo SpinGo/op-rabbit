@@ -16,7 +16,7 @@ trait RabbitErrorLogging {
     Tries to convert the body to a human-readable string; tries to use charset in contentEncoding
     */
   protected def bodyAsString(body: Array[Byte], properties: BasicProperties): String =
-    RabbitErrorLogging.StringHelpers.byteArrayToString(body, Try { Charset.forName(properties.getContentEncoding) }.toOption)
+    RabbitErrorLogging.StringHelpers.byteArrayToString(body, properties)
 
   /**
     Called by consumer to report an exception processing a message
@@ -70,6 +70,8 @@ object LogbackLogger extends RabbitErrorLogging {
 object RabbitErrorLogging {
   object StringHelpers {
     private val utf8 = Charset.forName("UTF-8")
+    /** This method is kind of silly; basically, if the first 20 bytes look like ascii then it treats it as UTF-8.
+      * You should always read the content from an envelope. */
     def guessCharset(body: Array[Byte]): Option[Charset] = {
       val firstChars: List[Byte] = (0 until Math.min(20, body.length)).map(body(_)).toList
 
@@ -79,12 +81,17 @@ object RabbitErrorLogging {
         Some(utf8)
     }
 
-    def byteArrayToString(body: Array[Byte], charset: Option[Charset]) = {
+    def byteArrayToString(body: Array[Byte], charset: Option[Charset]): String = {
       (charset orElse guessCharset(body)) match {
         case Some(c) => Try { new String(body, c) } getOrElse { "<Malencoded-String>" }
         case None => "<Binary-Data>"
       }
     }
+
+    def byteArrayToString(body: Array[Byte], properties: BasicProperties): String = {
+      byteArrayToString(body, Try { Charset.forName(properties.getContentEncoding) }.toOption)
+    }
+
   }
 
   implicit val defaultLogger: RabbitErrorLogging = Slf4jLogger
