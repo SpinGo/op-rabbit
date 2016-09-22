@@ -36,9 +36,7 @@ class BindingSpec extends FunSpec with ScopedFixtures with Matchers with RabbitT
             consume(
               Binding.direct(
                 Queue(queueName, autoDelete = true),
-                Exchange.direct("test-direct-exchange", autoDelete = true),
-                List(queueName)
-              )) {
+                Exchange.direct("test-direct-exchange", autoDelete = true))) {
               body(as[String]) { a =>
                 consumerResult(idx).success(a)
                 ack
