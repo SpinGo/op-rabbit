@@ -159,7 +159,7 @@ object RecoveryStrategy {
             arguments = List[properties.Header](
               `x-expires`(redeliverDelay * 3),
               `x-message-ttl`(redeliverDelay),
-              `x-dead-letter-exchange`(exchange.exchangeName), // default exchange
+              `x-dead-letter-exchange`(exchange.exchangeName),
               `x-dead-letter-routing-key`(queueName)) ++ retryQueueProperties)),
         exchange)
 
