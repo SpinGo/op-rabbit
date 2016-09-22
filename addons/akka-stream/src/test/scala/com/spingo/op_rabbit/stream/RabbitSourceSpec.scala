@@ -9,7 +9,7 @@ import com.rabbitmq.client.Envelope
 import com.spingo.op_rabbit.Directives._
 import com.spingo.op_rabbit.helpers.{DeleteQueue, RabbitTestHelpers}
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.timcharper.acked.AckedSource
+import com.timcharper.acked.{ AckedSink, AckedSource }
 import org.scalatest.{FunSpec, Matchers}
 import scala.concurrent.{ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
@@ -134,8 +134,8 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         override val qos = 1
         override implicit val recoveryStrategy = RecoveryStrategy.nack(false)
 
-        val (subscription, result) = source.zip(AckedSource(range)).
-          map { case (n, _) =>
+        val (subscription, result) = source.take(range.length.toLong).
+          map { n =>
             if (n % 2 == 0)
               throw new RuntimeException("no evens please")
             else
@@ -152,6 +152,45 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         await(subscription.closed)
       }
     }
+
+    it("processes the recovery strategy even when the stream crashes") {
+      new RabbitFixtures {
+        override implicit val recoveryStrategy: RecoveryStrategy = RecoveryStrategy { (queueName, channel, exception) =>
+          Thread.sleep(1000) // make this recoveryStrategy take extraordinaly long
+          RecoveryStrategy.abandonedQueue()(queueName, channel, exception)
+        }
+
+        var count = 0
+        val abandonsSource = RabbitSource(
+          rabbitControl,
+          channel(qos = 1),
+          consume(pqueue(s"op-rabbit.abandoned.${queueName()}")),
+          body(as[Int]))
+        val (subscription, result) = source.
+          map { _ =>
+            count = count + 1
+            throw new RuntimeException("boogie")
+          }.
+          runAckMat(Keep.both)
+        await(subscription.initialized)
+
+        range foreach { i => rabbitControl ! Message.queue(i, queueName()) }
+
+        a [RuntimeException] shouldBe thrownBy {
+          await(result)
+        }
+
+        await(subscription.closed)
+        count shouldBe 1
+
+        // Make sure the element was published to the abandon queue
+        await(abandonsSource.runWith(AckedSink.head)) shouldBe (0)
+
+        // Make sure the first element was acked
+        await(source.runWith(AckedSink.head)) shouldBe (1)
+      }
+    }
+
 
     it("ends the stream gracefully when the subscription is closed") {
       (0 to 1) foreach { time =>

@@ -109,9 +109,9 @@ object RabbitSource {
            * A better solution would be if AckedStreams yielded a stream of acknowledgements, rather than using
            * promises, so we could wait for the stream of promises to end.
            */
-          subscription.close(1.second)
+          subscription.close(500.millis)
         case Failure(ex) =>
-          subscription.close(1.second)
+          subscription.close(500.millis)
       }(ExecutionContext.global)
 
       subscription
