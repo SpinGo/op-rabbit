@@ -2,6 +2,8 @@
 
 - Edit README.md; note the appropriate stable version as appropriate.
 
+- Make sure when making changes to stable master, merge them into the corresponding release branches.
+
 Run the following:
 
     . project/version.properties
