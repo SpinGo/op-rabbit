@@ -3,7 +3,7 @@ package com.spingo.op_rabbit
 import com.rabbitmq.client.Channel
 import scala.concurrent.duration._
 import com.spingo.op_rabbit.properties.PimpedBasicProperties
-import Directives.{property, extract, ack, exchange, routingKey}
+import Directives.{property, extract, ack, exchange => dExchange, routingKey}
 import com.spingo.op_rabbit.Queue.ModeledArgs.{`x-message-ttl`, `x-expires`}
 
 /**
@@ -44,7 +44,7 @@ object RecoveryStrategy {
   val originalRoutingKey = (property(`x-original-routing-key`) | routingKey)
 
   /** directive which extracts the x-original-exchange, if present. Falls back to envelope exchange. */
-  val originalExchange = (property(`x-original-exchange`) | exchange)
+  val originalExchange = (property(`x-original-exchange`) | dExchange)
 
   /** Header at which the formatted exception is stored. */
   val `x-exception` = properties.TypedHeader[String]("x-exception")
@@ -59,21 +59,25 @@ object RecoveryStrategy {
   def abandonedQueue(
     defaultTTL: FiniteDuration = 1.day,
     abandonQueueName: (String) => String = { q => s"op-rabbit.abandoned.$q" },
-    abandonQueueProperties: List[properties.Header] = Nil) = RecoveryStrategy {
+    abandonQueueProperties: List[properties.Header] = Nil,
+    exchange: Exchange[Exchange.Direct.type] = Exchange.default
+  ) = RecoveryStrategy {
     (queueName, channel, exception) =>
 
     (extract(identity) & originalRoutingKey & originalExchange) { (delivery, rk, x) =>
-      val failureQueue = Queue.passive(
-        Queue(
-          abandonQueueName(queueName),
-          durable = true,
-          arguments = List[properties.Header](
-            `x-message-ttl`(defaultTTL),
-            `x-expires`(defaultTTL * 2)) ++
-            abandonQueueProperties))
-      failureQueue.declare(channel)
+      val binding = Binding.direct(
+        Queue.passive(
+          Queue(
+            abandonQueueName(queueName),
+            durable = true,
+            arguments = List[properties.Header](
+              `x-message-ttl`(defaultTTL),
+              `x-expires`(defaultTTL * 2)) ++
+              abandonQueueProperties)),
+        exchange)
+      binding.declare(channel)
       channel.basicPublish("",
-        failureQueue.queueName,
+        binding.queueName,
         delivery.properties ++ Seq(
           `x-exception`(formatException(exception)),
           `x-original-routing-key`(rk),
@@ -141,24 +145,26 @@ object RecoveryStrategy {
     retryCount: Int = 3,
     onAbandon: RecoveryStrategy = nack(false),
     retryQueueName : (String) => String = { q => s"op-rabbit.retry.$q" },
-    retryQueueProperties: List[properties.Header] = Nil) = new RecoveryStrategy {
-    import Directives._
+    retryQueueProperties: List[properties.Header] = Nil,
+    exchange: Exchange[Exchange.Direct.type] = Exchange.default
+  ) = new RecoveryStrategy {
     import Queue.ModeledArgs._
 
-    def genRetryQueue(queueName: String) =
-      Queue.passive(
-        Queue(
-          retryQueueName(queueName),
-          durable = true,
-          arguments = List[properties.Header](
-            `x-expires`(redeliverDelay * 3),
-            `x-message-ttl`(redeliverDelay),
-            `x-dead-letter-exchange`(""), // default exchange
-            `x-dead-letter-routing-key`(queueName)) ++ retryQueueProperties))
+    def genRetryBinding(queueName: String) =
+      Binding.direct(
+        Queue.passive(
+          Queue(
+            retryQueueName(queueName),
+            durable = true,
+            arguments = List[properties.Header](
+              `x-expires`(redeliverDelay * 3),
+              `x-message-ttl`(redeliverDelay),
+              `x-dead-letter-exchange`(""), // default exchange
+              `x-dead-letter-routing-key`(queueName)) ++ retryQueueProperties)),
+        exchange)
 
-    private val getRetryCount = (property(`x-retry`) | provide(0))
+    private val getRetryCount = (property(`x-retry`) | Directives.provide(0))
     def apply(queueName: String, channel: Channel, ex: Throwable): Handler = {
-
       getRetryCount {
         case (thisRetryCount) if (thisRetryCount < retryCount) =>
           (extract(identity) & originalRoutingKey & originalExchange) {
@@ -166,11 +172,11 @@ object RecoveryStrategy {
 
             /* It is important that we create a new instance of the passive retry queue each time it is used; otherwise,
              * we risk that the queue could disappear due to `x-expires`, and messages dead-letter. */
-            val retryQueue = genRetryQueue(queueName)
-            retryQueue.declare(channel)
+            val binding = genRetryBinding(queueName)
+            binding.declare(channel)
 
             channel.basicPublish("",
-              retryQueue.queueName,
+              binding.queueName,
               delivery.properties ++ Seq(
                 `x-retry`(thisRetryCount + 1),
                 `x-original-routing-key`(rk),
