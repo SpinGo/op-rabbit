@@ -30,22 +30,28 @@ object Binding {
   def direct(
     queue: QueueDefinition[Concrete],
     exchange:
-        ExchangeDefinition[Concrete] with
+        ExchangeDefinition[Concreteness] with
         Exchange[Exchange.Direct.type],
     routingKeys: List[String] = Nil
   ): Binding = new Binding {
     val queueName = queue.queueName
     val exchangeName = exchange.exchangeName
 
+    val bindingsToCreate =
+      if (exchange.exchangeName == "") {
+        require(routingKeys.isEmpty, "cannot specify routing keys for default exchange")
+        Nil
+      } else if (routingKeys.isEmpty) {
+        List(queueName)
+      } else {
+        routingKeys
+      }
+
+
     def declare(c: Channel): Unit = {
       exchange.declare(c)
       queue.declare(c)
-      if (routingKeys.isEmpty)
-        c.queueBind(queueName, exchangeName, queueName, null)
-      else
-        routingKeys.foreach { routingKey =>
-          c.queueBind(queueName, exchangeName, routingKey, null)
-        }
+      bindingsToCreate.foreach(c.queueBind(queueName, exchangeName, _, null))
     }
   }
 

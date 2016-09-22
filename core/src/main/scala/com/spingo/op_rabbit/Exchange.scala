@@ -15,7 +15,12 @@ import com.spingo.op_rabbit.Binding._
 trait Exchange[+T <: Exchange.Value] extends ExchangeDefinition[Concrete] {
 }
 
-private class ExchangeImpl[+T <: Exchange.Value](val exchangeName: String, kind: T, durable: Boolean, autoDelete: Boolean, arguments: Seq[Header]) extends Exchange[T] {
+private class ExchangeImpl[+T <: Exchange.Value](
+  val exchangeName: String,
+  kind: T,
+  durable: Boolean,
+  autoDelete: Boolean,
+  arguments: Seq[Header]) extends Exchange[T] {
   def declare(c: Channel): Unit =
     c.exchangeDeclare(exchangeName, kind.toString, durable, autoDelete, properties.toJavaMap(arguments))
 }
@@ -26,7 +31,8 @@ private class ExchangeImpl[+T <: Exchange.Value](val exchangeName: String, kind:
 
   See RabbitMQ Java client docs, [[https://www.rabbitmq.com/releases/rabbitmq-java-client/v3.5.4/rabbitmq-java-client-javadoc-3.5.4/com/rabbitmq/client/Channel.html#exchangeDeclarePassive(java.lang.String) Channel.exchangeDeclarePassive]].
   */
-private class ExchangePassive[T <: Exchange.Value](val exchangeName: String, ifNotDefined: Option[Exchange[T]] = None) extends Exchange[T] {
+private class ExchangePassive[T <: Exchange.Value](val exchangeName: String, ifNotDefined: Option[Exchange[T]] = None)
+    extends Exchange[T] {
   def declare(channel: Channel): Unit = {
     RabbitHelpers.tempChannel(channel.getConnection) { t =>
       t.exchangeDeclarePassive(exchangeName)
@@ -54,6 +60,13 @@ object Exchange extends Enumeration {
       Exchange[Exchange.Fanout.type] = new ExchangeImpl(name: String, Exchange.Fanout, durable, autoDelete, arguments)
   def direct(name: String, durable: Boolean = true, autoDelete: Boolean = false, arguments: Seq[Header] = Seq()):
       Exchange[Exchange.Direct.type] = new ExchangeImpl(name: String, Exchange.Direct, durable, autoDelete, arguments)
+
+  val default: Exchange[Exchange.Direct.type] = new Exchange[Exchange.Direct.type] {
+    val exchangeName = ""
+    def declare(c: Channel): Unit = {
+      // no-op
+    }
+  }
 
   def passive(exchangeName: String): Exchange[Nothing] = new ExchangePassive(exchangeName, None)
   def passive[T <: Exchange.Value](binding: Exchange[T]): Exchange[T] = new ExchangePassive(binding.exchangeName, Some(binding))
