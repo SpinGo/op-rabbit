@@ -24,10 +24,4 @@ private [op_rabbit] object Consumer {
    */
   case class Shutdown(cause: Option[Throwable]) extends ConsumerCommand
 
-  /**
-   Like shutdown, but does not wait for pending messages to be
-   acknowledged before stopping the actor
-   */
-  case class Abort(cause: Option[Throwable]) extends ConsumerCommand
-
 }

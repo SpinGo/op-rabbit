@@ -6,7 +6,8 @@ import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.concurrent.{ExecutionContext, Future, Promise, Await}
+import scala.concurrent.duration._
 
 private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
@@ -25,15 +26,17 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   def propCause(cause: Option[Throwable]): Unit =
     cause foreach (c => context.parent ! SubscriptionActor.Stop(Some(c)))
 
+  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
+    propCause(Some(reason))
+    super.preRestart(reason, message)
+  }
+
   def receive = {
     case Subscribe(channel, qos) =>
       val consumerTag = setupSubscription(channel, qos)
       context.become(connected(channel, Some(consumerTag)))
     case Unsubscribe =>
       ()
-    case Abort(cause) =>
-      propCause(cause)
-      context stop self
     case Shutdown(cause) =>
       propCause(cause)
       context stop self
@@ -65,6 +68,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
     case r : ReceiveResult =>
       handleAckOrNack(r, channel)
+
     case Shutdown(cause) =>
       propCause(cause)
       handleUnsubscribe(channel, consumerTag)
@@ -73,9 +77,6 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       else
         context.become(stopping(channel))
 
-    case Abort(cause) =>
-      propCause(cause)
-      context stop self
     case Terminated(ref) if ref == self =>
       handleUnsubscribe(channel, consumerTag)
       context.become(stopping(channel))
@@ -98,9 +99,6 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       channel.basicReject(envelope.getDeliveryTag, true)
     case Unsubscribe | Shutdown(_) =>
       ()
-    case Abort(cause) =>
-      propCause(cause)
-      context stop self
     case Terminated(ref) if ref == self =>
       ()
   }
@@ -152,23 +150,32 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
           fail.exception,
           fail.delivery.consumerTag, fail.delivery.envelope, fail.delivery.properties, fail.delivery.body)
 
-        applyHandler("running recoveryStrategy",
-          fail.delivery)(
-          subscription.recoveryStrategy(subscription.queue.queueName, channel, fail.exception)).
-          onSuccess {
-            case ackOrNack @ (_: ReceiveResult.Ack | _: ReceiveResult.Nack) =>
-              self ! ackOrNack
-            case ReceiveResult.Fail(_, _, e @ RabbitExceptionMatchers.NonFatalRabbitException(_)) =>
-              log.error(e,
-                "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
-              self ! ReceiveResult.Nack(deliveryTag, true)
-            case ReceiveResult.Fail(_, _, exception) =>
-              log.error(exception,
-                "Recovery strategy failed, or something else went horribly wrong; " +
-                  "Nacking with requeue = true, then shutting consumer down.")
-              self ! Shutdown(Some(exception))
-              self ! ReceiveResult.Nack(deliveryTag, true)
-          }(context.dispatcher)
+        val nextStep: ReceiveResult.Success = {
+          /* We wait for the result synchronously just in case the recoveryStrategy does asynchronous work. Channel
+           * operations are not thread safe. We may wish to warn if a handler crosses an async boundary. */
+          try
+            Await.result(
+              applyHandler("running recoveryStrategy", fail.delivery)(
+                subscription.recoveryStrategy(subscription.queue.queueName, channel, fail.exception)),
+              5.minutes)
+          catch { case ex: Throwable =>
+            ReceiveResult.Fail(fail.delivery, Some("exception while running recoveryStrategy"), ex) }
+        } match {
+          case ackOrNack: ReceiveResult.Success =>
+            ackOrNack
+          case ReceiveResult.Fail(_, _, e @ RabbitExceptionMatchers.NonFatalRabbitException(_)) =>
+            log.error(e,
+              "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
+
+            ReceiveResult.Nack(deliveryTag, true)
+          case ReceiveResult.Fail(_, _, exception) =>
+            log.error(exception,
+              "Recovery strategy failed, or something else went horribly wrong; " +
+                "Nacking with requeue = true, then shutting consumer down.")
+            self ! Shutdown(Some(exception))
+            ReceiveResult.Nack(deliveryTag, true)
+        }
+        handleAckOrNack(nextStep, channel)
     }
   }
 
