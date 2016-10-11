@@ -205,7 +205,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 case class Person(name: String, age: Int)
 // setup play-json serializer
 implicit val personFormat = Json.format[Person]
-implicit val recoveryStrategy = RecoveryStrategy.drop()
+implicit val recoveryStrategy = RecoveryStrategy.none
 
 val subscriptionRef = Subscription.run(rabbitControl) {
   import Directives._
