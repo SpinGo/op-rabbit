@@ -12,10 +12,17 @@ protected object TypeHolder {
   def apply[T] = new TypeHolder[T]
 }
 
-private [op_rabbit] case class BoundConsumerDefinition(queue: QueueDefinition[Concreteness], handler: Handler, errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext, consumerArgs: Seq[properties.Header])
-private [op_rabbit] case class BindingDirective(binding: QueueDefinition[Concreteness], args: Seq[properties.Header]) {
+private [op_rabbit] case class BoundConsumerDefinition(
+  queue: QueueDefinition[Concreteness],
+  handler: Handler,
+  errorReporting: RabbitErrorLogging,
+  recoveryStrategy: RecoveryStrategy,
+  executionContext: ExecutionContext,
+  consumerArgs: Seq[properties.Header],
+  consumerTagPrefix: Option[String])
+private [op_rabbit] case class BindingDirective(binding: QueueDefinition[Concreteness], args: Seq[properties.Header], consumerTagPrefix: Option[String]) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
-    BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args)
+    BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args, consumerTagPrefix)
 }
 private [op_rabbit] case class ChannelConfiguration(qos: Int)
 private [op_rabbit] case class BoundChannel(channelConfig: ChannelConfiguration, boundConsumer: BoundConsumerDefinition)
@@ -75,7 +82,10 @@ trait Directives {
   /**
     Declarative which declares a consumer
     */
-  def consume(binding: QueueDefinition[Concreteness], args: Seq[properties.Header] = Seq()) = BindingDirective(binding, args)
+  def consume(
+    binding: QueueDefinition[Concreteness],
+    args: Seq[properties.Header] = Seq(),
+    consumerTagPrefix: Option[String] = None) = BindingDirective(binding, args, consumerTagPrefix)
 
   /**
     Provides values for the [[consume]] directive.
