@@ -65,6 +65,20 @@ lazy val core = (project in file("./core")).
     name := "op-rabbit-core"
   )
 
+lazy val demo = (project in file("./demo")).
+  settings(Boilerplate.settings: _*).
+  settings(commonSettings: _*).
+  settings(
+    libraryDependencies ++= Seq(
+      "ch.qos.logback" % "logback-classic" % "1.1.7",
+      "com.typesafe.akka" %% "akka-slf4j" % akkaVersion)).
+  settings(
+    name := "op-rabbit-demo"
+  ).
+  dependsOn(
+    `play-json`, `akka-stream`)
+
+
 
 lazy val json4s = (project in file("./addons/json4s")).
   settings(commonSettings: _*).
