@@ -42,7 +42,7 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
 
         val range = (0 to 100)
         val promises = range.map { _ => Promise[Int] }.toList
-        val generator = new Random(123);
+        val generator = new Random(123)
         val subscription = Subscription.run(rabbitControl) {
           import Directives._
           channel() {
@@ -50,7 +50,8 @@ class ConsumerSpec extends FunSpec with ScopedFixtures with Matchers with Rabbit
               queueName,
               durable    = false,
               exclusive  = false,
-              autoDelete = true)) {
+              autoDelete = true),
+              consumerTagPrefix = Some("testing123")) {
               body(as[Int]) { i =>
                 println(s"Received #${i}")
                 Thread.sleep(Math.round(generator.nextDouble() * 100))

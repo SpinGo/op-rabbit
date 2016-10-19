@@ -1,6 +1,7 @@
 package com.spingo.op_rabbit
 package impl
 
+import java.util.concurrent.atomic.AtomicInteger
 import akka.actor.{Actor, ActorLogging, Terminated}
 import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
@@ -9,6 +10,11 @@ import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise, Await}
 import scala.concurrent.duration._
+
+private [op_rabbit] object ConsumerId {
+  val count = new AtomicInteger()
+  def apply() = count.getAndIncrement()
+}
 
 private [op_rabbit] class AsyncAckingRabbitConsumer[T](
   name: String,
@@ -111,6 +117,9 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     channel.basicQos(initialQos)
     Some(channel.basicConsume(
       subscription.queue.queueName,
+      false,
+      subscription.consumerTagPrefix.fold("")(prefix => s"$prefix-${ConsumerId()}"),
+      false,
       false,
       properties.toJavaMap(subscription.consumerArgs),
       new DefaultConsumer(channel) {
