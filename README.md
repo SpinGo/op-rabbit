@@ -4,13 +4,10 @@
 
 # Documentation
 
-Browse the latest [API Docs](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/current/index.html) online.
+Browse the latest [API Docs](https://op-rabbit.github.io/docs/index.html) online.
 
-For announcements, discussions, etc., join the discussion:
-
-- [Op-rabbit discussion forum](https://groups.google.com/forum/#!forum/op-rabbit)
-
-Issues go here:
+Issues go here; questions can be posed there as well. Please see the
+[Cookbook](https://github.com/SpinGo/op-rabbit/wiki/Cookbook), first.
 
 - https://github.com/SpinGo/op-rabbit/issues
 
@@ -105,20 +102,20 @@ Only Scala 2.11.x is supported. If you require Scala 2.10.x, use
 - `op-rabbit-core` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html)
     - Implements basic patterns for serialization and message
       processing.
-- `op-rabbit-play-json` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/play-json/current/index.html)
+- `op-rabbit-play-json` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.PlayJsonSupport$)
     - Easily use
       [Play Json](https://www.playframework.com/documentation/2.4.x/ScalaJson)
       formats to publish or consume messages; automatically sets
       RabbitMQ message headers to indicate content type.
-- `op-rabbit-json4s` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/json4s/current/index.html)
+- `op-rabbit-json4s` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.Json4sSupport$)
     - Easily use [Json4s](http://json4s.org) to serialization
       messages; automatically sets RabbitMQ message headers to
       indicate content type.
-- `op-rabbit-airbrake` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/airbrake/current/index.html)
+- `op-rabbit-airbrake` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.AirbrakeLogger)
     - Report consumer exceptions to airbrake, using the
       [Airbrake](https://github.com/airbrake/airbrake-java) Java
       library.
-- `op-rabbit-akka-stream` [API](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html)
+- `op-rabbit-akka-stream` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.stream.package)
     - Process or publish messages using akka-stream.
 
 ## Upgrade Guide

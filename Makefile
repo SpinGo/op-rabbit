@@ -5,7 +5,8 @@ target/scala-2.11/unidoc/index.html:
 	sbt unidoc
 
 target/docs-published: target/scala-2.11/unidoc/index.html
-	aws s3 sync target/scala-2.11/unidoc/ s3://spingo-oss/docs/op-rabbit/current/ --acl public-read --delete
+	rsync -av target/scala-2.11/unidoc/ ../op-rabbit.github.io/docs/
+	cd ../op-rabbit.github.io/docs/; git add . -A; git commit -m "update docs"; git push
 	touch $@
 
 README.md: project/version.properties
