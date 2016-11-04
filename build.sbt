@@ -43,9 +43,28 @@ val commonSettings = Seq(
   ),
   publishMavenStyle := true,
   publishTo := {
-    val repo = if (version.value.trim.endsWith("SNAPSHOT")) "snapshots" else "releases"
-    Some(repo at s"s3://spingo-oss/repositories/$repo")
+    val nexus = "https://oss.sonatype.org/"
+    if (isSnapshot.value)
+      Some("snapshots" at nexus + "content/repositories/snapshots")
+    else
+      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+  },
+  licenses := Seq("Apache 2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt")),
+  homepage := Some(url("https://github.com/SpinGo/op-rabbit")),
+  pomExtra := {
+    <scm>
+      <url>https://github.com/SpinGo/op-rabbit</url>
+      <connection>scm:git:git@github.com:SpinGo/op-rabbit.git</connection>
+    </scm>
+    <developers>
+      <developer>
+        <id>timcharper</id>
+        <name>Tim Harper</name>
+        <url>http://spingo.com</url>
+      </developer>
+    </developers>
   }
+
 )
 
 lazy val `op-rabbit` = (project in file(".")).
