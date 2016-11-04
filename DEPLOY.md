@@ -11,6 +11,7 @@ Run the following:
     make clean
     sbt test
     sbt publishSigned
+    sbt sonatypeReleaseAll
     make docs publish
     git add README.md project/version.properties
     git commit -m v$version
