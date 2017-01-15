@@ -3,7 +3,7 @@ package com.spingo.op_rabbit
 import akka.actor._
 import com.rabbitmq.client.ShutdownSignalException
 import com.spingo.op_rabbit.RabbitControl.{Pause, Run}
-import com.thenewmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, CreateChannel}
+import com.newmotion.akka.rabbitmq.{Channel, ChannelActor, ChannelCreated, CreateChannel}
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 import scala.util.{Failure,Success}

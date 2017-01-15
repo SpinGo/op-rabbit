@@ -135,7 +135,12 @@ object HeaderValue {
     case v: java.math.BigDecimal                 => apply(v)
     case v: java.util.Date                       => apply(v)
     case v: java.util.Map[_, _] =>
-      MapHeaderValue(v.map { case (k, v: Object) => (k.toString, from(v)) }.toMap)
+      MapHeaderValue(v.map {
+        case (k, v: Object) => (k.toString, from(v))
+        case (k, otherwise) =>
+          throw new RuntimeException(
+            s"RabbitMQ Java driver gave us a value we did not expect ${otherwise.getClass}. We should never get here.")
+      }.toMap)
     case v: java.lang.Byte                       => apply(v)
     case v: java.lang.Double                     => apply(v)
     case v: java.lang.Float                      => apply(v)
@@ -148,5 +153,8 @@ object HeaderValue {
       SeqHeaderValue(v.map { case v: Object => from(v) })
     case v: Array[Object] =>
       SeqHeaderValue(v.map(from))
+    case otherwise =>
+      throw new RuntimeException(
+        s"RabbitMQ Java driver gave us a value we did not expect ${otherwise.getClass}. We should never get here.")
   }
 }

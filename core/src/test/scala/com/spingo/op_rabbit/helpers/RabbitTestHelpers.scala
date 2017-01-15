@@ -9,7 +9,7 @@ import com.rabbitmq.client.Channel
 import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.thenewmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
+import com.newmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 
@@ -59,7 +59,7 @@ trait RabbitTestHelpers extends ScopedFixtures {
           // because the connection shutdown cause is seen as isInitiatedByApplication, we need to send the Connect signal again to wake things back up.
           context.become {
             case Transition(ref, from, to) if from.toString == "Connected" && to.toString == "Disconnected" =>
-              connectionActor ! com.thenewmotion.akka.rabbitmq.ConnectionActor.Connect
+              connectionActor ! com.newmotion.akka.rabbitmq.ConnectionActor.Connect
               context.become {
                 case Transition(ref, from, to) if from.toString == "Disconnected" && to.toString == "Connected" =>
                   done.success()

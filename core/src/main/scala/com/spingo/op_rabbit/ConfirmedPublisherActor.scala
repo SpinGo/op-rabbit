@@ -2,8 +2,7 @@ package com.spingo.op_rabbit
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Stash, Status, Terminated}
 import com.rabbitmq.client.{Channel, ConfirmListener, ShutdownListener, ShutdownSignalException}
-import com.spingo.op_rabbit.RabbitHelpers.withChannelShutdownCatching
-import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
+import com.newmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
 import scala.collection.mutable
 
 /**
@@ -96,14 +95,8 @@ private [op_rabbit] class ConfirmedPublisherActor(connection: ActorRef) extends 
   private def handleDelivery(channel: Channel, message: Message, replyTo: ActorRef): Unit = {
     val nextDeliveryTag = channel.getNextPublishSeqNo()
     try {
-      withChannelShutdownCatching(channel) {
-        message(channel)
-      } match {
-        case Left(ex) =>
-          replyTo ! Message.Fail(message.id, ex)
-        case _ =>
-          pendingConfirmation(nextDeliveryTag) = (message, replyTo)
-      }
+      message(channel)
+      pendingConfirmation(nextDeliveryTag) = (message, replyTo)
     } catch {
       case ex: Throwable =>
         replyTo ! Message.Fail(message.id, ex)
