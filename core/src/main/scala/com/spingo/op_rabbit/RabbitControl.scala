@@ -3,7 +3,7 @@ package com.spingo.op_rabbit
 import akka.actor.SupervisorStrategy._
 import akka.actor._
 import akka.util.Timeout
-import com.thenewmotion.akka.rabbitmq.{ ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
+import com.newmotion.akka.rabbitmq.{ ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 

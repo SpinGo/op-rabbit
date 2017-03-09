@@ -1,9 +1,9 @@
 package com.spingo.op_rabbit
 
-import akka.actor.{Actor, ActorLogging, ActorRef, Stash, Status, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, Stash, Terminated}
 import com.rabbitmq.client.{Channel, ConfirmListener, ShutdownListener, ShutdownSignalException}
 import com.spingo.op_rabbit.RabbitHelpers.withChannelShutdownCatching
-import com.thenewmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
+import com.newmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, CreateChannel}
 import scala.collection.mutable
 
 /**
