@@ -6,7 +6,7 @@ import akka.actor.{Actor, ActorLogging, Terminated}
 import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.spingo.op_rabbit.RabbitExceptionMatchers.{ConnectionGoneException, NonFatalRabbitException}
-import com.thenewmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
+import com.newmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
 import scala.concurrent.{ExecutionContext, Future, Promise, Await}
 import scala.concurrent.duration._

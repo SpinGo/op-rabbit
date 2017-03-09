@@ -1,6 +1,6 @@
 package com.spingo.op_rabbit.impl
 
-import com.thenewmotion.akka.rabbitmq.Channel
+import com.newmotion.akka.rabbitmq.Channel
 
 private [op_rabbit] object Consumer {
   sealed trait ConsumerCommand

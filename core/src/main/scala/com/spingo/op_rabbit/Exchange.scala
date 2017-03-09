@@ -1,7 +1,7 @@
 package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.Header
-import com.thenewmotion.akka.rabbitmq.Channel
+import com.newmotion.akka.rabbitmq.Channel
 import com.spingo.op_rabbit.Binding._
 
 /**
