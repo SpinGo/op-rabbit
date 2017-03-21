@@ -68,7 +68,7 @@ resolvers ++= Seq(
   "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
 )
 
-val opRabbitVersion = "1.6.0"
+val opRabbitVersion = "2.0.0-rc1"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
@@ -81,12 +81,29 @@ libraryDependencies ++= Seq(
 
 ### Scala Version Compatibility Matrix:
 
-Only Scala 2.11.x is supported. If you require Scala 2.10.x, use
-[op-rabbit 1.2.x](https://github.com/SpinGo/op-rabbit/tree/v1.2.x).
+#### op-rabbit 2.0.x
+
+Supports Scala 2.12 and Scala 2.11.
+
+| module                       | dependsOn                | version   |
+| ---------------------------- | ------------------------ | --------- |
+| op-rabbit-core               | akka                     | ~> 2.4.17 |
+|                              | akka-rabbitmq            | 4.0       |
+|                              | shapeless                | ~> 2.3.2  |
+|                              | type-safe config         | >= 1.3.0  |
+| op-rabbit-play-json          | play-json                | 2.6.0-M5  |
+| op-rabbit-json4s             | json4s                   | 3.5.x     |
+| op-rabbit-circe              | circe                    | 0.7.x     |
+| op-rabbit-airbrake           | airbrake                 | 2.2.x     |
+| op-rabbit-akka-stream        | acked-stream             | 2.1.x     |
+
+#### op-rabbit 1.6.x
+
+Supports Scala 2.11 only
 
 | module                       | dependsOn                | version  |
 | ---------------------------- | ------------------------ | -------- |
-| op-rabbit-core               | akka                     | 2.4.x    |
+| op-rabbit-core               | akka                     | ~> 2.4.2 |
 |                              | akka-rabbitmq            | 2.3      |
 |                              | shapeless                | 2.3.x    |
 |                              | type-safe config         | >= 1.3.0 |
@@ -95,7 +112,6 @@ Only Scala 2.11.x is supported. If you require Scala 2.10.x, use
 | op-rabbit-circe              | circe                    | 0.5.x    |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x    |
 | op-rabbit-akka-stream        | acked-stream             | 2.1.x    |
-|                              | akka-stream              | >= 2.4.2 |
 
 ## A high-level overview of the available components:
 
