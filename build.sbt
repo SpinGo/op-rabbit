@@ -43,11 +43,11 @@ val commonSettings = Seq(
   ),
   publishMavenStyle := true,
   publishTo := {
-    val nexus = "https://oss.sonatype.org/"
+    val metis = "s3://s3-us-east-1.amazonaws.com/metis-artifacts/"
     if (isSnapshot.value)
-      Some("snapshots" at nexus + "content/repositories/snapshots")
+      Some("snapshots" at metis + "snapshots")
     else
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+      Some("releases"  at metis + "releases")
   },
   licenses := Seq("Apache 2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt")),
   homepage := Some(url("https://github.com/SpinGo/op-rabbit")),
