@@ -4,7 +4,7 @@ import java.util.Properties
 
 val json4sVersion = "3.4.0"
 
-val circeVersion = "0.5.0"
+val circeVersion = "0.7.0"
 
 val akkaVersion = "2.4.8"
 
