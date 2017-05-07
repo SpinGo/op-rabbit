@@ -2,7 +2,6 @@ package com.spingo.op_rabbit
 
 import org.scalatest.FunSpec
 import org.scalatest.Matchers
-import cats.data.Xor
 import io.circe.{Decoder, Encoder}
 import io.circe.parser.decode
 import io.circe.syntax.EncoderOps
