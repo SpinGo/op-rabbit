@@ -61,13 +61,9 @@ a high-level feature list:
 
 ## Installation
 
-Add the SpinGo OSS repository and include the dependencies of your choosing:
+Op-Rabbit is available on Maven Central
 
 ```scala
-resolvers ++= Seq(
-  "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
-)
-
 val opRabbitVersion = "2.0.0"
 
 libraryDependencies ++= Seq(
