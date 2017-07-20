@@ -68,7 +68,7 @@ resolvers ++= Seq(
   "SpinGo OSS" at "http://spingo-oss.s3.amazonaws.com/repositories/releases"
 )
 
-val opRabbitVersion = "2.0.0-rc1"
+val opRabbitVersion = "2.0.0"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
