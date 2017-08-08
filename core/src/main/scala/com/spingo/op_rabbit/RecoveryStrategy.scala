@@ -129,11 +129,11 @@ object RecoveryStrategy {
    * The retry queue is created passively. This allows the retryQueue to be used without error in the case of a
    * configuration change (in cases where a crash would be worse), but means that configuration changes done after the
    * initial creation of the queue will not propagate. As a result, if you want to guarantee that changes made to your
-   * redelivery strategy propagate that you modify `retryVia` function such that it will create a new redelivery
+   * redelivery strategy propagate that you modify `retryQueueName` function such that it will create a new redelivery
    * queue. The old, unused one will expire, after an idle period of `redeliveryDelay * 3`.
    *
-   * Also, it is vitally important that for every input queue-name of the `retryVia`, a unique value is returned. In
-   * other words, '''DO NOT TRY AND CONSOLIDATE REDELIVERY QUEUES'''.
+   * Also, it is vitally important that for every input queue-name of the `retryQueueName`, a unique value is returned.
+   * In other words, '''DO NOT TRY AND CONSOLIDATE REDELIVERY QUEUES'''.
    *
    * @param redeliveryDelay The period after which the message should be re-inserted into the original queue.
    * @param retryCount The number of times to retry. A value of 3 will result in 4 attempts, including the initial.
