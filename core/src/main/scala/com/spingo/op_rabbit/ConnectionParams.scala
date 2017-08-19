@@ -1,5 +1,7 @@
 package com.spingo.op_rabbit
 
+import java.net.URI
+
 import com.rabbitmq.client.Address
 import com.rabbitmq.client.ConnectionFactory
 import com.rabbitmq.client.DefaultSaslConfig
@@ -8,6 +10,7 @@ import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
 import javax.net.SocketFactory
+
 import scala.collection.JavaConversions.mapAsJavaMap
 
 /** Because topology recovery strategy configuration is crucial to how op-rabbit works, we don't allow some options to
@@ -52,7 +55,7 @@ case class ConnectionParams(
     factory.setRequestedFrameMax(requestedFrameMax)
     factory.setRequestedHeartbeat(requestedHeartbeat)
     factory.setSaslConfig(saslConfig)
-    sharedExecutor foreach (factory.setSharedExecutor)
+    sharedExecutor.foreach(factory.setSharedExecutor)
     factory.setShutdownTimeout(shutdownTimeout)
     factory.setSocketFactory(socketFactory)
     if (ssl) factory.useSslProtocol()
@@ -60,8 +63,13 @@ case class ConnectionParams(
 }
 
 object ConnectionParams {
-  def fromConfig(config: Config = RabbitConfig.connectionConfig) = {
-    val connectionFactory = new ClusterConnectionFactory()
+  private val TlsProtectedScheme = "amqps"
+
+  def fromConfig(config: Config = RabbitConfig.connectionConfig): ConnectionParams = {
+    if (config.hasPath("uri")) fromUri(new URI(config.getString("uri"))) else fromParameters(config)
+  }
+
+  private def fromParameters(config: Config): ConnectionParams = {
     val hosts = config.getStringList("hosts").toArray(new Array[String](0))
     val port = config.getInt("port")
     ConnectionParams(
@@ -71,6 +79,22 @@ object ConnectionParams {
       password = config.getString("password"),
       virtualHost = config.getString("virtual-host"),
       ssl = config.getBoolean("ssl")
+    )
+  }
+
+  private def fromUri(uri: URI): ConnectionParams = {
+    val (username, password) = Option(uri.getUserInfo).fold(ConnectionFactory.DEFAULT_USER -> ConnectionFactory.DEFAULT_PASS) { auth =>
+      auth.split(":").toList match {
+        case usr :: passwd :: _ => usr -> passwd
+        case _ => ConnectionFactory.DEFAULT_USER -> ConnectionFactory.DEFAULT_PASS
+      }
+    }
+    ConnectionParams(
+      hosts = uri.getHost.split(",").map(h => new Address(h, uri.getPort)),
+      username = username,
+      password = password,
+      virtualHost = Option(uri.getPath).fold(ConnectionFactory.DEFAULT_VHOST)(_.substring(1)),
+      ssl = TlsProtectedScheme == uri.getScheme
     )
   }
 }
