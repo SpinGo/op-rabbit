@@ -39,7 +39,7 @@ case class ConnectionParams(
   saslConfig: SaslConfig = DefaultSaslConfig.PLAIN,
   sharedExecutor: Option[java.util.concurrent.ExecutorService] = None,
   shutdownTimeout: Int = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT,
-  socketFactory: SocketFactory = SocketFactory.getDefault()
+  socketFactory: SocketFactory = SocketFactory.getDefault
 ) {
   // TODO - eliminate ClusterConnectionFactory after switching to use RabbitMQ's topology recovery features.
   protected [op_rabbit] def applyTo(factory: ClusterConnectionFactory): Unit = {
@@ -83,18 +83,33 @@ object ConnectionParams {
   }
 
   private def fromUri(uri: URI): ConnectionParams = {
-    val (username, password) = Option(uri.getUserInfo).fold(ConnectionFactory.DEFAULT_USER -> ConnectionFactory.DEFAULT_PASS) { auth =>
-      auth.split(":").toList match {
-        case usr :: passwd :: _ => usr -> passwd
-        case _ => ConnectionFactory.DEFAULT_USER -> ConnectionFactory.DEFAULT_PASS
-      }
+    val uriAuthority = uri.getAuthority
+    val (hosts, (username, password)) = uriAuthority.indexOf('@') match {
+      case -1 =>
+        parseUriHosts(uriAuthority) -> parseUserPassword(None)
+      case idx =>
+        parseUriHosts(uriAuthority.substring(idx + 1)) -> parseUserPassword(Some(uriAuthority.substring(0, idx)))
     }
     ConnectionParams(
-      hosts = uri.getHost.split(",").map(h => new Address(h, uri.getPort)),
+      hosts = hosts,
       username = username,
       password = password,
       virtualHost = Option(uri.getPath).fold(ConnectionFactory.DEFAULT_VHOST)(_.substring(1)),
       ssl = TlsProtectedScheme == uri.getScheme
     )
+  }
+
+  private def parseUriHosts(hosts: String): Seq[Address] = {
+    hosts.split(",").map(Address.parseAddress)
+  }
+
+  private def parseUserPassword(auth: Option[String]): (String, String) = {
+    val default = (ConnectionFactory.DEFAULT_USER, ConnectionFactory.DEFAULT_PASS)
+    auth.fold(default) { candidate =>
+      candidate.split(":").toList match {
+        case usr :: psswd :: _ => (usr, psswd)
+        case _ => default
+      }
+    }
   }
 }
