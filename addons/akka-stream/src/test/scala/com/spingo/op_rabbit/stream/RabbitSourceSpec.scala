@@ -132,7 +132,7 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
     it("doesn't stop the subscription if the stream resumes and recovery strategy is defined") {
       new RabbitFixtures {
         override val qos = 1
-        override implicit val recoveryStrategy = RecoveryStrategy.nack(false)
+        override implicit val recoveryStrategy = RecoveryStrategy.nack(requeue = false)
 
         val (subscription, result) = source.take(range.length.toLong).
           map { n =>
@@ -150,6 +150,18 @@ class RabbitSourceSpec extends FunSpec with ScopedFixtures with Matchers with Ra
         range foreach { i => rabbitControl ! Message.queue(i, queueName()) }
         await(result).shouldBe(range.filter(_ % 2 == 1).toList)
         await(subscription.closed)
+
+        // Prove that the recovery strategy was applied (no elements were re-queued)
+        val (subscription2, result2) = source.take(1).
+          acked.
+          toMat(Sink.head)(Keep.both).
+          run
+
+        await(subscription2.initialized)
+        rabbitControl ! Message.queue(99, queueName())
+
+        await(subscription2.closed)
+        await(result2) shouldBe 99
       }
     }
 
