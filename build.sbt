@@ -8,7 +8,7 @@ val circeVersion = "0.7.0"
 
 val akkaVersion = "2.4.17"
 
-val playVersion = "2.6.0-M5"
+val playVersion = "2.6.0"
 
 val appProperties = {
   val prop = new Properties()
