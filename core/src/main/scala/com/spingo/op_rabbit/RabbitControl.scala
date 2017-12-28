@@ -126,7 +126,7 @@ class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Acto
       confirmedPublisher.tell(m, sender)
 
     case m: MessageForPublicationLike =>
-      publishChannel ! ChannelMessage(m.apply(_), dropIfNoChannel = m.dropIfNoChannel)
+      publishChannel ! ChannelMessage(m.apply, dropIfNoChannel = m.dropIfNoChannel)
 
     case GetConnectionActor =>
       sender ! connectionActor
@@ -140,9 +140,15 @@ class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Acto
     case q: Subscription =>
       val initializedP = Promise[Unit]
       val closedP = Promise[Unit]
-      val subscriptionActorRef = context.actorOf(
-        Props(new SubscriptionActor(q, connectionActor, initializedP, closedP)),
-        name = s"subscription-${java.net.URLEncoder.encode(q.queue.queueName)}-${sequence.next}")
+      val subscriptionActorRef = {
+        val queueNameEncoded = java.net.URLEncoder.encode(q.queue.queueName, java.nio.charset.StandardCharsets.UTF_8.name)
+        val name = s"subscription-$queueNameEncoded-${sequence.next()}"
+
+        context.actorOf(
+          Props(new SubscriptionActor(q, connectionActor, initializedP, closedP)),
+          name = name
+        )
+      }
 
       context watch subscriptionActorRef
       // TODO - we need this actor to know the currect subscription state
@@ -153,6 +159,6 @@ class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Acto
 
     case c: SubscriptionCommand =>
       running = c
-      subscriptions map (_ ! c)
+      subscriptions foreach (_ ! c)
   }
 }
