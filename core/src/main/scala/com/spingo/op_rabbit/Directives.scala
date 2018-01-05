@@ -1,11 +1,14 @@
 package com.spingo.op_rabbit
 
 import com.spingo.op_rabbit.properties.PropertyExtractor
+
 import scala.concurrent.{ExecutionContext, Future}
 import scala.language.implicitConversions
 import shapeless._
 import com.spingo.op_rabbit.Binding._
-import scala.util.{Try,Failure,Success}
+import com.spingo.op_rabbit.Exchange.ExchangeType
+
+import scala.util.{Failure, Success, Try}
 
 protected class TypeHolder[T] {}
 protected object TypeHolder {
@@ -114,7 +117,7 @@ trait Directives {
   def passive[T <: Concreteness](queue: QueueDefinition[T]): QueueDefinition[T] =
     Queue.passive(queue)
 
-  def passive[T <: Exchange.Value](exchange: Exchange[T]): Exchange[T] =
+  def passive[T <: ExchangeType](exchange: Exchange[T]): Exchange[T] =
     Exchange.passive(exchange)
 
   def as[T](implicit um: RabbitUnmarshaller[T]) = um
