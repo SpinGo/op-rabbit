@@ -3,7 +3,8 @@ package com.spingo.op_rabbit.properties
 import java.nio.charset.Charset
 import java.util.Date
 import com.rabbitmq.client.LongString
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 
 /**
   Trait which represents all values allowed in property generc headers
@@ -13,10 +14,8 @@ import scala.collection.JavaConversions._
 sealed trait HeaderValue {
   def value: Any
   def serializable: Object
-  def asString(sourceCharset: Charset): String =
-    value.toString
-  def asString: String =
-    asString(Charset.defaultCharset)
+  def asString(sourceCharset: Charset): String = value.toString
+  def asString: String = asString(Charset.defaultCharset)
 
   def asOpt[T](implicit conversion: FromHeaderValue[T]): Option[T] = conversion(this).right.toOption
 }
@@ -24,7 +23,7 @@ object HeaderValue {
   case class LongStringHeaderValue(value: LongString) extends HeaderValue {
     def serializable = value
     override def asString(sourceCharset: Charset) =
-      new String(value.getBytes(), sourceCharset)
+      new String(value.getBytes, sourceCharset)
   }
   case class StringHeaderValue(value: String) extends HeaderValue {
     def serializable = value
@@ -37,18 +36,18 @@ object HeaderValue {
   case class BigDecimalHeaderValue(value: BigDecimal) extends HeaderValue {
     val serializable = value.bigDecimal
     if (serializable.unscaledValue.bitLength() > 32)
-      throw new IllegalArgumentException("BigDecimal too large to be encoded");
+      throw new IllegalArgumentException("BigDecimal too large to be encoded")
   }
   case class DateHeaderValue(value: Date) extends HeaderValue {
     val serializable = value
   }
   case class MapHeaderValue(value: Map[String, HeaderValue]) extends HeaderValue {
-    lazy val serializable = mapAsJavaMap(value.mapValues(_.serializable))
+    lazy val serializable = value.mapValues(_.serializable).asJava
     override def asString(sourceCharset: Charset) = {
       val b = new StringBuilder()
       b += '{'
       for { (key, value) <- value } {
-        b ++= s"${key} = ${value.asString(sourceCharset)}"
+        b ++= s"$key = ${value.asString(sourceCharset)}"
         b += ','
       }
       b.deleteCharAt(b.length - 1)

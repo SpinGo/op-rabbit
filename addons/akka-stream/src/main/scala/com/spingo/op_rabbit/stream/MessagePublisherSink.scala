@@ -4,7 +4,7 @@ package stream
 import akka.actor.{ActorRef,Props}
 import akka.actor.FSM
 import akka.pattern.ask
-import akka.stream.scaladsl.{Flow, Keep, Sink}
+import akka.stream.scaladsl.Sink
 import akka.stream.actor._
 import scala.concurrent.{Future, Promise}
 import scala.concurrent.duration._
@@ -22,9 +22,10 @@ private class MessagePublisherSinkActor(rabbitControl: ActorRef, timeoutAfter: F
   import ActorSubscriberMessage._
   import MessagePublisherSinkActor._
 
+  private val queue = scala.collection.mutable.Map.empty[Long, Promise[Unit]]
+  private val completed = Promise[Unit]
+
   startWith(Running, ())
-  var queue = scala.collection.mutable.Map.empty[Long, Promise[Unit]]
-  val completed = Promise[Unit]
 
   override val requestStrategy = new MaxInFlightRequestStrategy(max = qos) {
     override def inFlightInternally: Int = queue.size
@@ -75,12 +76,12 @@ private class MessagePublisherSinkActor(rabbitControl: ActorRef, timeoutAfter: F
 
   onTransition {
     case Running -> Stopping if queue.isEmpty  =>
-      stopWith(Success())
+      stopWith(Success(()))
   }
 
   onTermination {
     case e: StopEvent =>
-      stopWith(Success())
+      stopWith(Success(()))
   }
 
   private val handleResponse: Message.ConfirmResponse => Unit = {

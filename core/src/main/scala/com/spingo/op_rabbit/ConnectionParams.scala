@@ -8,7 +8,7 @@ import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
 import javax.net.SocketFactory
-import scala.collection.JavaConversions.{mapAsJavaMap, seqAsJavaList}
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 /** Because topology recovery strategy configuration is crucial to how op-rabbit works, we don't allow some options to
@@ -37,7 +37,7 @@ case class ConnectionParams(
   saslConfig: SaslConfig = DefaultSaslConfig.PLAIN,
   sharedExecutor: Option[java.util.concurrent.ExecutorService] = None,
   shutdownTimeout: Int = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT,
-  socketFactory: SocketFactory = SocketFactory.getDefault()
+  socketFactory: SocketFactory = SocketFactory.getDefault
 ) {
   // TODO - eliminate ClusterConnectionFactory after switching to use RabbitMQ's topology recovery features.
   protected [op_rabbit] def applyTo(factory: ClusterConnectionFactory): Unit = {
@@ -53,7 +53,7 @@ case class ConnectionParams(
     factory.setRequestedFrameMax(requestedFrameMax)
     factory.setRequestedHeartbeat(requestedHeartbeat)
     factory.setSaslConfig(saslConfig)
-    sharedExecutor foreach (factory.setSharedExecutor)
+    sharedExecutor foreach factory.setSharedExecutor
     factory.setShutdownTimeout(shutdownTimeout)
     factory.setSocketFactory(socketFactory)
     if (ssl) factory.useSslProtocol()
@@ -61,22 +61,20 @@ case class ConnectionParams(
 }
 
 object ConnectionParams {
-  private def readHosts(config: Config): java.util.List[String] = {
-    Try(config.getStringList("hosts")).getOrElse(readCommaSeparatedHosts(config))
+  private def readHosts(config: Config): Seq[String] = {
+    Try(config.getStringList("hosts").asScala).getOrElse(readCommaSeparatedHosts(config))
   }
 
-  private def readCommaSeparatedHosts(config: Config): java.util.List[String] =
-    seqAsJavaList(
-      config
-        .getString("hosts")
-        .split(",")
-        .map(_.trim)
-    )
+  private def readCommaSeparatedHosts(config: Config): Seq[String] =
+    config
+      .getString("hosts")
+      .split(",")
+      .map(_.trim)
 
   def fromConfig(config: Config = RabbitConfig.connectionConfig) = {
-    val connectionFactory = new ClusterConnectionFactory()
-    val hosts = readHosts(config).toArray(new Array[String](0))
+    val hosts = readHosts(config)
     val port = config.getInt("port")
+
     ConnectionParams(
       hosts = hosts.map { h => new Address(h, port) },
       connectionTimeout = config.getDuration("connection-timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,

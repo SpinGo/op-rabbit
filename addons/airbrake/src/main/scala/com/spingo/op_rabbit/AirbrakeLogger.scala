@@ -5,7 +5,7 @@ import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.AMQP.BasicProperties
 import org.slf4j.LoggerFactory
 import com.typesafe.config.ConfigFactory
-import scala.collection.JavaConversions._
+import scala.collection.convert.ImplicitConversions._
 
 /**
   == BATTERIES NOT INCLUDED ==
@@ -36,10 +36,11 @@ import scala.collection.JavaConversions._
 
   */
 class AirbrakeLogger(appName: String, airbrakeKey: String, environment: String) extends RabbitErrorLogging {
-  val log = LoggerFactory.getLogger(getClass.getName)
+  private val log = LoggerFactory.getLogger(getClass.getName)
+
   def apply(name: String, message: String, exception: Throwable, consumerTag: String, envelope: Envelope, properties: BasicProperties, body: Array[Byte]): Unit = try {
     val notice = new AirbrakeNoticeBuilder(airbrakeKey, exception, environment) {
-      setRequest(s"consumer://$appName/${name}", "consume") // it's a faux URL, but reduces weirdness when clicking in airbrake webapp
+      setRequest(s"consumer://$appName/$name", "consume") // it's a faux URL, but reduces weirdness when clicking in airbrake webapp
 
       val headerProperties: Map[String, String] = Option(properties.getHeaders) map { _.map { case (k,v) => (s"HEADER:$k", v.toString) }.toMap } getOrElse Map.empty
 

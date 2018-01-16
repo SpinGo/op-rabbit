@@ -1,9 +1,6 @@
 package com.spingo.op_rabbit.properties
 
-import com.rabbitmq.client.LongString
 import java.nio.charset.Charset
-import java.util.Date
-import scala.collection.JavaConversions._
 
 /**
   Trait which describes converters that convert a [[HeaderValue]] from one type to another.
@@ -107,7 +104,7 @@ object FromHeaderValue {
       case IntHeaderValue(v)        => Right(BigDecimal(v))
       case ByteHeaderValue(v)       => Right(BigDecimal(v))
       case DoubleHeaderValue(v)     => Right(BigDecimal(v))
-      case FloatHeaderValue(v)      => Right(BigDecimal(v))
+      case FloatHeaderValue(v)      => Right(BigDecimal(v.toDouble))
       case LongHeaderValue(v)       => Right(BigDecimal(v))
       case ShortHeaderValue(v)      => Right(BigDecimal(v))
       case BigDecimalHeaderValue(v) => Right(v)

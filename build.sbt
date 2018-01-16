@@ -1,14 +1,9 @@
-import spray.boilerplate.BoilerplatePlugin.Boilerplate
-
 import java.util.Properties
 
-val json4sVersion = "3.5.1"
-
-val circeVersion = "0.7.0"
-
-val akkaVersion = "2.4.17"
-
-val playVersion = "2.6.0-M5"
+val json4sVersion = "3.5.3"
+val circeVersion = "0.9.0"
+val akkaVersion = "2.5.9"
+val playVersion = "2.6.8"
 
 val appProperties = {
   val prop = new Properties()
@@ -21,15 +16,15 @@ val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't p
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
-  scalaVersion := "2.11.8",
-  crossScalaVersions := Seq("2.11.8", "2.12.1"),
+  scalaVersion := "2.12.4",
+  crossScalaVersions := Seq("2.11.8", "2.12.4"),
   libraryDependencies ++= Seq(
-    "com.chuusai" %%  "shapeless" % "2.3.2",
-    "com.typesafe" % "config" % "1.3.0",
-    "com.newmotion" %% "akka-rabbitmq" % "4.0.0",
-    "org.slf4j" % "slf4j-api" % "1.7.21",
-    "ch.qos.logback" % "logback-classic" % "1.1.7" % "test",
-    "org.scalatest" %% "scalatest" % "3.0.1" % "test",
+    "com.chuusai" %%  "shapeless" % "2.3.3",
+    "com.typesafe" % "config" % "1.3.2",
+    "com.newmotion" %% "akka-rabbitmq" % "5.0.0",
+    "org.slf4j" % "slf4j-api" % "1.7.25",
+    "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.4" % "test",
     "com.spingo" %% "scoped-fixtures" % "2.0.0" % "test",
     "com.typesafe.akka" %% "akka-actor" % akkaVersion,
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
@@ -63,7 +58,7 @@ val commonSettings = Seq(
 
 lazy val `op-rabbit` = (project in file(".")).
   settings(commonSettings: _*).
-  settings(unidocSettings: _*).
+  enablePlugins(sbtunidoc.ScalaUnidocPlugin).
   settings(
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
@@ -72,14 +67,14 @@ lazy val `op-rabbit` = (project in file(".")).
 
 
 lazy val core = (project in file("./core")).
-  settings(Boilerplate.settings: _*).
+  enablePlugins(spray.boilerplate.BoilerplatePlugin).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-core"
   )
 
 lazy val demo = (project in file("./demo")).
-  settings(Boilerplate.settings: _*).
+  enablePlugins(spray.boilerplate.BoilerplatePlugin).
   settings(commonSettings: _*).
   settings(
     libraryDependencies ++= Seq(
@@ -115,7 +110,7 @@ lazy val `spray-json` = (project in file("./addons/spray-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-spray-json",
-    libraryDependencies += "io.spray" %% "spray-json" % "1.3.2").
+    libraryDependencies += "io.spray" %% "spray-json" % "1.3.4").
   dependsOn(core)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).
@@ -133,9 +128,9 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
       "com.timcharper"    %% "acked-streams" % "2.1.1",
       "com.typesafe.akka" %% "akka-stream" % akkaVersion),
     unmanagedResourceDirectories in Test ++= Seq(
-      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "resources"),
+      file(".").getAbsoluteFile / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
-      (file(".").getAbsoluteFile) / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
+      file(".").getAbsoluteFile / "core" / "src" / "test" / "scala" / "com" / "spingo" / "op_rabbit" / "helpers")).
   dependsOn(core)
 
 lazy val circe = (project in file("./addons/circe")).
