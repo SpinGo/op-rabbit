@@ -1,8 +1,8 @@
 import java.util.Properties
 
 val json4sVersion = "3.5.3"
-val circeVersion = "0.8.0"
-val akkaVersion = "2.5.8"
+val circeVersion = "0.9.0"
+val akkaVersion = "2.5.9"
 val playVersion = "2.6.8"
 
 val appProperties = {
@@ -19,7 +19,7 @@ val commonSettings = Seq(
   scalaVersion := "2.12.4",
   crossScalaVersions := Seq("2.11.8", "2.12.4"),
   libraryDependencies ++= Seq(
-    "com.chuusai" %%  "shapeless" % "2.3.2",
+    "com.chuusai" %%  "shapeless" % "2.3.3",
     "com.typesafe" % "config" % "1.3.2",
     "com.newmotion" %% "akka-rabbitmq" % "5.0.0",
     "org.slf4j" % "slf4j-api" % "1.7.25",
@@ -110,7 +110,7 @@ lazy val `spray-json` = (project in file("./addons/spray-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-spray-json",
-    libraryDependencies += "io.spray" %% "spray-json" % "1.3.2").
+    libraryDependencies += "io.spray" %% "spray-json" % "1.3.4").
   dependsOn(core)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).
