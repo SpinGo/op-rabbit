@@ -46,7 +46,7 @@ case class ConnectionParams(
     factory.setPassword(password)
     factory.setVirtualHost(virtualHost)
     // Replace the table of client properties that will be sent to the server during subsequent connection startups.
-    factory.setClientProperties(mapAsJavaMap(clientProperties))
+    factory.setClientProperties(clientProperties.asJava)
     factory.setConnectionTimeout(connectionTimeout)
     factory.setExceptionHandler(exceptionHandler)
     factory.setRequestedChannelMax(requestedChannelMax)

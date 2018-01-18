@@ -4,7 +4,6 @@ import java.nio.charset.Charset
 import java.util.Date
 import com.rabbitmq.client.LongString
 import scala.collection.JavaConverters._
-import scala.collection.convert.ImplicitConversionsToScala._
 
 /**
   Trait which represents all values allowed in property generc headers
@@ -122,7 +121,7 @@ object HeaderValue {
   implicit val convertFromByteArray      : ToHeaderValue[Array[Byte]          , ByteArrayHeaderValue]  = ByteArrayHeaderValue(_)
   implicit def convertFromMap[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Map[String, T], MapHeaderValue]         = { m => MapHeaderValue(m.mapValues(converter)) }
   implicit def convertFromSeq[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Seq[T], SeqHeaderValue]                 = { s => SeqHeaderValue(s.map(converter)) }
-  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.map(converter)) }
+  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.asScala.map(converter)) }
 
   def apply[T](value: T)(implicit converter: ToHeaderValue[T, HeaderValue]): HeaderValue =
     if (value == null) NullHeaderValue else converter(value)
@@ -134,7 +133,7 @@ object HeaderValue {
     case v: java.math.BigDecimal                 => apply(v)
     case v: java.util.Date                       => apply(v)
     case v: java.util.Map[_, _] =>
-      MapHeaderValue(v.map {
+      MapHeaderValue(v.asScala.map {
         case (k, v: Object) => (k.toString, from(v))
         case (k, otherwise) =>
           throw new RuntimeException(
@@ -149,7 +148,7 @@ object HeaderValue {
     case v: Array[Byte]                          => apply(v)
     case null                                    => NullHeaderValue
     case v: java.util.List[_] =>
-      SeqHeaderValue(v.map { case v: Object => from(v) })
+      SeqHeaderValue(v.asScala.map { case v: Object => from(v) })
     case v: Array[Object] =>
       SeqHeaderValue(v.map(from))
     case otherwise =>

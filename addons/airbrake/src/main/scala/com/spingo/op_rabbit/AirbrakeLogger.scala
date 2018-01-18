@@ -5,7 +5,7 @@ import com.rabbitmq.client.Envelope
 import com.rabbitmq.client.AMQP.BasicProperties
 import org.slf4j.LoggerFactory
 import com.typesafe.config.ConfigFactory
-import scala.collection.convert.ImplicitConversions._
+import scala.collection.JavaConversions._
 
 /**
   == BATTERIES NOT INCLUDED ==
