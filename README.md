@@ -64,7 +64,7 @@ a high-level feature list:
 Op-Rabbit is available on Maven Central
 
 ```scala
-val opRabbitVersion = "2.0.0"
+val opRabbitVersion = "2.1.0-RC2"
 
 libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
@@ -76,6 +76,22 @@ libraryDependencies ++= Seq(
 ```
 
 ### Scala Version Compatibility Matrix:
+
+#### op-rabbit 2.1.x
+
+Supports Scala 2.12 and Scala 2.11.
+
+| module                       | dependsOn                | version   |
+| ---------------------------- | ------------------------ | --------- |
+| op-rabbit-core               | akka                     | 2.5.x     |
+|                              | akka-rabbitmq            | 5.0.x     |
+|                              | shapeless                | 2.3.x     |
+|                              | type-safe config         | 1.3.x     |
+| op-rabbit-play-json          | play-json                | 2.6.x     |
+| op-rabbit-json4s             | json4s                   | 3.5.x     |
+| op-rabbit-circe              | circe                    | 0.9.x     |
+| op-rabbit-airbrake           | airbrake                 | 2.2.x     |
+| op-rabbit-akka-stream        | acked-stream             | 2.1.x     |
 
 #### op-rabbit 2.0.x
 
