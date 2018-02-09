@@ -65,6 +65,13 @@ class HeaderValueSpec extends FunSpec with Matchers {
       testNumeric[BigDecimal]("BigDecimal", BigDecimal(1))
     }
 
+    describe("Boolean"){
+      it("Should convert Boolean values to boolean"){
+        HeaderValue(true).asOpt[Boolean] should be (Some(true))
+        HeaderValue(false).asOpt[Boolean] should be (Some(false))
+      }
+    }
+
     describe("Seq") {
       it("extracts a Seq[Int] when all members can be converted") {
         HeaderValue(Seq("1", "2", "3")).asOpt[Seq[Int]] should be (Some(Seq(1,2,3)))
