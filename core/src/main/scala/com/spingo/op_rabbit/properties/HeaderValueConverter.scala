@@ -167,7 +167,12 @@ object FromHeaderValue {
   case class BooleanFromHeaderValue(charset: Charset = Charset.defaultCharset) extends FromHeaderValue[Boolean] {
     val manifest = implicitly[Manifest[Boolean]]
     def apply(hv: HeaderValue) = {
-      Right(hv.value.asInstanceOf[Boolean])
+      try{
+        Right(hv.value.asInstanceOf[Boolean])
+      }
+      catch{
+        case cce: ClassCastException => Left(HeaderValueConversionException(s"Could not convert ${hv.value} to Boolean", cce))
+      }
     }
   }
 
