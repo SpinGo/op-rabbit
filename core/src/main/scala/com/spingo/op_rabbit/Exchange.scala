@@ -44,6 +44,10 @@ private class ExchangePassive[T <: ExchangeType](val exchangeName: String, ifNot
 }
 
 object Exchange {
+
+  @deprecated("Exchange enum has been replaced with ExchangeType", "2.2.0")
+  type Value = ExchangeType
+
   trait Abstract {
     val exchangeName: String
     def declare(channel: Channel): Unit
