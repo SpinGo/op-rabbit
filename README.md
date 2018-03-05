@@ -432,6 +432,8 @@ RabbitSource(
 Note: `RabbitSource` yields an
 [AckedSource](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSource.scala),
 which can be combined with an
+[AckedFlow](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedFlowOps.scala#L519)
+and an
 [AckedSink](https://github.com/timcharper/acked-stream/blob/master/src/main/scala/com/timcharper/acked/AckedSink.scala)
 (such as
 [`MessagePublisherSink`](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/akka-stream/current/index.html#com.spingo.op_rabbit.stream.MessagePublisherSink$)). You
@@ -439,7 +441,55 @@ can convert an acked stream into a normal stream by calling
 `AckedStream.acked`; once messages flow passed the `acked` component,
 they are considered acknowledged, and acknowledgement tracking is no
 longer a concern (and thus, you are free to use the akka-stream
-library in it's entirety).
+library in its entirety).
+
+#### Stream failures and recovery strategies
+
+When using the DSL as described in the [consumer setup](https://github.com/SpinGo/op-rabbit#set-up-a-consumer-topic-subscription)
+section, recovery strategies are triggered if [`fail`](https://github.com/SpinGo/op-rabbit/blob/a5e534a8d3e9b1a89544501acd334b983ecdb5c4/core/src/main/scala/com/spingo/op_rabbit/Directives.scala#L156)
+is called or if a failed future is passed to `ack`. For streams, we have to do
+something a little different.
+
+To trigger the specified recovery strategy when using `op-rabbit-akka-stream`
+and its `acked` components, an exception should be thrown within the `acked`
+part of the graph. However, the default exception-handling behavior in
+`akka-stream` is stopping the graph, which in `op-rabbit`'s case would mean
+stopping the consumer and preventing further messages from being processed.
+To explicitly allow the graph to continue running, a ResumingDecider supervision
+strategy should be declared. (To learn more about supervision strategies please
+refer to the [Akka Streams docs](https://doc.akka.io/docs/akka/current/stream/stream-error.html#supervision-strategies)).
+
+```scala
+  implicit val system = ActorSystem()
+  private val rabbitControl = system.actorOf(Props[RabbitControl], name = "op-rabbit")
+  // We define an ActorMaterializer with a resumingDecider supervision strategy,
+  // which prevents the graph from stopping when an exception is thrown.
+  implicit val materializer = ActorMaterializer(
+    ActorMaterializerSettings(system)
+      .withSupervisionStrategy(Supervision.resumingDecider: Decider)
+  )
+  // As a recovery strategy, let's suppose we want all nacked messages to go to
+  // an existing queue called "failed-events"
+  implicit private val recoveryStrategy = RecoveryStrategy.abandonedQueue(
+    7.days,
+    abandonQueueName = (_: String) => "failed-events"
+  )
+
+  private val src = RabbitSource(
+    rabbitControl,
+    channel(qos = 3),
+    consume(Queue("events")),
+    body(as[String])
+  )
+
+  // This may throw an exception, in which case the defined recovery strategy
+  // will be triggered and our flow will continue thanks to the resumingDecider.
+  private val flow = AckedFlow[String].map(_.toInt)
+
+  private val sink = AckedSink.foreach[Int](println)
+  
+  src.via(flow).to(sink).run
+```
 
 ### Publishing using Akka streams
 
