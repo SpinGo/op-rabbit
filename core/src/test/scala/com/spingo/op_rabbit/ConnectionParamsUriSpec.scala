@@ -55,9 +55,26 @@ class ConnectionParamsUriSpec extends FunSpec with Matchers {
         params.hosts should contain theSameElementsAs Seq(new Address("localhost", 5672), new Address("127.0.0.1", 5672))
         params.username should equal("user")
         params.password should equal("secret")
-        params.connectionTimeout should equal(10000)
         params.ssl shouldBe true
         params.virtualHost should equal("vhost")
+        params.connectionTimeout should equal(10000)
+        params.requestedHeartbeat should equal(60)
+        params.requestedChannelMax should equal(0)
+      }
+
+      it("compose multiple host configuration with TLS protection and additional URL parameters") {
+        val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqps://user:secret@localhost:5672,127.0.0.1:5672/vhost?connection_timeout=20000&heartbeat=30&channel_max=2&auth_mechanism=external")))
+        val params = ConnectionParams.fromConfig(config.getConfig(connectionPath))
+
+        params.hosts should contain theSameElementsAs Seq(new Address("localhost", 5672), new Address("127.0.0.1", 5672))
+        params.username should equal("user")
+        params.password should equal("secret")
+        params.ssl shouldBe true
+        params.virtualHost should equal("vhost")
+        params.connectionTimeout should equal(20000)
+        params.requestedHeartbeat should equal(30)
+        params.requestedChannelMax should equal(2)
+        params.saslConfig.getSaslMechanism(Array("EXTERNAL")).getName should equal("EXTERNAL")
       }
     }
   }

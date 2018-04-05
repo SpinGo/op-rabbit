@@ -31,7 +31,7 @@ case class ConnectionParams(
   /** Warning - setting this to 0 causes problems when connecting a cluster; if the first host is down, then further
     * hosts may not be tried.
     */
-  connectionTimeout: Int = 10000 /* 10 seconds */,
+  connectionTimeout: Int = ConnectionParams.DefaultConnectionTimeout,
   exceptionHandler: ExceptionHandler = new DefaultExceptionHandler(),
   requestedChannelMax: Int = ConnectionFactory.DEFAULT_CHANNEL_MAX,
   requestedFrameMax: Int = ConnectionFactory.DEFAULT_FRAME_MAX,
@@ -64,11 +64,13 @@ case class ConnectionParams(
 
 object ConnectionParams {
   private val TlsProtectedScheme = "amqps"
+  private val DefaultConnectionTimeout = 10000 /* 10 seconds */
 
   def fromConfig(config: Config = RabbitConfig.connectionConfig): ConnectionParams = {
     if (config.hasPath("uri")) fromUri(new URI(config.getString("uri"))) else fromParameters(config)
   }
 
+  @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2018-04-05")
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray
     val port = config.getInt("port")
@@ -91,12 +93,27 @@ object ConnectionParams {
       case idx =>
         parseUriHosts(uriAuthority.substring(idx + 1)) -> parseUserPassword(Some(uriAuthority.substring(0, idx)))
     }
+    val params = Option(uri.getQuery).fold(Map.empty[String, String]) { query =>
+      query.split('&').map { par =>
+        val index = par.indexOf('=')
+        par.substring(0, index) -> par.substring(index + 1)
+      }.toMap
+    }
     ConnectionParams(
       hosts = hosts,
       username = username,
       password = password,
       virtualHost = Option(uri.getPath).fold(ConnectionFactory.DEFAULT_VHOST)(_.substring(1)),
-      ssl = TlsProtectedScheme == uri.getScheme
+      ssl = TlsProtectedScheme == uri.getScheme,
+      connectionTimeout = params.get("connection_timeout").map(_.toInt).getOrElse(DefaultConnectionTimeout),
+      requestedHeartbeat = params.get("heartbeat").map(_.toInt).getOrElse(ConnectionFactory.DEFAULT_HEARTBEAT),
+      requestedChannelMax = params.get("channel_max").map(_.toInt).getOrElse(ConnectionFactory.DEFAULT_CHANNEL_MAX),
+      saslConfig = {
+        params.getOrElse("auth_mechanism", "plain").toLowerCase match {
+          case "external" => DefaultSaslConfig.EXTERNAL
+          case _ => DefaultSaslConfig.PLAIN
+        }
+      }
     )
   }
 
