@@ -70,7 +70,7 @@ object ConnectionParams {
   }
 
   private def fromParameters(config: Config): ConnectionParams = {
-    val hosts = readHosts(config).toArray(new Array[String](0))
+    val hosts = readHosts(config).toArray
     val port = config.getInt("port")
 
     ConnectionParams(
