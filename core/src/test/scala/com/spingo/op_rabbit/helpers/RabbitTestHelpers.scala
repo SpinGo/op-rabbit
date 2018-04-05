@@ -9,7 +9,6 @@ import com.rabbitmq.client.Channel
 import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
 import com.spingo.scoped_fixtures.ScopedFixtures
-import com.newmotion.akka.rabbitmq.{ChannelActor, CreateChannel}
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
 
@@ -25,7 +24,7 @@ trait RabbitTestHelpers extends ScopedFixtures {
   val actorSystemFixture = ScopedFixture[ActorSystem] { setter =>
     val actorSystem = ActorSystem("test")
     val status = setter(actorSystem)
-    actorSystem.shutdown
+    actorSystem.terminate()
     status
   }
   val rabbitControlFixture = LazyFixture[ActorRef] {

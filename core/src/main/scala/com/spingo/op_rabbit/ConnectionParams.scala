@@ -10,8 +10,7 @@ import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
 import javax.net.SocketFactory
-
-import scala.collection.JavaConversions.{mapAsJavaMap, seqAsJavaList}
+import scala.collection.JavaConverters._
 import scala.util.Try
 
 /** Because topology recovery strategy configuration is crucial to how op-rabbit works, we don't allow some options to
@@ -49,7 +48,7 @@ case class ConnectionParams(
     factory.setPassword(password)
     factory.setVirtualHost(virtualHost)
     // Replace the table of client properties that will be sent to the server during subsequent connection startups.
-    factory.setClientProperties(mapAsJavaMap(clientProperties))
+    factory.setClientProperties(clientProperties.asJava)
     factory.setConnectionTimeout(connectionTimeout)
     factory.setExceptionHandler(exceptionHandler)
     factory.setRequestedChannelMax(requestedChannelMax)
@@ -73,6 +72,7 @@ object ConnectionParams {
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray(new Array[String](0))
     val port = config.getInt("port")
+
     ConnectionParams(
       hosts = hosts.map { h => new Address(h, port) },
       connectionTimeout = config.getDuration("connection-timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
@@ -114,15 +114,13 @@ object ConnectionParams {
     }
   }
 
-  private def readHosts(config: Config): java.util.List[String] = {
-    Try(config.getStringList("hosts")).getOrElse(readCommaSeparatedHosts(config))
+  private def readHosts(config: Config): Seq[String] = {
+    Try(config.getStringList("hosts").asScala).getOrElse(readCommaSeparatedHosts(config))
   }
 
-  private def readCommaSeparatedHosts(config: Config): java.util.List[String] =
-    seqAsJavaList(
-      config
-        .getString("hosts")
-        .split(",")
-        .map(_.trim)
-    )
+  private def readCommaSeparatedHosts(config: Config): Seq[String] =
+    config
+      .getString("hosts")
+      .split(",")
+      .map(_.trim)
 }

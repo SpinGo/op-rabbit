@@ -2,14 +2,16 @@ package com.spingo.op_rabbit
 package impl
 
 import java.util.concurrent.atomic.AtomicInteger
+
 import akka.actor.{Actor, ActorLogging, Terminated}
 import akka.pattern.pipe
 import com.rabbitmq.client.AMQP.BasicProperties
 import com.spingo.op_rabbit.RabbitExceptionMatchers.{ConnectionGoneException, NonFatalRabbitException}
 import com.newmotion.akka.rabbitmq.{Channel, DefaultConsumer, Envelope}
 import scala.collection.mutable
-import scala.concurrent.{ExecutionContext, Future, Promise, Await}
+import scala.concurrent.{Await, ExecutionContext, Future, Promise}
 import scala.concurrent.duration._
+import scala.util.Failure
 
 private [op_rabbit] object ConsumerId {
   val count = new AtomicInteger()
@@ -52,9 +54,12 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       ()
   }
 
-  def async(handler: Handler)(implicit ec: ExecutionContext): Handler = { (p, delivery) =>
-    Future { handler(p, delivery) } onFailure { case ex => p.failure(ex) }
-  }
+  def async(handler: Handler)(implicit ec: ExecutionContext): Handler =
+    (p, delivery) =>
+      Future(handler(p, delivery)).onComplete {
+        case Failure(t) => p.failure(t)
+        case _ =>
+      }
 
   def connected(channel: Channel, consumerTag: Option[String]): Receive = {
     case Subscription.SetQos(qos) =>
@@ -103,7 +108,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       handleAckOrNack(r, channel)
       if (pendingDeliveries.isEmpty)
         context stop self
-    case Delivery(consumerTag, envelope, properties, body) =>
+    case Delivery(_, envelope, _, _) =>
       // note! Before RabbitMQ 2.7.0 does not preserve message order when this happens!
       // https://www.rabbitmq.com/semantics.html
       channel.basicReject(envelope.getDeliveryTag, true)
@@ -137,7 +142,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
 
   def handleUnsubscribe(channel: Channel, consumerTag: Option[String]): Unit = {
     try {
-      consumerTag.foreach(channel.basicCancel(_))
+      consumerTag.foreach(channel.basicCancel)
     } catch {
       case NonFatalRabbitException(_) =>
         ()
@@ -151,11 +156,11 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       /* if deliveryTag not in pendingDeliveries, this means we've already
        * restarted the actor due to some unhandled exception, the channel was
        * closed and therefore this deliveryTag invalid */
-      return ()
+      return
     }
 
     rejectOrAck match {
-      case ack: ReceiveResult.Ack =>
+      case _: ReceiveResult.Ack =>
         pendingDeliveries.remove(deliveryTag)
         channel.basicAck(deliveryTag, false)
       case nack: ReceiveResult.Nack =>
@@ -184,24 +189,24 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
             log.error(e,
               "Some kind of connection issue likely caused our recovery strategy to fail; Nacking with requeue = true.")
 
-            ReceiveResult.Nack(deliveryTag, true)
+            ReceiveResult.Nack(deliveryTag, requeue = true)
           case ReceiveResult.Fail(_, _, exception) =>
             log.error(exception,
               "Recovery strategy failed, or something else went horribly wrong; " +
                 "Nacking with requeue = true, then shutting consumer down.")
             self ! Shutdown(Some(exception))
-            ReceiveResult.Nack(deliveryTag, true)
+            ReceiveResult.Nack(deliveryTag, requeue = true)
         }
         handleAckOrNack(nextStep, channel)
     }
   } catch {
-    case NonFatalRabbitException(e) =>
+    case NonFatalRabbitException(_) =>
       // Ignore
       ()
   }
 
   /**
-    * Applies the providen handler; unhandled exceptions are caught and recovered as a Fail AckOfNack type.
+    * Applies the provided handler; unhandled exceptions are caught and recovered as a Fail AckOfNack type.
     */
   private def applyHandler(whileText: String, delivery: Delivery)(fn: Handler): Future[ReceiveResult] = {
     val handled = Promise[ReceiveResult]
@@ -209,10 +214,10 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
     try fn(handled, delivery)
     catch {
       case e: Throwable =>
-        handled.trySuccess(ReceiveResult.Fail(delivery, Some(s"Error while ${whileText}"), e))
+        handled.trySuccess(ReceiveResult.Fail(delivery, Some(s"Error while $whileText"), e))
     }
     handled.future.recover { case e =>
-      ReceiveResult.Fail(delivery, Some(s"Unhandled exception occurred while ${whileText}"), e)
+      ReceiveResult.Fail(delivery, Some(s"Unhandled exception occurred while $whileText"), e)
     }(context.dispatcher)
   }
 }

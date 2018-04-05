@@ -3,7 +3,7 @@ package com.spingo.op_rabbit.properties
 import java.nio.charset.Charset
 import java.util.Date
 import com.rabbitmq.client.LongString
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 /**
   Trait which represents all values allowed in property generc headers
@@ -13,10 +13,8 @@ import scala.collection.JavaConversions._
 sealed trait HeaderValue {
   def value: Any
   def serializable: Object
-  def asString(sourceCharset: Charset): String =
-    value.toString
-  def asString: String =
-    asString(Charset.defaultCharset)
+  def asString(sourceCharset: Charset): String = value.toString
+  def asString: String = asString(Charset.defaultCharset)
 
   def asOpt[T](implicit conversion: FromHeaderValue[T]): Option[T] = conversion(this).right.toOption
 }
@@ -24,7 +22,7 @@ object HeaderValue {
   case class LongStringHeaderValue(value: LongString) extends HeaderValue {
     def serializable = value
     override def asString(sourceCharset: Charset) =
-      new String(value.getBytes(), sourceCharset)
+      new String(value.getBytes, sourceCharset)
   }
   case class StringHeaderValue(value: String) extends HeaderValue {
     def serializable = value
@@ -37,18 +35,18 @@ object HeaderValue {
   case class BigDecimalHeaderValue(value: BigDecimal) extends HeaderValue {
     val serializable = value.bigDecimal
     if (serializable.unscaledValue.bitLength() > 32)
-      throw new IllegalArgumentException("BigDecimal too large to be encoded");
+      throw new IllegalArgumentException("BigDecimal too large to be encoded")
   }
   case class DateHeaderValue(value: Date) extends HeaderValue {
     val serializable = value
   }
   case class MapHeaderValue(value: Map[String, HeaderValue]) extends HeaderValue {
-    lazy val serializable = mapAsJavaMap(value.mapValues(_.serializable))
+    lazy val serializable = value.mapValues(_.serializable).asJava
     override def asString(sourceCharset: Charset) = {
       val b = new StringBuilder()
       b += '{'
       for { (key, value) <- value } {
-        b ++= s"${key} = ${value.asString(sourceCharset)}"
+        b ++= s"$key = ${value.asString(sourceCharset)}"
         b += ','
       }
       b.deleteCharAt(b.length - 1)
@@ -123,7 +121,7 @@ object HeaderValue {
   implicit val convertFromByteArray      : ToHeaderValue[Array[Byte]          , ByteArrayHeaderValue]  = ByteArrayHeaderValue(_)
   implicit def convertFromMap[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Map[String, T], MapHeaderValue]         = { m => MapHeaderValue(m.mapValues(converter)) }
   implicit def convertFromSeq[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Seq[T], SeqHeaderValue]                 = { s => SeqHeaderValue(s.map(converter)) }
-  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.map(converter)) }
+  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.asScala.map(converter)) }
 
   def apply[T](value: T)(implicit converter: ToHeaderValue[T, HeaderValue]): HeaderValue =
     if (value == null) NullHeaderValue else converter(value)
@@ -135,7 +133,7 @@ object HeaderValue {
     case v: java.math.BigDecimal                 => apply(v)
     case v: java.util.Date                       => apply(v)
     case v: java.util.Map[_, _] =>
-      MapHeaderValue(v.map {
+      MapHeaderValue(v.asScala.map {
         case (k, v: Object) => (k.toString, from(v))
         case (k, otherwise) =>
           throw new RuntimeException(
@@ -150,7 +148,7 @@ object HeaderValue {
     case v: Array[Byte]                          => apply(v)
     case null                                    => NullHeaderValue
     case v: java.util.List[_] =>
-      SeqHeaderValue(v.map { case v: Object => from(v) })
+      SeqHeaderValue(v.asScala.map { case v: Object => from(v) })
     case v: Array[Object] =>
       SeqHeaderValue(v.map(from))
     case otherwise =>
