@@ -2,6 +2,7 @@ package com.spingo.op_rabbit
 
 import com.rabbitmq.client.AMQP.BasicProperties
 import java.nio.charset.Charset
+import java.nio.charset.StandardCharsets.UTF_8
 
 sealed abstract class MarshallingException(message: String) extends Exception(message)
 
@@ -91,14 +92,12 @@ object BinaryMarshaller extends RabbitMarshaller[Array[Byte]] with RabbitUnmarsh
   */
 object UTF8StringMarshaller extends RabbitMarshaller[String] with RabbitUnmarshaller[String] {
   val contentType = "text/plain"
-  private val encoding = "UTF-8"
-  protected val contentEncoding = Some(encoding)
-  private val utf8 = Charset.forName(encoding)
+  protected val contentEncoding = Some(UTF_8.name)
   def marshall(value: String) =
-    value.getBytes(utf8)
+    value.getBytes(UTF_8)
 
   def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]) =
-    new String(value, charset map (Charset.forName) getOrElse utf8)
+    new String(value, charset.map(Charset.forName).getOrElse(UTF_8))
 }
 
 object RabbitUnmarshaller {
