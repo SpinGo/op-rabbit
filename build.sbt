@@ -16,8 +16,8 @@ val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't p
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
-  scalaVersion := "2.11.12",
-  crossScalaVersions := Seq("2.11.12", "2.12.4"),
+  scalaVersion := "2.12.6",
+  crossScalaVersions := Seq("2.12.6", "2.11.12"),
   libraryDependencies ++= Seq(
     "com.chuusai" %%  "shapeless" % "2.3.3",
     "com.typesafe" % "config" % "1.3.2",
@@ -52,13 +52,14 @@ val commonSettings = Seq(
         <url>http://spingo.com</url>
       </developer>
     </developers>
-  }
+  },
+  autoAPIMappings := true // sbt-unidoc setting
 
 )
 
 lazy val `op-rabbit` = (project in file(".")).
+  enablePlugins(ScalaUnidocPlugin).
   settings(commonSettings: _*).
-  enablePlugins(sbtunidoc.ScalaUnidocPlugin).
   settings(
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
@@ -74,7 +75,6 @@ lazy val core = (project in file("./core")).
   )
 
 lazy val demo = (project in file("./demo")).
-  enablePlugins(spray.boilerplate.BoilerplatePlugin).
   settings(commonSettings: _*).
   settings(
     libraryDependencies ++= Seq(
