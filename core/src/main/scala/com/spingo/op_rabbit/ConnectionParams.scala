@@ -66,22 +66,41 @@ object ConnectionParams {
   private val TlsProtectedScheme = "amqps"
   private val DefaultConnectionTimeout = 10000 /* 10 seconds */
 
+  private val UriPramPath = "uri"
+  private val HostsPramPath = "hosts"
+  private val PortPramPath = "port"
+  private val UsernamePramPath = "username"
+  private val PasswordPramPath = "password"
+  private val VirtualHostPramPath = "virtual-host"
+  private val SslPramPath = "ssl"
+  private val ConnectionTimeoutParamPath = "connection-timeout"
+  private val ConnectionTimeoutParamName = "connection_timeout"
+  private val HeartbeatParamName = "heartbeat"
+  private val ChannelMaxParamName = "channel_max"
+  private val AuthMechanismParamName = "auth_mechanism"
+  sealed case class UriQueryParams(
+                                    connectionTimeout: Int = DefaultConnectionTimeout,
+                                    heartbeat: Int = ConnectionFactory.DEFAULT_HEARTBEAT,
+                                    channelMax: Int = ConnectionFactory.DEFAULT_CHANNEL_MAX,
+                                    authMechanism: DefaultSaslConfig = DefaultSaslConfig.PLAIN
+                                  )
+
   def fromConfig(config: Config = RabbitConfig.connectionConfig): ConnectionParams = {
-    if (config.hasPath("uri")) fromUri(new URI(config.getString("uri"))) else fromParameters(config)
+    if (config.hasPath(UriPramPath)) fromUri(new URI(config.getString(UriPramPath))) else fromParameters(config)
   }
 
   @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2.1.0")
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray
-    val port = config.getInt("port")
+    val port = config.getInt(PortPramPath)
 
     ConnectionParams(
       hosts = hosts.map { h => new Address(h, port) },
-      connectionTimeout = config.getDuration("connection-timeout", java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
-      username = config.getString("username"),
-      password = config.getString("password"),
-      virtualHost = config.getString("virtual-host"),
-      ssl = config.getBoolean("ssl")
+      connectionTimeout = config.getDuration(ConnectionTimeoutParamPath, java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
+      username = config.getString(UsernamePramPath),
+      password = config.getString(PasswordPramPath),
+      virtualHost = config.getString(VirtualHostPramPath),
+      ssl = config.getBoolean(SslPramPath)
     )
   }
 
@@ -93,27 +112,17 @@ object ConnectionParams {
       case idx =>
         parseUriHosts(uriAuthority.substring(idx + 1)) -> parseUserPassword(Some(uriAuthority.substring(0, idx)))
     }
-    val params = Option(uri.getQuery).fold(Map.empty[String, String]) { query =>
-      query.split('&').map { par =>
-        val index = par.indexOf('=')
-        par.substring(0, index) -> par.substring(index + 1)
-      }.toMap
-    }
+    val params = parseAndValidateUriQuery(Option(uri.getQuery))
     ConnectionParams(
       hosts = hosts,
       username = username,
       password = password,
       virtualHost = Option(uri.getPath).fold(ConnectionFactory.DEFAULT_VHOST)(_.substring(1)),
       ssl = TlsProtectedScheme == uri.getScheme,
-      connectionTimeout = params.get("connection_timeout").map(_.toInt).getOrElse(DefaultConnectionTimeout),
-      requestedHeartbeat = params.get("heartbeat").map(_.toInt).getOrElse(ConnectionFactory.DEFAULT_HEARTBEAT),
-      requestedChannelMax = params.get("channel_max").map(_.toInt).getOrElse(ConnectionFactory.DEFAULT_CHANNEL_MAX),
-      saslConfig = {
-        params.getOrElse("auth_mechanism", "plain").toLowerCase match {
-          case "external" => DefaultSaslConfig.EXTERNAL
-          case _ => DefaultSaslConfig.PLAIN
-        }
-      }
+      connectionTimeout = params.connectionTimeout,
+      requestedHeartbeat = params.heartbeat,
+      requestedChannelMax = params.channelMax,
+      saslConfig = params.authMechanism
     )
   }
 
@@ -132,12 +141,41 @@ object ConnectionParams {
   }
 
   private def readHosts(config: Config): Seq[String] = {
-    Try(config.getStringList("hosts").asScala).getOrElse(readCommaSeparatedHosts(config))
+    Try(config.getStringList(HostsPramPath).asScala).getOrElse(readCommaSeparatedHosts(config))
   }
 
   private def readCommaSeparatedHosts(config: Config): Seq[String] =
     config
-      .getString("hosts")
+      .getString(HostsPramPath)
       .split(",")
       .map(_.trim)
+
+  private def parseAndValidateUriQuery(query: Option[String]): UriQueryParams = {
+    query.fold(Array.empty[String])(_.split('&')).foldLeft(UriQueryParams()) {
+      case (resp, par) =>
+        val index = par.indexOf('=')
+        val key = par.substring(0, index)
+        val value = par.substring(index + 1)
+        key match {
+          case ConnectionTimeoutParamName =>
+            resp.copy(connectionTimeout = value.toInt)
+          case HeartbeatParamName =>
+            resp.copy(heartbeat = value.toInt)
+          case ChannelMaxParamName =>
+            resp.copy(channelMax = value.toInt)
+          case AuthMechanismParamName =>
+            resp.copy(authMechanism = string2DefaultSaslConfig(value))
+          case _ =>
+            throw new IllegalArgumentException(s"The URL parameter [$key] is not supported")
+        }
+    }
+  }
+
+  private def string2DefaultSaslConfig(value: String): DefaultSaslConfig = {
+    value.toLowerCase() match {
+      case "external" => DefaultSaslConfig.EXTERNAL
+      case "plain" => DefaultSaslConfig.PLAIN
+      case _ => throw new IllegalArgumentException(s"The URL parameter [$AuthMechanismParamName] supports PLAIN or EXTERNAL values only")
+    }
+  }
 }
