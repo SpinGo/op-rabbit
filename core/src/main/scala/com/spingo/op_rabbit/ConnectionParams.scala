@@ -70,7 +70,7 @@ object ConnectionParams {
     if (config.hasPath("uri")) fromUri(new URI(config.getString("uri"))) else fromParameters(config)
   }
 
-  @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2018-04-05")
+  @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2.1.0")
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray
     val port = config.getInt("port")
