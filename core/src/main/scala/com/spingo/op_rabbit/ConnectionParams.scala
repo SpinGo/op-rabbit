@@ -158,11 +158,17 @@ object ConnectionParams {
         val value = par.substring(index + 1)
         key match {
           case ConnectionTimeoutParamName =>
-            resp.copy(connectionTimeout = value.toInt)
+            Try(resp.copy(connectionTimeout = value.toInt)).recover {
+              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$ConnectionTimeoutParamName] value should be integer")
+            }.get
           case HeartbeatParamName =>
-            resp.copy(heartbeat = value.toInt)
+            Try(resp.copy(heartbeat = value.toInt)).recover {
+              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$HeartbeatParamName] value should be integer")
+            }.get
           case ChannelMaxParamName =>
-            resp.copy(channelMax = value.toInt)
+            Try(resp.copy(channelMax = value.toInt)).recover {
+              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$ChannelMaxParamName] value should be integer")
+            }.get
           case AuthMechanismParamName =>
             resp.copy(authMechanism = string2DefaultSaslConfig(value))
           case _ =>

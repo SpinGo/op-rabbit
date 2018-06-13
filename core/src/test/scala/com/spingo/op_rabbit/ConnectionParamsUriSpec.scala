@@ -76,6 +76,30 @@ class ConnectionParamsUriSpec extends FunSpec with Matchers {
         params.requestedChannelMax should equal(2)
         params.saslConfig.getSaslMechanism(Array("EXTERNAL")).getName should equal("EXTERNAL")
       }
+
+      it("failed to compose multiple host configuration with TLS protection and additional URL parameters cause unsupported parameter specified") {
+        val e = intercept[IllegalArgumentException] {
+          val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqps://user:secret@localhost:5672,127.0.0.1:5672/vhost?connection_timeout=20000&heartbeat=30&channel_max=2&auth_mechanism=external&unsupported_parameter=1")))
+          ConnectionParams.fromConfig(config.getConfig(connectionPath))
+        }
+        e.getMessage should equal("The URL parameter [unsupported_parameter] is not supported")
+      }
+
+      it("failed to compose multiple host configuration with TLS protection and additional URL parameters cause parameter value has incorrect format") {
+        val e = intercept[IllegalArgumentException] {
+          val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqps://user:secret@localhost:5672,127.0.0.1:5672/vhost?connection_timeout=20000&heartbeat=30&channel_max=two&auth_mechanism=external")))
+          ConnectionParams.fromConfig(config.getConfig(connectionPath))
+        }
+        e.getMessage should equal("The URL parameter [channel_max] value should be integer")
+      }
+
+      it("failed to compose multiple host configuration with TLS protection and additional URL parameters cause auth mechanism incorrect value") {
+        val e = intercept[IllegalArgumentException] {
+          val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqps://user:secret@localhost:5672,127.0.0.1:5672/vhost?connection_timeout=20000&heartbeat=30&channel_max=2&auth_mechanism=custom")))
+          ConnectionParams.fromConfig(config.getConfig(connectionPath))
+        }
+        e.getMessage should equal("The URL parameter [auth_mechanism] supports PLAIN or EXTERNAL values only")
+      }
     }
   }
 }
