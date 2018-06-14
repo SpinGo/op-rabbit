@@ -66,7 +66,7 @@ object ConnectionParams {
   private val TlsProtectedScheme = "amqps"
   private val DefaultConnectionTimeout = 10000 /* 10 seconds */
 
-  private val UriPramPath = "uri"
+  private val UriParamPath = "uri"
   private val HostsPramPath = "hosts"
   private val PortPramPath = "port"
   private val UsernamePramPath = "username"
@@ -78,18 +78,16 @@ object ConnectionParams {
   private val HeartbeatParamName = "heartbeat"
   private val ChannelMaxParamName = "channel_max"
   private val AuthMechanismParamName = "auth_mechanism"
-  sealed case class UriQueryParams(
-                                    connectionTimeout: Int = DefaultConnectionTimeout,
-                                    heartbeat: Int = ConnectionFactory.DEFAULT_HEARTBEAT,
-                                    channelMax: Int = ConnectionFactory.DEFAULT_CHANNEL_MAX,
-                                    authMechanism: DefaultSaslConfig = DefaultSaslConfig.PLAIN
-                                  )
+  sealed case class UriQueryParams(connectionTimeout: Int = DefaultConnectionTimeout,
+                                   heartbeat: Int = ConnectionFactory.DEFAULT_HEARTBEAT,
+                                   channelMax: Int = ConnectionFactory.DEFAULT_CHANNEL_MAX,
+                                   authMechanism: DefaultSaslConfig = DefaultSaslConfig.PLAIN)
 
   def fromConfig(config: Config = RabbitConfig.connectionConfig): ConnectionParams = {
-    if (config.hasPath(UriPramPath)) fromUri(new URI(config.getString(UriPramPath))) else fromParameters(config)
+    if (config.hasPath(UriParamPath)) fromUri(new URI(config.getString(UriParamPath))) else fromParameters(config)
   }
 
-  @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2.1.0")
+  @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2.1.1")
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray
     val port = config.getInt(PortPramPath)
@@ -131,11 +129,10 @@ object ConnectionParams {
   }
 
   private def parseUserPassword(auth: Option[String]): (String, String) = {
-    val default = (ConnectionFactory.DEFAULT_USER, ConnectionFactory.DEFAULT_PASS)
-    auth.fold(default) { candidate =>
+    auth.fold(ConnectionFactory.DEFAULT_USER -> ConnectionFactory.DEFAULT_PASS) { candidate =>
       candidate.split(":").toList match {
         case usr :: psswd :: _ => (usr, psswd)
-        case _ => default
+        case _ => throw new IllegalArgumentException(s"The URL authority should contains user and password")
       }
     }
   }
@@ -153,35 +150,35 @@ object ConnectionParams {
   private def parseAndValidateUriQuery(query: Option[String]): UriQueryParams = {
     query.fold(Array.empty[String])(_.split('&')).foldLeft(UriQueryParams()) {
       case (resp, par) =>
-        val index = par.indexOf('=')
-        val key = par.substring(0, index)
-        val value = par.substring(index + 1)
+        val Array(key, value) = par.split('=')
         key match {
           case ConnectionTimeoutParamName =>
-            Try(resp.copy(connectionTimeout = value.toInt)).recover {
-              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$ConnectionTimeoutParamName] value should be integer")
-            }.get
+            resp.copy(connectionTimeout = uriParamValue2Int(ConnectionTimeoutParamName, value))
           case HeartbeatParamName =>
-            Try(resp.copy(heartbeat = value.toInt)).recover {
-              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$HeartbeatParamName] value should be integer")
-            }.get
+            resp.copy(heartbeat = uriParamValue2Int(HeartbeatParamName, value))
           case ChannelMaxParamName =>
-            Try(resp.copy(channelMax = value.toInt)).recover {
-              case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$ChannelMaxParamName] value should be integer")
-            }.get
+            resp.copy(channelMax = uriParamValue2Int(ChannelMaxParamName, value))
           case AuthMechanismParamName =>
-            resp.copy(authMechanism = string2DefaultSaslConfig(value))
+            resp.copy(authMechanism = uriParam2DefaultSaslConfig(AuthMechanismParamName, value))
           case _ =>
             throw new IllegalArgumentException(s"The URL parameter [$key] is not supported")
         }
     }
   }
 
-  private def string2DefaultSaslConfig(value: String): DefaultSaslConfig = {
+  private def uriParam2DefaultSaslConfig(name: String, value: String): DefaultSaslConfig = {
     value.toLowerCase() match {
       case "external" => DefaultSaslConfig.EXTERNAL
       case "plain" => DefaultSaslConfig.PLAIN
-      case _ => throw new IllegalArgumentException(s"The URL parameter [$AuthMechanismParamName] supports PLAIN or EXTERNAL values only")
+      case _ => throw new IllegalArgumentException(s"The URL parameter [$name] supports PLAIN or EXTERNAL values only")
+    }
+  }
+
+  private def uriParamValue2Int(name: String, value: String): Int = {
+    try {
+      value.toInt
+    } catch {
+      case _: NumberFormatException => throw new IllegalArgumentException(s"The URL parameter [$name] value should be integer")
     }
   }
 }
