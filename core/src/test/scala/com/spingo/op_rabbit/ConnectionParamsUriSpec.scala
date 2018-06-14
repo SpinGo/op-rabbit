@@ -36,6 +36,18 @@ class ConnectionParamsUriSpec extends FunSpec with Matchers {
         params.virtualHost should equal("vhost")
       }
 
+      it("compose single host configuration with default credentials") {
+        val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqp://localhost:5672/vhost")))
+        val params = ConnectionParams.fromConfig(config.getConfig(connectionPath))
+
+        params.hosts should contain theSameElementsAs Seq(new Address("localhost", 5672))
+        params.username should equal("guest")
+        params.password should equal("guest")
+        params.connectionTimeout should equal(10000)
+        params.ssl shouldBe false
+        params.virtualHost should equal("vhost")
+      }
+
       it("compose multiple host configuration") {
         val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqp://user:secret@localhost:5672,127.0.0.1:5672/vhost")))
         val params = ConnectionParams.fromConfig(config.getConfig(connectionPath))
@@ -43,6 +55,18 @@ class ConnectionParamsUriSpec extends FunSpec with Matchers {
         params.hosts should contain theSameElementsAs Seq(new Address("localhost", 5672), new Address("127.0.0.1", 5672))
         params.username should equal("user")
         params.password should equal("secret")
+        params.connectionTimeout should equal(10000)
+        params.ssl shouldBe false
+        params.virtualHost should equal("vhost")
+      }
+
+      it("compose multiple host configuration with default credentials") {
+        val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqp://localhost:5672,127.0.0.1:5672/vhost")))
+        val params = ConnectionParams.fromConfig(config.getConfig(connectionPath))
+
+        params.hosts should contain theSameElementsAs Seq(new Address("localhost", 5672), new Address("127.0.0.1", 5672))
+        params.username should equal("guest")
+        params.password should equal("guest")
         params.connectionTimeout should equal(10000)
         params.ssl shouldBe false
         params.virtualHost should equal("vhost")
@@ -99,6 +123,14 @@ class ConnectionParamsUriSpec extends FunSpec with Matchers {
           ConnectionParams.fromConfig(config.getConfig(connectionPath))
         }
         e.getMessage should equal("The URL parameter [auth_mechanism] supports PLAIN or EXTERNAL values only")
+      }
+
+      it("failed to compose multiple host configuration partial credentials") {
+        val e = intercept[IllegalArgumentException] {
+          val config = defaultConfig.withValue(connectionPath, ConfigValueFactory.fromMap(Map("uri" -> "amqps://user@localhost:5672,127.0.0.1:5672/vhost")))
+          ConnectionParams.fromConfig(config.getConfig(connectionPath))
+        }
+        e.getMessage should equal("The URL authority should contains user and password")
       }
     }
   }
