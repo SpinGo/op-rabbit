@@ -1,12 +1,12 @@
 package com.spingo.op_rabbit
 
 import com.rabbitmq.client.Address
-import com.typesafe.config.{Config, ConfigFactory, ConfigValue, ConfigValueFactory}
+import com.typesafe.config.{Config, ConfigFactory, ConfigValueFactory}
 import org.scalatest.{FunSpec, Matchers}
 
 import scala.collection.JavaConverters._
 
-class ConnectionParamsSpec extends FunSpec with Matchers {
+class ConnectionParamsMultihostSpec extends FunSpec with Matchers {
   private val defaultConfig = ConfigFactory.load("application.conf").getConfig("op-rabbit.connection")
   private val hostsPath = "hosts"
 
