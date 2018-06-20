@@ -67,12 +67,12 @@ object ConnectionParams {
   private val DefaultConnectionTimeout = 10000 /* 10 seconds */
 
   private val UriParamPath = "uri"
-  private val HostsPramPath = "hosts"
-  private val PortPramPath = "port"
-  private val UsernamePramPath = "username"
-  private val PasswordPramPath = "password"
-  private val VirtualHostPramPath = "virtual-host"
-  private val SslPramPath = "ssl"
+  private val HostsParamPath = "hosts"
+  private val PortParamPath = "port"
+  private val UsernameParamPath = "username"
+  private val PasswordParamPath = "password"
+  private val VirtualHostParamPath = "virtual-host"
+  private val SslParamPath = "ssl"
   private val ConnectionTimeoutParamPath = "connection-timeout"
   private val ConnectionTimeoutParamName = "connection_timeout"
   private val HeartbeatParamName = "heartbeat"
@@ -90,15 +90,15 @@ object ConnectionParams {
   @deprecated(message = "The parameters configuration is deprecated if favor of the URL configuration", since = "2.1.1")
   private def fromParameters(config: Config): ConnectionParams = {
     val hosts = readHosts(config).toArray
-    val port = config.getInt(PortPramPath)
+    val port = config.getInt(PortParamPath)
 
     ConnectionParams(
       hosts = hosts.map { h => new Address(h, port) },
       connectionTimeout = config.getDuration(ConnectionTimeoutParamPath, java.util.concurrent.TimeUnit.MILLISECONDS).toInt,
-      username = config.getString(UsernamePramPath),
-      password = config.getString(PasswordPramPath),
-      virtualHost = config.getString(VirtualHostPramPath),
-      ssl = config.getBoolean(SslPramPath)
+      username = config.getString(UsernameParamPath),
+      password = config.getString(PasswordParamPath),
+      virtualHost = config.getString(VirtualHostParamPath),
+      ssl = config.getBoolean(SslParamPath)
     )
   }
 
@@ -138,12 +138,12 @@ object ConnectionParams {
   }
 
   private def readHosts(config: Config): Seq[String] = {
-    Try(config.getStringList(HostsPramPath).asScala).getOrElse(readCommaSeparatedHosts(config))
+    Try(config.getStringList(HostsParamPath).asScala).getOrElse(readCommaSeparatedHosts(config))
   }
 
   private def readCommaSeparatedHosts(config: Config): Seq[String] =
     config
-      .getString(HostsPramPath)
+      .getString(HostsParamPath)
       .split(",")
       .map(_.trim)
 
