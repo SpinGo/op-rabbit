@@ -6,9 +6,6 @@ import org.scalatest.{FunSpec, Matchers}
 
 import scala.collection.JavaConverters._
 
-/**
-  * Created by Anton Naumov on 05.10.17.
-  */
 class ConnectionParamsMultihostSpec extends FunSpec with Matchers {
   private val defaultConfig = ConfigFactory.load("application.conf").getConfig("op-rabbit.connection")
   private val hostsPath = "hosts"
