@@ -268,7 +268,7 @@ Note, if your call generates an additional future, you can pass it to
 ack, and message will be acked based off the Future success, and
 nacked with Failure (such that the configured
 [RecoveryStrategy](http://spingo-oss.s3.amazonaws.com/docs/op-rabbit/core/current/index.html#com.spingo.op_rabbit.RecoveryStrategy)
-if the Future fails:
+if the Future fails):
 
 ```scala
   // ...
