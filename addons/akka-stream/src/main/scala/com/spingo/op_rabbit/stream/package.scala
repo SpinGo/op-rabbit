@@ -11,8 +11,6 @@ package com.spingo.op_rabbit
   */
 package object stream {
 
-  import scala.concurrent.{Promise, ExecutionContext}
-
   /**
     Used by [[MessagePublisherSink]] to fail elements in the case the [[https://www.rabbitmq.com/confirms.html RabbitMQ broker "negatively acknowledges" a published message]].
     */
