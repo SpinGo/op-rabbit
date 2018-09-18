@@ -1,8 +1,9 @@
 package com.spingo.op_rabbit
 
 import play.api.libs.json._
-
 import java.nio.charset.Charset
+
+import scala.util.control.NonFatal
 
 /**
   == BATTERIES NOT INCLUDED ==
@@ -57,26 +58,25 @@ object PlayJsonSupport {
                 value,
                 charset map (Charset.forName) getOrElse utf8)
             } catch {
-              case ex: Throwable =>
-                throw new GenericMarshallingException(
+              case NonFatal(ex) =>
+                throw GenericMarshallingException(
                   s"Could not convert input to charset of type ${charset}; ${ex.toString}")
             }
 
             val json = try {
               Json.parse(str)
             } catch {
-              case ex: Throwable =>
+              case NonFatal(ex) =>
                 throw InvalidFormat(str, ex.toString)
             }
 
-            Json.fromJson[T](json) match {
-              case JsSuccess(v, _) =>
-                v
-              case JsError(errors) =>
+            Json
+              .fromJson[T](json)
+              .recoverTotal { case JsError(errors) =>
                 throw InvalidFormat(
                   json.toString,
                   JsError.toJson(errors).toString)
-            }
+              }
         }
       }
     }

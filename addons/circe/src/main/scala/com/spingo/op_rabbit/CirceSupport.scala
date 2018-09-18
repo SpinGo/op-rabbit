@@ -5,6 +5,8 @@ import io.circe.parser.decode
 import io.circe.syntax.EncoderOps
 import java.nio.charset.Charset
 
+import scala.util.control.NonFatal
+
 object CirceSupport {
   private val utf8 = Charset.forName("UTF-8")
   implicit def circeRabbitMarshaller[T](implicit encoder: Encoder[T]): RabbitMarshaller[T] = {
@@ -29,8 +31,8 @@ object CirceSupport {
                 value,
                 charset map (Charset.forName) getOrElse utf8)
             } catch {
-              case ex: Throwable =>
-                throw new GenericMarshallingException(
+              case NonFatal(ex) =>
+                throw GenericMarshallingException(
                   s"Could not convert input to charset of type ${charset}; ${ex.toString}")
             }
 
