@@ -151,7 +151,7 @@ class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Acto
       }
 
       context watch subscriptionActorRef
-      // TODO - we need this actor to know the currect subscription state
+      // TODO - we need this actor to know the correct subscription state
       subscriptionActorRef ! running
       subscriptions = subscriptionActorRef :: subscriptions
       if (subscriptionActorRef != deadLetters)
