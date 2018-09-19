@@ -16,7 +16,7 @@ matrix:
     scala: 2.11.12
   # Scala 2.12+ requires Java 8
   - jdk: oraclejdk7
-    scala: 2.12.4
+    scala: 2.12.6
 
 services:
   - rabbitmq
