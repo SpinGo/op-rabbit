@@ -37,16 +37,16 @@ import scala.util.control.NonFatal
   */
 object PlayJsonSupport {
   private val utf8 = Charset.forName("UTF-8")
-  implicit def playJsonRabbitMarshaller[T](implicit writer: Writes[T]): RabbitMarshaller[T] = {
+  implicit def playJsonRabbitMarshaller[T: Writes]: RabbitMarshaller[T] = {
     new RabbitMarshaller[T] {
       protected val contentType = "application/json"
       private val encoding = "UTF-8"
       protected val contentEncoding = Some(encoding)
       def marshall(value: T) =
-        Json.stringify(writer.writes(value)).getBytes(utf8)
+        Json.stringify(Json.toJson(value)).getBytes(utf8)
     }
   }
-  implicit def playJsonRabbitUnmarshaller[T](implicit reads: Reads[T]): RabbitUnmarshaller[T] = {
+  implicit def playJsonRabbitUnmarshaller[T: Reads]): RabbitUnmarshaller[T] = {
     new RabbitUnmarshaller[T] {
       def unmarshall(value: Array[Byte], contentType: Option[String], charset: Option[String]): T = {
         contentType match {
