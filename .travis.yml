@@ -1,0 +1,26 @@
+language: scala
+
+scala:
+  - 2.12.6
+  - 2.11.12
+
+jdk:
+  - oraclejdk7
+  - oraclejdk8
+
+# inspired by https://github.com/hashicorp/nomad-scala-sdk/blob/master/.travis.yml
+matrix:
+  exclude:
+  # We build Scala 2.11 on Java 7, so let's not bother with Java 8
+  - jdk: oraclejdk8
+    scala: 2.11.12
+
+services:
+  - rabbitmq
+
+sudo: false
+
+cache:
+  directories:
+  - $HOME/.sbt
+  - $HOME/.ivy2/cache

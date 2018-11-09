@@ -79,6 +79,7 @@ trait Directives {
   import Directives.Ackable
   /**
     Declarative which declares a channel
+    @param qos allows to limit the number of unacknowledged messages on a channel (or connection) when consuming (aka "prefetch count").
     */
   def channel(qos: Int = 1): ChannelDirective = ChannelDirective(ChannelConfiguration(qos))
 
