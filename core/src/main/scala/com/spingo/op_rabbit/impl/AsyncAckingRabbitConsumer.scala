@@ -125,7 +125,7 @@ private [op_rabbit] class AsyncAckingRabbitConsumer[T](
       false,
       subscription.consumerTagPrefix.fold("")(prefix => s"$prefix-${ConsumerId()}"),
       false,
-      false,
+      subscription.exclusive,
       properties.toJavaMap(subscription.consumerArgs),
       new DefaultConsumer(channel) {
         override def handleDelivery(
