@@ -22,10 +22,11 @@ private [op_rabbit] case class BoundConsumerDefinition(
   recoveryStrategy: RecoveryStrategy,
   executionContext: ExecutionContext,
   consumerArgs: Seq[properties.Header],
-  consumerTagPrefix: Option[String])
-private [op_rabbit] case class BindingDirective(binding: QueueDefinition[Concreteness], args: Seq[properties.Header], consumerTagPrefix: Option[String]) {
+  consumerTagPrefix: Option[String],
+  exclusive: Boolean)
+private [op_rabbit] case class BindingDirective(binding: QueueDefinition[Concreteness], args: Seq[properties.Header], consumerTagPrefix: Option[String], exclusive: Boolean) {
   def apply(thunk: => Handler)(implicit errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, executionContext: ExecutionContext) =
-    BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args, consumerTagPrefix)
+    BoundConsumerDefinition(binding, handler = thunk, errorReporting, recoveryStrategy, executionContext, args, consumerTagPrefix, exclusive)
 }
 private [op_rabbit] case class ChannelConfiguration(qos: Int)
 private [op_rabbit] case class BoundChannel(channelConfig: ChannelConfiguration, boundConsumer: BoundConsumerDefinition)
@@ -89,7 +90,8 @@ trait Directives {
   def consume(
     binding: QueueDefinition[Concreteness],
     args: Seq[properties.Header] = Seq(),
-    consumerTagPrefix: Option[String] = None) = BindingDirective(binding, args, consumerTagPrefix)
+    consumerTagPrefix: Option[String] = None,
+    exclusive: Boolean = false) = BindingDirective(binding, args, consumerTagPrefix, exclusive)
 
   /**
     Provides values for the [[consume]] directive.
