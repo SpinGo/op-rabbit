@@ -1,9 +1,9 @@
 import java.util.Properties
 
-val json4sVersion = "3.5.3"
-val circeVersion = "0.9.0"
-val akkaVersion = "2.5.9"
-val playVersion = "2.6.10"
+val json4sVersion = "3.6.6"
+val circeVersion = "0.12.0-M3"
+val akkaVersion = "2.5.23"
+val playVersion = "2.7.3"
 
 val appProperties = {
   val prop = new Properties()
@@ -16,15 +16,15 @@ val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't p
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
-  scalaVersion := "2.12.6",
-  crossScalaVersions := Seq("2.12.6", "2.11.12"),
+  scalaVersion := "2.12.8",
+  crossScalaVersions := Seq("2.12.8", "2.11.12", "2.13.0"),
   libraryDependencies ++= Seq(
     "com.chuusai" %%  "shapeless" % "2.3.3",
-    "com.typesafe" % "config" % "1.3.2",
+    "com.typesafe" % "config" % "1.3.4",
     "com.newmotion" %% "akka-rabbitmq" % "5.0.0",
-    "org.slf4j" % "slf4j-api" % "1.7.25",
+    "org.slf4j" % "slf4j-api" % "1.7.26",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-    "org.scalatest" %% "scalatest" % "3.0.4" % "test",
+    "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     "com.spingo" %% "scoped-fixtures" % "2.0.0" % "test",
     "com.typesafe.akka" %% "akka-actor" % akkaVersion,
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",

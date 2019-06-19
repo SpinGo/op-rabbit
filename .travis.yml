@@ -1,7 +1,7 @@
 language: scala
 
 scala:
-  - 2.12.6
+  - 2.12.8
   - 2.11.12
 
 jdk:
@@ -14,6 +14,8 @@ matrix:
   # We build Scala 2.11 on Java 7, so let's not bother with Java 8
   - jdk: oraclejdk8
     scala: 2.11.12
+  - jdk: oraclejdk7
+    scala: 2.13.0
 
 services:
   - rabbitmq
