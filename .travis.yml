@@ -5,16 +5,16 @@ scala:
   - 2.11.12
 
 jdk:
-  - oraclejdk7
-  - oraclejdk8
+  - openjdk7
+  - openjdk8
 
 # inspired by https://github.com/hashicorp/nomad-scala-sdk/blob/master/.travis.yml
 matrix:
   exclude:
   # We build Scala 2.11 on Java 7, so let's not bother with Java 8
-  - jdk: oraclejdk8
+  - jdk: openjdk8
     scala: 2.11.12
-  - jdk: oraclejdk7
+  - jdk: openjdk7
     scala: 2.13.0
 
 services:
