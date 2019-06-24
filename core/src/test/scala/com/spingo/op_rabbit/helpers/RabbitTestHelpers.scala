@@ -9,8 +9,10 @@ import com.rabbitmq.client.Channel
 import com.spingo.op_rabbit.RabbitControl
 import com.spingo.op_rabbit.{MessageForPublicationLike, RabbitMarshaller, RabbitUnmarshaller}
 import com.spingo.scoped_fixtures.ScopedFixtures
+
 import scala.concurrent.{Await, Future, Promise}
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 trait RabbitTestHelpers extends ScopedFixtures {
   implicit val timeout = Timeout(5 seconds)

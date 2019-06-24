@@ -138,7 +138,7 @@ object ConnectionParams {
   }
 
   private def readHosts(config: Config): Seq[String] = {
-    Try(config.getStringList(HostsParamPath).asScala).getOrElse(readCommaSeparatedHosts(config))
+    Try(config.getStringList(HostsParamPath).asScala.toSeq).getOrElse(readCommaSeparatedHosts(config))
   }
 
   private def readCommaSeparatedHosts(config: Config): Seq[String] =

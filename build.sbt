@@ -110,7 +110,7 @@ lazy val `spray-json` = (project in file("./addons/spray-json")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-spray-json",
-    libraryDependencies += "io.spray" %% "spray-json" % "1.3.4").
+    libraryDependencies += "io.spray" %% "spray-json" % "1.3.5").
   dependsOn(core)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).
