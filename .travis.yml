@@ -1,5 +1,10 @@
 language: scala
 
+services:
+  - rabbitmq
+
+sudo: false
+
 scala:
   - 2.12.8
   - 2.11.12
@@ -15,12 +20,7 @@ matrix:
   - jdk: openjdk8
     scala: 2.11.12
   - jdk: openjdk7
-    scala: 2.13.0
-
-services:
-  - rabbitmq
-
-sudo: false
+    scala: 2.12.8
 
 cache:
   directories:
