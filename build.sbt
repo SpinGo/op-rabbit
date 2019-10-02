@@ -64,7 +64,7 @@ lazy val `op-rabbit` = (project in file(".")).
     description := "The opinionated Rabbit-MQ plugin",
     name := "op-rabbit").
   dependsOn(core).
-  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `spray-json`, circe)
+  aggregate(core, `play-json`, airbrake, `akka-stream`, json4s, `spray-json`, circe, upickle)
 
 
 lazy val core = (project in file("./core")).
@@ -111,6 +111,13 @@ lazy val `spray-json` = (project in file("./addons/spray-json")).
   settings(
     name := "op-rabbit-spray-json",
     libraryDependencies += "io.spray" %% "spray-json" % "1.3.4").
+  dependsOn(core)
+
+lazy val upickle = (project in file("./addons/upickle")).
+  settings(commonSettings: _*).
+  settings(
+    name := "op-rabbit-upickle",
+    libraryDependencies += "com.lihaoyi" %% "upickle" % "0.8.0").
   dependsOn(core)
 
 lazy val airbrake = (project in file("./addons/airbrake/")).

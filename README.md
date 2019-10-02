@@ -26,7 +26,7 @@ a high-level feature list:
     - Asynchronous, concurrent consumption using Scala native Futures
       or the new Akka Streams project.
     - Common pattern for serialization allows easy integration with
-      serialization libraries such play-json or json4s
+      libraries such as play-json, json4s or upickle.
     - Common pattern for exception handling to publish errors to
       Airbrake, Syslog, or all of the above
 - Modular
@@ -70,6 +70,7 @@ libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-core"        % opRabbitVersion,
   "com.spingo" %% "op-rabbit-play-json"   % opRabbitVersion,
   "com.spingo" %% "op-rabbit-json4s"      % opRabbitVersion,
+  "com.spingo" %% "op-rabbit-upickle"     % opRabbitVersion,
   "com.spingo" %% "op-rabbit-airbrake"    % opRabbitVersion,
   "com.spingo" %% "op-rabbit-akka-stream" % opRabbitVersion
 )
@@ -89,6 +90,7 @@ Supports Scala 2.12 and Scala 2.11.
 |                              | type-safe config         | 1.3.x     |
 | op-rabbit-play-json          | play-json                | 2.6.x     |
 | op-rabbit-json4s             | json4s                   | 3.5.x     |
+| op-rabbit-upickle            | upickle                  | 0.8.x     |
 | op-rabbit-circe              | circe                    | 0.9.x     |
 | op-rabbit-airbrake           | airbrake                 | 2.2.x     |
 | op-rabbit-akka-stream        | acked-stream             | 2.1.x     |
@@ -139,6 +141,9 @@ Supports Scala 2.11 only
     - Easily use [Json4s](http://json4s.org) to serialization
       messages; automatically sets RabbitMQ message headers to
       indicate content type.
+- `op-rabbit-upickle` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.upickleSupport$)
+    - Easily use [upickle](http://www.lihaoyi.com/upickle) message serialization as JSON or MessagePack;
+      automatically sets RabbitMQ message headers to indicate content type.
 - `op-rabbit-airbrake` [API](https://op-rabbit.github.io/docs/index.html#com.spingo.op_rabbit.AirbrakeLogger)
     - Report consumer exceptions to airbrake, using the
       [Airbrake](https://github.com/airbrake/airbrake-java) Java
