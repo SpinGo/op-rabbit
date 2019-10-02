@@ -28,7 +28,7 @@ import java.nio.charset.Charset
     val consumer = AsyncAckingConsumer[Person]("PurplePeopleEater") { person =>
       Future { eat(person) }
     }
-    val message = QueueMessage(Person("Bill", 25), "people-for-consumption")
+    val message = Message.queue(Person("Bill", 25), "people-for-consumption")
   }
 
   }}}
