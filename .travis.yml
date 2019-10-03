@@ -5,7 +5,7 @@ scala:
   - 2.11.12
 
 jdk:
-  - oraclejdk8
+  - oraclejdk9
 
 services:
   - rabbitmq
