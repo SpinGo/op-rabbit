@@ -7,6 +7,8 @@ scala:
 jdk:
   - oraclejdk11
 
+distro: trusty
+
 services:
   - rabbitmq
 
