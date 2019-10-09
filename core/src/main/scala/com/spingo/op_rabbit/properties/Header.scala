@@ -88,7 +88,7 @@ private [op_rabbit] case class UnboundTypedHeaderImpl[T](name: String)(implicit
     }
   }
 
-  rabbitControl ! QueueMessage("My body", "name", Seq(RetryHeader(5)))
+  rabbitControl ! Message.queue("My body", "name", Seq(RetryHeader(5)))
   }}}
   */
 class TypedHeader[T] protected (val name: String, val value: T)(implicit
@@ -146,7 +146,7 @@ object TypedHeader {
     }
   }
 
-  rabbitControl ! QueueMessage("My body", "name", Seq(RetryHeader(5)))
+  rabbitControl ! Message.queue("My body", "name", Seq(RetryHeader(5)))
   }}}
   */
 class Header protected (val name: String, val value: HeaderValue) extends MessageProperty {
