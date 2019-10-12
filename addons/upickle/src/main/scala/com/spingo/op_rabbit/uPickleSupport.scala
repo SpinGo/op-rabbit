@@ -70,7 +70,7 @@ import java.nio.charset.Charset
 
   }}}
   */
-object upickleSupport extends  {
+object upickleSupport {
 
   class ujsonSupport[A <: upickle.Api] private[op_rabbit] (private val api: A) {
     private val CHARSET_UTF_8 = Charset.forName("UTF-8")
