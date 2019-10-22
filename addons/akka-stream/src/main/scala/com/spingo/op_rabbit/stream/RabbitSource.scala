@@ -72,7 +72,7 @@ object RabbitSource {
     channelDirective: ChannelDirective,
     bindingDirective: BindingDirective,
     handler: Directive[L]
-  )(implicit tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy) = {
+  )(implicit tupler: HListToValueOrTuple[L], errorReporting: RabbitErrorLogging, recoveryStrategy: RecoveryStrategy, ec: ExecutionContext) = {
     val src = Source.queue[AckTup[tupler.Out]](channelDirective.config.qos, OverflowStrategy.backpressure).mapMaterializedValue { input =>
       val subscription = Subscription.run(rabbitControl) {
         import Directives._
@@ -94,7 +94,7 @@ object RabbitSource {
         case Success(_) =>
           if (! input.watchCompletion.isCompleted)
             input.complete()
-      }(ExecutionContext.global)
+      }
 
       // Down stream terminated?
       input.watchCompletion.onComplete {
@@ -112,7 +112,7 @@ object RabbitSource {
           subscription.close(500.millis)
         case Failure(ex) =>
           subscription.close(500.millis)
-      }(ExecutionContext.global)
+      }
 
       subscription
     }

@@ -241,11 +241,10 @@ object Directives extends Directives {
 
   case class Ackable(handler: Handler)
   object Ackable extends (Handler => Ackable) {
-    implicit def ackableFromFuture(f: Future[_]) = Ackable({ (p, delivery) =>
-      // TODO - reuse thread
-      import scala.concurrent.ExecutionContext.Implicits.global
-      f.map(Right(_))
-      p.completeWith(f.map(_ => ReceiveResult.Ack(delivery)))
+    implicit def ackableFromFuture(f: Future[_])(implicit ec: ExecutionContext) = Ackable({ (p, delivery) =>
+      p.completeWith(
+        f.map(_ => ReceiveResult.Ack(delivery)).recover { case ex => ReceiveResult.Fail(delivery, None, ex) }
+      )
     })
 
     implicit def ackableFromTry(t: Try[_]) = Ackable({ (p, delivery) =>
