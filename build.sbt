@@ -17,7 +17,7 @@ val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
   scalaVersion := "2.12.6",
-  crossScalaVersions := Seq("2.12.6", "2.11.12", "2.13.0"),
+  crossScalaVersions := Seq("2.12.6", "2.13.0"),
   libraryDependencies ++= Seq(
     "com.chuusai" %%  "shapeless" % "2.3.3",
     "com.typesafe" % "config" % "1.3.4",
