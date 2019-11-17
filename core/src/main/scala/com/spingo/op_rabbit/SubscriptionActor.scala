@@ -196,7 +196,7 @@ private [op_rabbit] class SubscriptionActor(
 
       initialized.tryFailure(new RuntimeException("Subscription stopped before it had a chance to initialize"))
       closed.tryComplete(
-        payload.shutdownCause.map(Failure(_)).getOrElse(Success(Unit))
+        payload.shutdownCause.map(Failure(_)).getOrElse(Success(()))
       )
       stop()
   }

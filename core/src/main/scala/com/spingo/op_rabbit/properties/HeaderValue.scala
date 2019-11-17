@@ -41,7 +41,7 @@ object HeaderValue {
     val serializable = value
   }
   case class MapHeaderValue(value: Map[String, HeaderValue]) extends HeaderValue {
-    lazy val serializable = value.mapValues(_.serializable).asJava
+    lazy val serializable = value.mapValues(_.serializable).toMap.asJava
     override def asString(sourceCharset: Charset) = {
       val b = new StringBuilder()
       b += '{'
@@ -119,9 +119,9 @@ object HeaderValue {
   implicit val convertFromBoolean        : ToHeaderValue[Boolean              , BooleanHeaderValue]    = BooleanHeaderValue(_)
   implicit val convertFromJavaBoolean    : ToHeaderValue[java.lang.Boolean    , BooleanHeaderValue]    = BooleanHeaderValue(_)
   implicit val convertFromByteArray      : ToHeaderValue[Array[Byte]          , ByteArrayHeaderValue]  = ByteArrayHeaderValue(_)
-  implicit def convertFromMap[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Map[String, T], MapHeaderValue]         = { m => MapHeaderValue(m.mapValues(converter)) }
+  implicit def convertFromMap[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Map[String, T], MapHeaderValue]         = { m => MapHeaderValue(m.mapValues(converter).toMap) }
   implicit def convertFromSeq[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[Seq[T], SeqHeaderValue]                 = { s => SeqHeaderValue(s.map(converter)) }
-  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.asScala.map(converter)) }
+  implicit def convertFromJavaList[T](implicit converter: ToHeaderValue[T, HeaderValue]): ToHeaderValue[java.util.List[T], SeqHeaderValue] = { list => SeqHeaderValue(list.asScala.toSeq.map(converter)) }
 
   def apply[T](value: T)(implicit converter: ToHeaderValue[T, HeaderValue]): HeaderValue =
     if (value == null) NullHeaderValue else converter(value)
@@ -148,7 +148,7 @@ object HeaderValue {
     case v: Array[Byte]                          => apply(v)
     case null                                    => NullHeaderValue
     case v: java.util.List[_] =>
-      SeqHeaderValue(v.asScala.map { case v: Object => from(v) })
+      SeqHeaderValue(v.asScala.toSeq.map { case v: Object => from(v) })
     case v: Array[Object] =>
       SeqHeaderValue(v.map(from))
     case otherwise =>
