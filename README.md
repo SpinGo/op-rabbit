@@ -71,6 +71,7 @@ libraryDependencies ++= Seq(
   "com.spingo" %% "op-rabbit-play-json"   % opRabbitVersion,
   "com.spingo" %% "op-rabbit-json4s"      % opRabbitVersion,
   "com.spingo" %% "op-rabbit-upickle"     % opRabbitVersion,
+  "com.spingo" %% "op-rabbit-circe"       % opRabbitVersion,
   "com.spingo" %% "op-rabbit-airbrake"    % opRabbitVersion,
   "com.spingo" %% "op-rabbit-akka-stream" % opRabbitVersion
 )
