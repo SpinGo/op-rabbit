@@ -85,7 +85,7 @@ Supports Scala 2.12 and Scala 2.11.
 | module                       | dependsOn                | version   |
 | ---------------------------- | ------------------------ | --------- |
 | op-rabbit-core               | akka                     | 2.5.x     |
-|                              | akka-rabbitmq            | 5.0.x     |
+|                              | akka-rabbitmq            | 5.1.x     |
 |                              | shapeless                | 2.3.x     |
 |                              | type-safe config         | 1.3.x     |
 | op-rabbit-play-json          | play-json                | 2.6.x     |
