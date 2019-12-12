@@ -3,7 +3,7 @@ language: scala
 dist: trusty
 
 scala:
-  - 2.12.6
+  - 2.12.10
 
 jdk:
   - oraclejdk11
