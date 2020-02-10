@@ -107,6 +107,29 @@ class DirectivesSpec extends FunSpec with Matchers with Inside {
         }
       } should be (acked)
     }
+
+    it("yields the value for both directives when one is bodyEither") {
+      val delivery = testDelivery(body = "hi".getBytes, properties = Seq(ReplyTo("place")))
+      resultFor(delivery) {
+        (bodyEither(as[String]) & property(ReplyTo)) { (bodyEither, replyTo) =>
+          replyTo should be ("place")
+          bodyEither.right.get should be ("hi")
+          ack
+        }
+      } should be (acked)
+    }
+  }
+
+  describe("bodyEither") {
+    it("yields the value as an option") {
+      val delivery = testDelivery(body = "hi".getBytes)
+      resultFor(delivery) {
+        (bodyEither(as[String])) { (bodyEither) =>
+          bodyEither.right.get should be ("hi")
+          ack
+        }
+      } should be (acked)
+    }
   }
 
   describe("|") {
