@@ -10,6 +10,8 @@ import com.rabbitmq.client.SaslConfig
 import com.rabbitmq.client.impl.DefaultExceptionHandler
 import com.typesafe.config.Config
 import javax.net.SocketFactory
+import javax.net.ssl.SSLContext
+
 import scala.collection.JavaConverters._
 import scala.util.Try
 
@@ -39,7 +41,8 @@ case class ConnectionParams(
   saslConfig: SaslConfig = DefaultSaslConfig.PLAIN,
   sharedExecutor: Option[java.util.concurrent.ExecutorService] = None,
   shutdownTimeout: Int = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT,
-  socketFactory: SocketFactory = SocketFactory.getDefault
+  socketFactory: SocketFactory = SocketFactory.getDefault,
+  sslContextOpt: Option[SSLContext] = None
 ) {
   // TODO - eliminate ClusterConnectionFactory after switching to use RabbitMQ's topology recovery features.
   protected [op_rabbit] def applyTo(factory: ClusterConnectionFactory): Unit = {
@@ -58,7 +61,16 @@ case class ConnectionParams(
     sharedExecutor.foreach(factory.setSharedExecutor)
     factory.setShutdownTimeout(shutdownTimeout)
     factory.setSocketFactory(socketFactory)
-    if (ssl) factory.useSslProtocol()
+    if (ssl) {
+      sslContextOpt match {
+        case Some(sslContext) =>
+          // suitable for production
+          factory.useSslProtocol(sslContext)
+        case None =>
+          // suitable for development
+          factory.useSslProtocol()
+      }
+    }
   }
 }
 
