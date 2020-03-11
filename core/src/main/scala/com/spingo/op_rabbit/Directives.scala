@@ -7,6 +7,7 @@ import scala.language.implicitConversions
 import shapeless._
 import com.spingo.op_rabbit.Binding._
 import com.spingo.op_rabbit.Exchange.ExchangeType
+import EnhancedTry._
 
 import scala.util.{Failure, Success, Try}
 
@@ -176,6 +177,27 @@ trait Directives {
     def happly(fn: ::[T, HNil] => Handler): Handler = { (promise, delivery) =>
       val data = um.unmarshall(delivery.body, Option(delivery.properties.getContentType), Option(delivery.properties.getContentEncoding))
       fn(data :: HNil)(promise, delivery)
+    }
+  }
+
+  /**
+  Extract the message body as a Either. Uses a [[com.spingo.op_rabbit.RabbitUnmarshaller RabbitUnmarshaller]] to deserialize.
+  In case the body cannot be unmarshalled, the exception is present in the Left of the Either.
+  In this way the client code can have the unmarshalling error reason.
+    Example:
+
+    {{{
+    bodyOpt(as[JobDescription]) { jobDescriptionEither => ...
+    }
+    }}}
+   */
+  def bodyEither[T](um: RabbitUnmarshaller[T]): Directive1[Either[Throwable, T]] = new Directive1[Either[Throwable, T]] {
+    def happly(fn: ::[Either[Throwable, T], HNil] => Handler): Handler = { (promise, delivery) =>
+      val dataTry = Try {
+        um.unmarshall(delivery.body, Option(delivery.properties.getContentType), Option(delivery.properties.getContentEncoding))
+      }
+
+      fn(dataTry.toEither :: HNil)(promise, delivery)
     }
   }
 
