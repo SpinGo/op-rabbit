@@ -3,7 +3,8 @@ package com.spingo.op_rabbit
 import akka.actor.SupervisorStrategy._
 import akka.actor._
 import akka.util.Timeout
-import com.newmotion.akka.rabbitmq.{ ConnectionActor, CreateChannel, ChannelActor, ChannelCreated, ChannelMessage }
+import com.newmotion.akka.rabbitmq.{ChannelActor, ChannelCreated, ChannelMessage, Connection, ConnectionActor, CreateChannel}
+
 import scala.concurrent.Promise
 import scala.concurrent.duration._
 
@@ -67,9 +68,14 @@ private [op_rabbit] class Sequence extends Iterator[Int] {
   *     `akka-rabbitmq` ConnectionActor
   *   - [[Subscription]] - Activate the given subscription; responds with a [[SubscriptionRef]]
   */
-class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Actor with ActorLogging with Stash {
+class RabbitControl(connection: Either[ConnectionParams, ActorRef],
+      setupConnectionCallback: (Connection, ActorRef) => Any = (_, _) => ()) extends Actor with ActorLogging with Stash {
   def this() = this(Left(ConnectionParams.fromConfig()))
   def this(connectionParams: ConnectionParams) = this(Left(connectionParams))
+  def this(connectionParams: ConnectionParams, setupConnectionCallback: (Connection, ActorRef) => Any) = {
+    this(Left(connectionParams), setupConnectionCallback)
+  }
+
   def this(actorRef: ActorRef) = this(Right(actorRef))
 
   val sequence = new Sequence
@@ -93,7 +99,7 @@ class RabbitControl(connection: Either[ConnectionParams, ActorRef]) extends Acto
       val connectionFactory = new ClusterConnectionFactory
       connectionParams.applyTo(connectionFactory)
       context.actorOf(
-        ConnectionActor.props(connectionFactory),
+        ConnectionActor.props(connectionFactory, setupConnection = setupConnectionCallback),
         name = CONNECTION_ACTOR_NAME)
 
     case Right(actorRef) => actorRef
