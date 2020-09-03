@@ -42,7 +42,8 @@ case class ConnectionParams(
   sharedExecutor: Option[java.util.concurrent.ExecutorService] = None,
   shutdownTimeout: Int = ConnectionFactory.DEFAULT_SHUTDOWN_TIMEOUT,
   socketFactory: SocketFactory = SocketFactory.getDefault,
-  sslContextOpt: Option[SSLContext] = None
+  sslContextOpt: Option[SSLContext] = None,
+  channelRpcTimeout: Int = ConnectionFactory.DEFAULT_CHANNEL_RPC_TIMEOUT
 ) {
   // TODO - eliminate ClusterConnectionFactory after switching to use RabbitMQ's topology recovery features.
   protected [op_rabbit] def applyTo(factory: ClusterConnectionFactory): Unit = {
@@ -71,6 +72,8 @@ case class ConnectionParams(
           factory.useSslProtocol()
       }
     }
+
+    factory.setChannelRpcTimeout(channelRpcTimeout)
   }
 }
 
