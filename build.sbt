@@ -120,7 +120,7 @@ lazy val upickle = (project in file("./addons/upickle")).
     libraryDependencies += "com.lihaoyi" %% "upickle" % (
       CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((2, 11)) => "0.7.4"
-        case _ => "0.8.0"
+        case _ => "1.2.2"
       }
     )).
   dependsOn(core)
