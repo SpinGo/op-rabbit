@@ -129,7 +129,7 @@ object MessagePublisherSink {
     @param rabbitControl An actor
     @param timeoutAfter The duration for which we'll wait for a message to be acked; note, timeouts and non-acknowledged messages will cause the upstream elements to fail. The sink will not throw an exception.
     */
-  def apply(rabbitControl: ActorRef, timeoutAfter: FiniteDuration = 30 seconds, qos: Int = 8): AckedSink[Message, Future[Unit]] = AckedSink {
+  def apply(rabbitControl: ActorRef, timeoutAfter: FiniteDuration = 30.seconds, qos: Int = 8): AckedSink[Message, Future[Unit]] = AckedSink {
     Sink.actorSubscriber[(Promise[Unit], Message)](Props(new MessagePublisherSinkActor(rabbitControl, timeoutAfter, qos))).
       mapMaterializedValue { subscriber =>
         implicit val akkaTimeout = akka.util.Timeout(timeoutAfter)

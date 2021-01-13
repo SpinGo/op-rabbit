@@ -11,6 +11,8 @@ jdk:
 services:
   - rabbitmq
 
+script: sbt '+ test'
+
 sudo: false
 
 cache:
