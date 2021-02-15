@@ -2,8 +2,8 @@ import java.util.Properties
 
 val json4sVersion = "3.6.6"
 val circeVersion = "0.12.3"
-val akkaVersion = "2.5.25"
-val playVersion = "2.7.4"
+val akkaVersion = "2.6.6"
+val playVersion = "2.9.0"
 
 val appProperties = {
   val prop = new Properties()
@@ -120,7 +120,7 @@ lazy val upickle = (project in file("./addons/upickle")).
     libraryDependencies += "com.lihaoyi" %% "upickle" % (
       CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((2, 11)) => "0.7.4"
-        case _ => "0.8.0"
+        case _ => "1.2.2"
       }
     )).
   dependsOn(core)
@@ -136,9 +136,14 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-akka-stream",
+    // Temporarily depend on jitpack published version of acked-streams for scala 2.13
+    resolvers += "jitpack" at "https://jitpack.io",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-streams" % "2.1.1",
-      "com.typesafe.akka" %% "akka-stream" % akkaVersion),
+      // TODO: remove and switch to com.timcharper when https://github.com/timcharper/acked-stream/pull/7 gets merged and published
+      //  "com.timcharper"    %% "acked-streams" % "2.1.1",
+      "com.github.deal-engine.acked-stream" %% "acked-streams" % "8f17c92",
+      "com.typesafe.akka" %% "akka-stream" % akkaVersion
+    ),
     unmanagedResourceDirectories in Test ++= Seq(
       file(".").getAbsoluteFile / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(
