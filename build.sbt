@@ -139,9 +139,9 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
     // Temporarily depend on jitpack published version of acked-streams for scala 2.13
     resolvers += "jitpack" at "https://jitpack.io",
     libraryDependencies ++= Seq(
-      // TODO: remove and switch to com.timcharper when https://github.com/timcharper/acked-stream/pull/7 gets merged and published
+      // TODO: remove and switch to com.timcharper when https://github.com/timcharper/acked-stream/pull/10 gets merged and published
       //  "com.timcharper"    %% "acked-streams" % "2.1.1",
-      "com.github.deal-engine.acked-stream" %% "acked-streams" % "8f17c92",
+      "com.github.deal-engine.acked-stream" %% "acked-streams" % "5babfe7f85",
       "com.typesafe.akka" %% "akka-stream" % akkaVersion
     ),
     unmanagedResourceDirectories in Test ++= Seq(
