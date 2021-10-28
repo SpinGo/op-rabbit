@@ -1,8 +1,8 @@
 import java.util.Properties
 
-val json4sVersion = "3.6.6"
-val circeVersion = "0.12.3"
-val akkaVersion = "2.5.25"
+val json4sVersion = "3.6.11"
+val circeVersion = "0.14.1"
+val akkaVersion = "2.6.17"
 val playVersion = "2.7.4"
 
 val appProperties = {
@@ -16,17 +16,18 @@ val assertNoApplicationConf = taskKey[Unit]("Makes sure application.conf isn't p
 val commonSettings = Seq(
   organization := "com.spingo",
   version := appProperties.getProperty("version"),
-  scalaVersion := "2.12.10",
-  crossScalaVersions := Seq("2.12.10", "2.13.1"),
+  scalaVersion := "2.13.6",
+  crossScalaVersions := Seq("2.12.15", "2.13.6"),
   libraryDependencies ++= Seq(
-    "com.chuusai" %%  "shapeless" % "2.3.3",
-    "com.typesafe" % "config" % "1.3.4",
-    "com.newmotion" %% "akka-rabbitmq" % "5.1.2",
-    "org.slf4j" % "slf4j-api" % "1.7.26",
-    "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
+    "com.chuusai" %%  "shapeless" % "2.3.7",
+    "com.typesafe" % "config" % "1.4.1",
+    "com.newmotion" %% "akka-rabbitmq" % "6.0.0",
+    "org.slf4j" % "slf4j-api" % "1.7.32",
+    "ch.qos.logback" % "logback-classic" % "1.2.5" % "test",
     "org.scalatest" %% "scalatest" % "3.0.8" % "test",
     "com.spingo" %% "scoped-fixtures" % "2.0.0" % "test",
     "com.typesafe.akka" %% "akka-actor" % akkaVersion,
+    "com.typesafe.akka" %% "akka-actor-typed" % akkaVersion,
     "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaVersion % "test"
   ),
@@ -120,7 +121,7 @@ lazy val upickle = (project in file("./addons/upickle")).
     libraryDependencies += "com.lihaoyi" %% "upickle" % (
       CrossVersion.partialVersion(scalaVersion.value) match {
         case Some((2, 11)) => "0.7.4"
-        case _ => "0.8.0"
+        case _ => "1.2.2"
       }
     )).
   dependsOn(core)
@@ -136,9 +137,14 @@ lazy val `akka-stream` = (project in file("./addons/akka-stream")).
   settings(commonSettings: _*).
   settings(
     name := "op-rabbit-akka-stream",
+    // Temporarily depend on jitpack published version of acked-streams for scala 2.13
+    resolvers += "jitpack" at "https://jitpack.io",
     libraryDependencies ++= Seq(
-      "com.timcharper"    %% "acked-streams" % "2.1.1",
-      "com.typesafe.akka" %% "akka-stream" % akkaVersion),
+      // TODO: remove and switch to com.timcharper when https://github.com/timcharper/acked-stream/pull/10 gets merged and published
+      //  "com.timcharper"    %% "acked-streams" % "2.1.1",
+      "com.github.deal-engine.acked-stream" %% "acked-streams" % "5babfe7f85",
+      "com.typesafe.akka" %% "akka-stream" % akkaVersion
+    ),
     unmanagedResourceDirectories in Test ++= Seq(
       file(".").getAbsoluteFile / "core" / "src" / "test" / "resources"),
     unmanagedSourceDirectories in Test ++= Seq(

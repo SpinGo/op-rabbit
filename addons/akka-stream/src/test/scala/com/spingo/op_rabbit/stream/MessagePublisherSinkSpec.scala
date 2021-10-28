@@ -1,6 +1,9 @@
 package com.spingo.op_rabbit
 package stream
 
+import scala.concurrent.{ExecutionContext, Future, Promise}
+import scala.util.{Try,Failure}
+
 import akka.actor._
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Keep, Sink}
@@ -11,8 +14,6 @@ import com.spingo.op_rabbit.helpers.RabbitTestHelpers
 import com.timcharper.acked.AckedSource
 import com.spingo.scoped_fixtures.ScopedFixtures
 import org.scalatest.{FunSpec, Matchers}
-import scala.concurrent.{ExecutionContext, Future, Promise}
-import scala.util.{Try,Failure}
 
 class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers with RabbitTestHelpers {
   implicit val executionContext = ExecutionContext.global
@@ -62,9 +63,9 @@ class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers
 
         val published = AckedSource(data).
           map(Message.queue(_, queueName)).
-          runWith(MessagePublisherSink(rabbitControl))
+          to(MessagePublisherSink.acked("test-sink", rabbitControl, actorSystem))
 
-        await(published)
+        published.run()
         await(Future.sequence(data.map(_._1.future))) // this asserts that all of the promises were fulfilled
         await(consumed) should be (range)
       }
@@ -73,20 +74,18 @@ class MessagePublisherSinkSpec extends FunSpec with ScopedFixtures with Matchers
     it("propagates publish exceptions to promise") {
       new RabbitFixtures {
         val factory = Message.factory(Publisher.queue(Queue.passive("no-existe")))
-        val sink = MessagePublisherSink(rabbitControl)
+        val sink = MessagePublisherSink.acked("test-sink", rabbitControl, actorSystem)
 
         val data = range map { i => (Promise[Unit], i) }
 
         val published = AckedSource(data).
           map(Message(_, Publisher.queue(Queue.passive("no-existe")))).
-          runWith(sink)
+          to(sink)
 
-        await(published)
+        published.run()
         val Failure(ex) = Try(await(data.head._1.future))
         ex.getMessage should include ("no queue 'no-existe'")
       }
     }
   }
-
-
 }
